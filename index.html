@@ -103,7 +103,6 @@
       gap:16px;margin-bottom:24px;
       box-shadow:0 2px 12px rgba(0,0,0,0.05);
     }
-    .week-status{display:flex;align-items:center;gap:10px}
     .status-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
     .status-label{font-size:0.82rem;font-weight:500;color:var(--mid);text-transform:uppercase;letter-spacing:0.05em}
     .status-text{font-size:0.88rem;color:var(--dark)}
@@ -153,7 +152,6 @@
       text-transform:uppercase;letter-spacing:0.07em;
       color:var(--mid);
     }
-    .card-title-icon{font-size:1rem;margin-right:6px}
 
     /* ── MEAL POOL ── */
     .meal-list{display:flex;flex-direction:column;gap:10px}
@@ -281,6 +279,21 @@
     }
     .btn-ghost:hover{background:var(--light)}
 
+    /* ── EATING OUT SELECTOR ── */
+    .day-selector{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+    .day-btn{
+      padding:7px 14px;border-radius:999px;
+      border:1.5px solid var(--border);
+      background:white;font-family:'DM Sans',sans-serif;
+      font-size:0.82rem;cursor:pointer;transition:all 0.15s;
+    }
+    .day-btn.selected{background:var(--clay);border-color:var(--clay);color:white}
+    .day-count{
+      font-family:'Playfair Display',serif;
+      font-size:1.6rem;color:var(--clay);
+      display:inline;margin-right:6px;
+    }
+
     .fade-in{animation:fadeIn 0.4s ease both}
     @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
   </style>
@@ -290,7 +303,6 @@
 <div id="loading"><div class="spin"></div></div>
 
 <div id="app">
-  <!-- NAV -->
   <nav>
     <div class="nav-brand">🍽️ Pl<span>o</span>nk</div>
     <div class="nav-right">
@@ -302,51 +314,42 @@
       <button class="sign-out" onclick="signOut()">Sign out</button>
     </div>
   </nav>
-
   <main id="dashboard-content"></main>
 </div>
 
-<!-- Supabase -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const SUPABASE_URL  = 'https://znwoiqygmsgabyoslrbt.supabase.co';
-const SUPABASE_KEY  = 'sb_publishable_SGLBIKifgg4nGL0pPtQssQ_Ng3dMgDK'; // ← same key as index.html
+const SUPABASE_URL = 'https://znwoiqygmsgabyoslrbt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_SGLBIKifgg4nGL0pPtQssQ_Ng3dMgDK';
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ── Role colours ──────────────────────────────────────────
 const roleColor = { admin:'#C8674A', planner:'#4A7C59', reviewer:'#2E5F8A' };
 const roleLabel = { admin:'Admin', planner:'Planner', reviewer:'Reviewer' };
 
-// ── Auth check ────────────────────────────────────────────
-let currentUser = null;
-let userProfile = null;
+let currentUser   = null;
+let userProfile   = null;
+let currentPlan   = null;   // this week's weekly_plans row
+let currentMeals  = [];     // this week's meal rows joined with recipe data
 
+// ── INIT ─────────────────────────────────────────────────
 async function init() {
   const { data:{ session } } = await sb.auth.getSession();
   if (!session) { window.location.href = 'index.html'; return; }
   currentUser = session.user;
 
-  // Load profile from users table
   const { data, error } = await sb.from('users').select('*').eq('id', currentUser.id).single();
-  if (error || !data) {
-    // Fallback: derive from email
-    userProfile = {
-      id: currentUser.id,
-      email: currentUser.email,
-      name: currentUser.email.split('@')[0],
-      role: 'reviewer'
-    };
-  } else {
-    userProfile = data;
-  }
+  userProfile = (error || !data) ? {
+    id: currentUser.id, email: currentUser.email,
+    name: currentUser.email.split('@')[0], role: 'reviewer'
+  } : data;
 
   renderNav();
+  await loadWeekData();
   await renderDashboard();
 
   document.getElementById('loading').style.display = 'none';
-  const app = document.getElementById('app');
-  app.classList.add('ready');
+  document.getElementById('app').classList.add('ready');
 }
 
 function renderNav() {
@@ -360,49 +363,75 @@ function renderNav() {
   roleEl.style.background = col;
 }
 
-// ── Sign out ──────────────────────────────────────────────
 async function signOut() {
   await sb.auth.signOut();
   window.location.href = 'index.html';
 }
 
-// ── Load recipes ──────────────────────────────────────────
+// ── WEEK HELPERS ─────────────────────────────────────────
+function getWeekStart() {
+  const now = new Date();
+  const day = now.getDay();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((day + 6) % 7));
+  return monday.toISOString().split('T')[0];
+}
+
+function weekLabel() {
+  const d = new Date(getWeekStart() + 'T12:00:00');
+  return d.toLocaleDateString('en-AU', { month:'long', day:'numeric', year:'numeric' });
+}
+
+// ── LOAD THIS WEEK'S PLAN ────────────────────────────────
+async function loadWeekData() {
+  const weekStart = getWeekStart();
+
+  const { data: planData } = await sb
+    .from('weekly_plans')
+    .select('*')
+    .eq('week_start', weekStart)
+    .maybeSingle();
+
+  currentPlan  = planData || null;
+  currentMeals = [];
+
+  if (currentPlan) {
+    const { data: mealData } = await sb
+      .from('weekly_plan_meals')
+      .select('*, recipes(id, name_en, name_es, prep_time_minutes, cook_time_minutes, advance_prep_required)')
+      .eq('plan_id', currentPlan.id);
+    currentMeals = mealData || [];
+  }
+}
+
+// ── LOAD ALL RECIPES ─────────────────────────────────────
 async function loadRecipes() {
-  const { data } = await sb.from('recipes').select('*').order('name');
+  const { data } = await sb.from('recipes').select('*').order('name_en');
   return data || [];
 }
 
-// ── Load requests ─────────────────────────────────────────
-async function loadRequests() {
-  const { data } = await sb.from('requests').select('*').eq('status','pending').order('created_at',{ascending:false});
-  return data || [];
-}
-
-// ── RENDER DASHBOARD by role ──────────────────────────────
+// ── RENDER DASHBOARD ─────────────────────────────────────
 async function renderDashboard() {
   const recipes = await loadRecipes();
-  const role = userProfile.role;
-  const name = userProfile.name;
   const content = document.getElementById('dashboard-content');
 
-  if (role === 'admin') {
-    content.innerHTML = renderCameron(recipes, name);
-  } else if (role === 'planner') {
-    content.innerHTML = renderSienna(recipes, name);
-  } else {
-    content.innerHTML = renderKaren(recipes, name);
-  }
-
-  bindInventoryToggles();
-  bindRequestButtons();
+  if      (userProfile.role === 'admin')   content.innerHTML = renderCameron(recipes, userProfile.name);
+  else if (userProfile.role === 'planner') content.innerHTML = renderSienna(recipes, userProfile.name);
+  else                                     content.innerHTML = renderKaren(recipes, userProfile.name);
 }
 
 // ═══════════════════════════════════════════════════════════
-// CAMERON — ADMIN VIEW
+// CAMERON — ADMIN
 // ═══════════════════════════════════════════════════════════
 function renderCameron(recipes, name) {
-  const pool = recipes.slice(0, 5); // placeholder — will be real weekly plan
-  const requests = []; // placeholder
+  const hasPlan        = currentPlan !== null;
+  const mealCount      = currentMeals.length;
+  const eatingOutDays  = currentPlan?.eating_out_days || [];
+  const eatingOutCount = eatingOutDays.length;
+  const statusColor    = hasPlan ? '#4A7C59' : '#C8674A';
+  const statusText     = hasPlan
+    ? `This week: <strong>${mealCount} home meal${mealCount!==1?'s':''}</strong>, ${eatingOutCount} day${eatingOutCount!==1?'s':''} eating out`
+    : "Set eating-out days to generate this week's meal suggestions";
 
   return `
   <div class="fade-in">
@@ -415,11 +444,13 @@ function renderCameron(recipes, name) {
       <div>
         <div class="status-label">Week status</div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
-          <div class="status-dot" style="background:#C8674A"></div>
-          <div class="status-text">Waiting for Sienna to submit this week's plan</div>
+          <div class="status-dot" style="background:${statusColor}"></div>
+          <div class="status-text">${statusText}</div>
         </div>
       </div>
-      <button class="btn-primary" onclick="alert('Set eating-out days — coming next build')">Set eating-out days</button>
+      <button class="btn-primary" onclick="openEatingOutModal()">
+        ${hasPlan ? 'Edit eating-out days' : 'Set eating-out days'}
+      </button>
     </div>
 
     <div class="grid-3">
@@ -432,7 +463,7 @@ function renderCameron(recipes, name) {
         <div class="stat-label">Pending requests</div>
       </div>
       <div class="card stat-tile">
-        <div class="stat-num">—</div>
+        <div class="stat-num">${hasPlan ? mealCount : '—'}</div>
         <div class="stat-label">Meals this week</div>
       </div>
     </div>
@@ -449,11 +480,13 @@ function renderCameron(recipes, name) {
     <div class="card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">Suggested meals</div>
-        <span class="tag tag-amber">Plan not submitted yet</span>
+        ${hasPlan
+          ? `<span class="tag tag-green">${mealCount} meals · ${eatingOutCount} day${eatingOutCount!==1?'s':''} out</span>`
+          : `<span class="tag tag-amber">Set eating-out days first</span>`}
       </div>
-      <div class="meal-list">
-        ${pool.map(r => mealRowAdmin(r)).join('')}
-      </div>
+      ${hasPlan && currentMeals.length > 0
+        ? `<div class="meal-list">${currentMeals.map(m => mealRowAdmin(m.recipes)).join('')}</div>`
+        : `<div class="empty"><span class="empty-icon">🍽️</span>No meals suggested yet — set eating-out days above</div>`}
     </div>
 
     <div class="section-label">Inventory check</div>
@@ -483,23 +516,26 @@ function renderCameron(recipes, name) {
 }
 
 function mealRowAdmin(r) {
+  if (!r) return '';
   return `
   <div class="meal-item">
     <div>
-      <div class="meal-name">${r.name || r.id}</div>
-      <div class="meal-meta">${r.prep_time || '—'} min · <span class="stars">★★★★</span></div>
+      <div class="meal-name">${r.name_en}</div>
+      <div class="meal-meta">${r.prep_time_minutes||'—'} min prep · ${r.cook_time_minutes||'—'} min cook</div>
     </div>
     <div class="meal-actions">
-      <button class="btn-secondary" style="font-size:0.78rem;padding:5px 10px" onclick="alert('Hibernate — coming next build')">Hibernate</button>
+      <button class="btn-secondary" style="font-size:0.78rem;padding:5px 10px"
+        onclick="alert('Hibernate — coming next build')">Hibernate</button>
     </div>
   </div>`;
 }
 
 // ═══════════════════════════════════════════════════════════
-// SIENNA — PLANNER VIEW
+// SIENNA — PLANNER
 // ═══════════════════════════════════════════════════════════
 function renderSienna(recipes, name) {
-  const pool = recipes.slice(0, 5); // placeholder
+  const hasPlan   = currentPlan !== null;
+  const mealCount = currentMeals.length;
 
   return `
   <div class="fade-in">
@@ -513,7 +549,9 @@ function renderSienna(recipes, name) {
         <div class="status-label">Your task this week</div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
           <div class="status-dot" style="background:#4A7C59"></div>
-          <div class="status-text">Review suggested meals, then submit to Cameron for approval</div>
+          <div class="status-text">${hasPlan
+            ? `Review your ${mealCount} suggested meal${mealCount!==1?'s':''}, then submit to Cameron`
+            : 'Waiting for Cameron to set eating-out days'}</div>
         </div>
       </div>
       <button class="btn-primary" onclick="alert('Submit plan — coming next build')">Submit plan</button>
@@ -523,13 +561,14 @@ function renderSienna(recipes, name) {
       <div class="card">
         <div class="card-header">
           <div class="card-title">🍽️ This week's meals</div>
-          <span class="tag tag-amber">Suggested</span>
+          <span class="tag tag-amber">${hasPlan ? `${mealCount} meals` : 'Not set yet'}</span>
         </div>
-        <div class="meal-list">
-          ${pool.map(r => mealRowSienna(r)).join('')}
-        </div>
+        ${hasPlan && currentMeals.length > 0
+          ? `<div class="meal-list">${currentMeals.map(m => mealRowSienna(m.recipes)).join('')}</div>`
+          : `<div class="empty"><span class="empty-icon">🍽️</span>Cameron hasn't set this week's meals yet</div>`}
         <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
-          <button class="btn-secondary" style="width:100%;font-size:0.82rem" onclick="alert('Reshuffle — 1 allowed per week. Coming next build')">🔀 Reshuffle (1 remaining)</button>
+          <button class="btn-secondary" style="width:100%;font-size:0.82rem"
+            onclick="alert('Reshuffle — 1 allowed per week. Coming next build')">🔀 Reshuffle (1 remaining)</button>
         </div>
       </div>
 
@@ -539,41 +578,38 @@ function renderSienna(recipes, name) {
           <div class="inv-row">
             <div class="inv-name">Chicken thighs</div>
             <div class="inv-toggle">
-              <button class="have-btn active" onclick="toggleInv(this,'have')">Have</button>
-              <button class="need-btn" onclick="toggleInv(this,'need')">Need</button>
+              <button class="have-btn active" onclick="toggleInv(this)">Have</button>
+              <button class="need-btn" onclick="toggleInv(this)">Need</button>
             </div>
           </div>
           <div class="inv-row">
             <div class="inv-name">Puff pastry</div>
             <div class="inv-toggle">
-              <button class="have-btn" onclick="toggleInv(this,'have')">Have</button>
-              <button class="need-btn active" onclick="toggleInv(this,'need')">Need</button>
+              <button class="have-btn" onclick="toggleInv(this)">Have</button>
+              <button class="need-btn active" onclick="toggleInv(this)">Need</button>
             </div>
           </div>
           <div class="inv-row">
             <div class="inv-name">Arrachera steak</div>
             <div class="inv-toggle">
-              <button class="have-btn" onclick="toggleInv(this,'have')">Have</button>
-              <button class="need-btn" onclick="toggleInv(this,'need')">Need</button>
-            </div>
-          </div>
-          <div class="inv-row">
-            <div class="inv-name">Pasta tortiglioni</div>
-            <div class="inv-toggle">
-              <button class="have-btn" onclick="toggleInv(this,'have')">Have</button>
-              <button class="need-btn" onclick="toggleInv(this,'need')">Need</button>
+              <button class="have-btn" onclick="toggleInv(this)">Have</button>
+              <button class="need-btn" onclick="toggleInv(this)">Need</button>
             </div>
           </div>
           <div style="margin-top:14px">
-            <button class="btn-primary" style="width:100%;font-size:0.82rem" onclick="alert('Submit inventory — coming next build')">Submit inventory check</button>
+            <button class="btn-primary" style="width:100%;font-size:0.82rem"
+              onclick="alert('Submit inventory — coming next build')">Submit inventory check</button>
           </div>
         </div>
 
         <div class="card">
           <div class="card-title" style="margin-bottom:14px">💬 Make a request</div>
-          <button class="btn-secondary" style="width:100%;margin-bottom:8px;font-size:0.82rem" onclick="openModal('swap')">Request a meal swap</button>
-          <button class="btn-secondary" style="width:100%;margin-bottom:8px;font-size:0.82rem" onclick="openModal('hibernate')">Request hibernation</button>
-          <button class="btn-secondary" style="width:100%;font-size:0.82rem" onclick="openModal('new')">Suggest a new meal</button>
+          <button class="btn-secondary" style="width:100%;margin-bottom:8px;font-size:0.82rem"
+            onclick="openModal('swap')">Request a meal swap</button>
+          <button class="btn-secondary" style="width:100%;margin-bottom:8px;font-size:0.82rem"
+            onclick="openModal('hibernate')">Request hibernation</button>
+          <button class="btn-secondary" style="width:100%;font-size:0.82rem"
+            onclick="openModal('new')">Suggest a new meal</button>
         </div>
       </div>
     </div>
@@ -590,21 +626,24 @@ function renderSienna(recipes, name) {
 }
 
 function mealRowSienna(r) {
+  if (!r) return '';
   return `
   <div class="meal-item">
     <div>
-      <div class="meal-name">${r.name || r.id}</div>
-      <div class="meal-meta">${r.prep_time || '—'} min prep</div>
+      <div class="meal-name">${r.name_en}</div>
+      <div class="meal-meta">${r.prep_time_minutes||'—'} min prep</div>
     </div>
-    <button class="btn-secondary" style="font-size:0.75rem;padding:4px 10px" onclick="alert('Mark as cooked — coming next build')">✓ Cooked</button>
+    <button class="btn-secondary" style="font-size:0.75rem;padding:4px 10px"
+      onclick="alert('Mark as cooked — coming next build')">✓ Cooked</button>
   </div>`;
 }
 
 // ═══════════════════════════════════════════════════════════
-// KAREN — REVIEWER VIEW
+// KAREN — REVIEWER
 // ═══════════════════════════════════════════════════════════
 function renderKaren(recipes, name) {
-  const pool = recipes.slice(0, 5); // placeholder
+  const hasPlan   = currentPlan !== null;
+  const mealCount = currentMeals.length;
 
   return `
   <div class="fade-in">
@@ -618,7 +657,9 @@ function renderKaren(recipes, name) {
         <div class="status-label">Week status</div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
           <div class="status-dot" style="background:#2E5F8A"></div>
-          <div class="status-text">Sienna hasn't submitted this week's plan yet</div>
+          <div class="status-text">${hasPlan
+            ? `${mealCount} meal${mealCount!==1?'s':''} suggested this week`
+            : "Cameron hasn't set this week's meals yet"}</div>
         </div>
       </div>
     </div>
@@ -627,20 +668,23 @@ function renderKaren(recipes, name) {
       <div class="card">
         <div class="card-header">
           <div class="card-title">🍽️ This week's meals</div>
-          <span class="tag tag-blue">Pending approval</span>
+          <span class="tag tag-blue">${hasPlan ? `${mealCount} meals` : 'Pending'}</span>
         </div>
-        <div class="meal-list">
-          ${pool.map(r => mealRowKaren(r)).join('')}
-        </div>
+        ${hasPlan && currentMeals.length > 0
+          ? `<div class="meal-list">${currentMeals.map(m => mealRowKaren(m.recipes)).join('')}</div>`
+          : `<div class="empty"><span class="empty-icon">🍽️</span>No meals set for this week yet</div>`}
       </div>
 
       <div class="card">
         <div class="card-title" style="margin-bottom:14px">💬 Request a swap</div>
-        <p style="font-size:0.84rem;color:var(--mid);margin-bottom:14px">Not happy with a meal? Send Cameron a swap request with a reason.</p>
-        <button class="btn-secondary" style="width:100%;font-size:0.82rem" onclick="openModal('swap')">Request meal swap</button>
+        <p style="font-size:0.84rem;color:var(--mid);margin-bottom:14px">
+          Not happy with a meal? Send Cameron a swap request with a reason.</p>
+        <button class="btn-secondary" style="width:100%;font-size:0.82rem"
+          onclick="openModal('swap')">Request meal swap</button>
         <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
           <div class="card-title" style="margin-bottom:12px">Suggest a new meal</div>
-          <button class="btn-secondary" style="width:100%;font-size:0.82rem" onclick="openModal('new')">Suggest a meal</button>
+          <button class="btn-secondary" style="width:100%;font-size:0.82rem"
+            onclick="openModal('new')">Suggest a meal</button>
         </div>
       </div>
     </div>
@@ -657,23 +701,25 @@ function renderKaren(recipes, name) {
 }
 
 function mealRowKaren(r) {
+  if (!r) return '';
   return `
   <div class="meal-item">
     <div>
-      <div class="meal-name">${r.name || r.id}</div>
-      <div class="meal-meta"><span class="stars">★★★★</span></div>
+      <div class="meal-name">${r.name_en}</div>
+      <div class="meal-meta">${r.prep_time_minutes||'—'} min prep</div>
     </div>
-    <button class="btn-secondary" style="font-size:0.75rem;padding:4px 10px" onclick="alert('Mark as cooked — coming next build')">✓ Cooked</button>
+    <button class="btn-secondary" style="font-size:0.75rem;padding:4px 10px"
+      onclick="alert('Mark as cooked — coming next build')">✓ Cooked</button>
   </div>`;
 }
 
-// ── Shopping preview ──────────────────────────────────────
+// ── Shopping preview (placeholder) ───────────────────────
 function shoppingPreview() {
   const items = [
-    { en:'Chicken thighs', es:'Muslo de Pollo Selecto', cat:'Meats & Eggs', status:'need' },
-    { en:'Puff pastry', es:'Puff Pastry 1 kg', cat:'Grains & Bakery', status:'need' },
-    { en:'Mushrooms', es:'Champiñon Entero Monte Blanco', cat:'Produce', status:'have' },
-    { en:'Pasta tortiglioni', es:'Pasta Tortiglioni Barilla', cat:'Grains & Bakery', status:'need' },
+    { en:'Chicken thighs',    es:'Muslo de Pollo Selecto',        cat:'Meats & Eggs',    status:'need' },
+    { en:'Puff pastry',       es:'Puff Pastry 1 kg',              cat:'Grains & Bakery', status:'need' },
+    { en:'Mushrooms',         es:'Champiñon Entero Monte Blanco', cat:'Produce',          status:'have' },
+    { en:'Pasta tortiglioni', es:'Pasta Tortiglioni Barilla',     cat:'Grains & Bakery', status:'need' },
   ];
   return `<div style="margin-top:4px">
     ${items.map(i => `
@@ -687,16 +733,120 @@ function shoppingPreview() {
   </div>`;
 }
 
-// ── Modal ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+// EATING-OUT MODAL + MEAL SUGGESTION ENGINE
+// ═══════════════════════════════════════════════════════════
+const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+let selectedEatingOutDays = [];
+
+function openEatingOutModal() {
+  selectedEatingOutDays = currentPlan?.eating_out_days ? [...currentPlan.eating_out_days] : [];
+
+  const el = document.createElement('div');
+  el.id = 'modal-overlay';
+  el.className = 'modal-overlay';
+  el.innerHTML = `
+    <div class="modal" style="max-width:480px">
+      <h3>Set eating-out days</h3>
+      <p>Tap the days you're eating out this week. The app will suggest the right number of home meals.</p>
+      <div class="day-selector" id="day-selector">
+        ${DAYS.map(d => `
+          <button class="day-btn ${selectedEatingOutDays.includes(d)?'selected':''}"
+            onclick="toggleDay('${d}',this)">${d}</button>
+        `).join('')}
+      </div>
+      <div id="meal-count-preview" style="margin:14px 0;padding:12px 14px;background:var(--cream);border-radius:10px;font-size:0.88rem;color:var(--mid)">
+        ${mealCountPreview(selectedEatingOutDays.length)}
+      </div>
+      <div class="modal-btns">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" id="confirm-eating-out" onclick="confirmEatingOut()">
+          ${currentPlan ? 'Update & re-suggest meals' : 'Suggest meals'}
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+function mealCountPreview(outCount) {
+  const home = Math.max(0, 7 - outCount);
+  return `<span class="day-count">${home}</span> home meal${home!==1?'s':''} needed this week
+    <span style="margin-left:8px;color:var(--mid);font-size:0.78rem">(7 days − ${outCount} eating out)</span>`;
+}
+
+function toggleDay(day, btn) {
+  if (selectedEatingOutDays.includes(day)) {
+    selectedEatingOutDays = selectedEatingOutDays.filter(d => d !== day);
+    btn.classList.remove('selected');
+  } else {
+    selectedEatingOutDays.push(day);
+    btn.classList.add('selected');
+  }
+  document.getElementById('meal-count-preview').innerHTML = mealCountPreview(selectedEatingOutDays.length);
+}
+
+async function confirmEatingOut() {
+  const btn = document.getElementById('confirm-eating-out');
+  btn.textContent = 'Saving...';
+  btn.disabled = true;
+
+  const homeMeals = Math.max(0, 7 - selectedEatingOutDays.length);
+  const weekStart  = getWeekStart();
+  const allRecipes = await loadRecipes();
+
+  // Shuffle all recipes and pick homeMeals
+  const shuffled = [...allRecipes].sort(() => Math.random() - 0.5);
+  const picked   = shuffled.slice(0, homeMeals);
+
+  try {
+    if (currentPlan) {
+      // Update plan row
+      await sb.from('weekly_plans').update({
+        eating_out_days: selectedEatingOutDays,
+        status: 'suggested'
+      }).eq('id', currentPlan.id);
+      // Clear old meal rows
+      await sb.from('weekly_plan_meals').delete().eq('plan_id', currentPlan.id);
+    } else {
+      // Create new plan row
+      const { data: newPlan, error: planError } = await sb
+        .from('weekly_plans').insert({
+          week_start: weekStart,
+          eating_out_days: selectedEatingOutDays,
+          status: 'suggested',
+          reshuffle_used: false
+        }).select().single();
+      if (planError) throw planError;
+      currentPlan = newPlan;
+    }
+
+    // Insert new meal rows
+    if (picked.length > 0) {
+      const { error: mealsError } = await sb.from('weekly_plan_meals').insert(
+        picked.map(r => ({ plan_id: currentPlan.id, recipe_id: r.id, cooked: false }))
+      );
+      if (mealsError) throw mealsError;
+    }
+
+    closeModal();
+    await loadWeekData();
+    await renderDashboard();
+
+  } catch(err) {
+    alert('Something went wrong. Please try again.\n' + err.message);
+    btn.textContent = currentPlan ? 'Update & re-suggest meals' : 'Suggest meals';
+    btn.disabled = false;
+  }
+}
+
+// ── General request modal ─────────────────────────────────
 const modalTitles = {
-  swap: { h:'Request a meal swap', p:'Tell Cameron which meal and why you want it changed.' },
-  hibernate: { h:'Request hibernation', p:'Tell Cameron which meal should be rested and for how long.' },
-  new: { h:'Suggest a new meal', p:'What meal would you like to add? Briefly explain why.' },
+  swap:      { h:'Request a meal swap',  p:'Tell Cameron which meal and why you want it changed.' },
+  hibernate: { h:'Request hibernation',  p:'Tell Cameron which meal should be rested and for how long.' },
+  new:       { h:'Suggest a new meal',   p:'What meal would you like to add? Briefly explain why.' },
 };
-let activeModal = null;
 
 function openModal(type) {
-  activeModal = type;
   const t = modalTitles[type];
   const el = document.createElement('div');
   el.id = 'modal-overlay';
@@ -722,43 +872,21 @@ function closeModal() {
 async function submitRequest(type) {
   const text = document.getElementById('modal-text').value.trim();
   if (!text) { alert('Please add a reason before sending.'); return; }
-
   const { error } = await sb.from('requests').insert({
-    type,
-    reason: text,
+    type, reason: text,
     requested_by: userProfile.id,
     status: 'pending',
     created_at: new Date().toISOString()
   });
-
-  if (error) {
-    alert('Error sending request. Please try again.\n' + error.message);
-  } else {
-    closeModal();
-    alert('Request sent to Cameron ✓');
-  }
+  if (error) alert('Error sending request.\n' + error.message);
+  else { closeModal(); alert('Request sent to Cameron ✓'); }
 }
 
 // ── Inventory toggles ─────────────────────────────────────
-function bindInventoryToggles(){}
-function bindRequestButtons(){}
-
-function toggleInv(btn, state) {
+function toggleInv(btn) {
   const row = btn.closest('.inv-toggle');
-  row.querySelectorAll('button').forEach(b => {
-    b.classList.remove('active');
-  });
+  row.querySelectorAll('button').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-}
-
-// ── Helpers ───────────────────────────────────────────────
-function weekLabel() {
-  const now = new Date();
-  const opts = { month:'long', day:'numeric', year:'numeric' };
-  const day = now.getDay();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - ((day + 6) % 7));
-  return monday.toLocaleDateString('en-AU', opts);
 }
 
 // ── GO ────────────────────────────────────────────────────
