@@ -835,7 +835,13 @@
 
     // Get role from users table
     const { data: userData } = await sb.from('users').select('role, name').eq('id', user.id).single();
-    currentRole = userData?.role || 'reviewer';
+    // Fallback: look up by UUID if DB role is missing
+    const knownRoles = {
+      '4581c8f1-042d-43a6-ba2d-6ec586dea301': 'admin',
+      'ca779de4-2052-4bb4-89c6-59b67a5ad788': 'planner',
+      '60688390-f010-4e19-b7e9-bfbe2c35b04c': 'reviewer',
+    };
+    currentRole = (userData?.role || knownRoles[user.id] || 'reviewer').toLowerCase();
     const name = userData?.name || user.email;
 
     document.getElementById('user-badge').textContent = `${name} · ${currentRole}`;
@@ -846,12 +852,35 @@
   }
 
   async function loadData() {
-    // Load recipes
-    const { data: recipeData } = await sb.from('recipes').select('id, name_en, name_es, frequency_tier').order('name_en');
-    recipes = recipeData || [];
+    const list = document.getElementById('recipe-list');
+
+    // Try name_en first, fall back to name column
+    let { data: recipeData, error: recipeError } = await sb.from('recipes').select('id, name_en, name_es, frequency_tier').order('name_en');
+
+    if (recipeError || !recipeData || recipeData.length === 0) {
+      // Try plain 'name' column instead
+      const { data: recipeData2, error: recipeError2 } = await sb.from('recipes').select('id, name, frequency_tier').order('name');
+      if (recipeError2) {
+        list.innerHTML = `<div class="loading-text" style="color:#c0392b">Error loading recipes: ${recipeError2.message}<br><br>Check browser console for details.</div>`;
+        console.error('Recipe load error:', recipeError2);
+        return;
+      }
+      // Normalise — map 'name' to 'name_en' so the rest of the code works
+      recipes = (recipeData2 || []).map(r => ({ ...r, name_en: r.name, name_es: '' }));
+    } else {
+      recipes = recipeData;
+    }
+
+    if (recipes.length === 0) {
+      list.innerHTML = `<div class="loading-text" style="color:#c0392b">No recipes found in database. Make sure the recipes table has data.</div>`;
+      return;
+    }
 
     // Load all idea ratings
-    const { data: ratingData } = await sb.from('ratings').select('*').eq('rating_type', 'idea');
+    const { data: ratingData, error: ratingError } = await sb.from('ratings').select('*').eq('rating_type', 'idea');
+    if (ratingError) {
+      console.error('Ratings load error:', ratingError);
+    }
     allRatings = ratingData || [];
 
     // My ratings
@@ -892,14 +921,14 @@
     document.getElementById('progress-fill').style.width = pct + '%';
     document.getElementById('progress-label').textContent = `${done} of ${total} ratings given`;
 
-    // Check if all done
-    const allDone = ALL_USERS.every(u => {
-      const count = new Set(allRatings.filter(r => r.user_id === u.id).map(r => r.recipe_id)).size;
-      return count >= recipes.length;
-    });
-
-    if (allDone) {
-      document.getElementById('done-banner').classList.add('show');
+    // Check if all done — only when recipes loaded
+    if (recipes.length > 0) {
+      const allDone = ALL_USERS.every(u => {
+        const count = new Set(allRatings.filter(r => r.user_id === u.id).map(r => r.recipe_id)).size;
+        return count >= recipes.length;
+      });
+      if (allDone) document.getElementById("done-banner").classList.add("show");
+      else document.getElementById("done-banner").classList.remove("show");
     }
   }
 
