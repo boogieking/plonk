@@ -310,7 +310,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const SUPABASE_URL  = 'https://znwoiqygmsgabyoslrbt.supabase.co';
-const SUPABASE_KEY  = 'sb_publishable_SGLBIKifgg4nGL0pPtQssQ_Ng3dMgDK'; // ← same key as index.html
+const SUPABASE_KEY  = 'sb_publishable_SGLBIKifgg4nGL0pPtQssQ_Ng3dMgDK';
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -368,7 +368,7 @@ async function signOut() {
 
 // ── Load recipes ──────────────────────────────────────────
 async function loadRecipes() {
-  const { data } = await sb.from('recipes').select('*').order('name');
+  const { data } = await sb.from('recipes').select('*').order('name_en');
   return data || [];
 }
 
@@ -486,8 +486,8 @@ function mealRowAdmin(r) {
   return `
   <div class="meal-item">
     <div>
-      <div class="meal-name">${r.name || r.id}</div>
-      <div class="meal-meta">${r.prep_time || '—'} min · <span class="stars">★★★★</span></div>
+      <div class="meal-name">${r.name_en || r.id}</div>
+      <div class="meal-meta">${r.prep_time_minutes || '—'} min · <span class="stars">★★★★</span></div>
     </div>
     <div class="meal-actions">
       <button class="btn-secondary" style="font-size:0.78rem;padding:5px 10px" onclick="alert('Hibernate — coming next build')">Hibernate</button>
@@ -593,8 +593,8 @@ function mealRowSienna(r) {
   return `
   <div class="meal-item">
     <div>
-      <div class="meal-name">${r.name || r.id}</div>
-      <div class="meal-meta">${r.prep_time || '—'} min prep</div>
+      <div class="meal-name">${r.name_en || r.id}</div>
+      <div class="meal-meta">${r.prep_time_minutes || '—'} min prep</div>
     </div>
     <button class="btn-secondary" style="font-size:0.75rem;padding:4px 10px" onclick="alert('Mark as cooked — coming next build')">✓ Cooked</button>
   </div>`;
@@ -660,7 +660,7 @@ function mealRowKaren(r) {
   return `
   <div class="meal-item">
     <div>
-      <div class="meal-name">${r.name || r.id}</div>
+      <div class="meal-name">${r.name_en || r.id}</div>
       <div class="meal-meta"><span class="stars">★★★★</span></div>
     </div>
     <button class="btn-secondary" style="font-size:0.75rem;padding:4px 10px" onclick="alert('Mark as cooked — coming next build')">✓ Cooked</button>
