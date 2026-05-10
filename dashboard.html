@@ -329,8 +329,8 @@ const roleLabel = { admin:'Admin', planner:'Planner', reviewer:'Reviewer' };
 
 let currentUser   = null;
 let userProfile   = null;
-let currentPlan   = null;   // this week's weekly_plans row
-let currentMeals  = [];     // this week's meal rows joined with recipe data
+let currentPlan   = null;
+let currentMeals  = [];
 
 // ── INIT ─────────────────────────────────────────────────
 async function init() {
@@ -369,27 +369,28 @@ async function signOut() {
 }
 
 // ── WEEK HELPERS ─────────────────────────────────────────
-function getWeekStart() {
-  const now = new Date();
-  const day = now.getDay();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - ((day + 6) % 7));
-  return monday.toISOString().split('T')[0];
-}
-
-function weekLabel() {
-  const d = new Date(getWeekStart() + 'T12:00:00');
+function planDateLabel(plan) {
+  if (!plan) return '';
+  const d = new Date(plan.week_start + 'T12:00:00');
   return d.toLocaleDateString('en-AU', { month:'long', day:'numeric', year:'numeric' });
 }
 
-// ── LOAD THIS WEEK'S PLAN ────────────────────────────────
-async function loadWeekData() {
-  const weekStart = getWeekStart();
+function getTodayDate() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
+// ── LOAD CURRENT PLAN ────────────────────────────────────
+// Always loads the most recent plan regardless of date
+async function loadWeekData() {
   const { data: planData } = await sb
     .from('weekly_plans')
     .select('*')
-    .eq('week_start', weekStart)
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   currentPlan  = planData || null;
@@ -430,26 +431,26 @@ function renderCameron(recipes, name) {
   const eatingOutCount = eatingOutDays.length;
   const statusColor    = hasPlan ? '#4A7C59' : '#C8674A';
   const statusText     = hasPlan
-    ? `This week: <strong>${mealCount} home meal${mealCount!==1?'s':''}</strong>, ${eatingOutCount} day${eatingOutCount!==1?'s':''} eating out`
+    ? `Current plan: <strong>${mealCount} home meal${mealCount!==1?'s':''}</strong>, ${eatingOutCount} day${eatingOutCount!==1?'s':''} eating out`
     : "Set eating-out days to generate this week's meal suggestions";
 
   return `
   <div class="fade-in">
     <div class="page-header">
       <h1>Good day, ${name} 👋</h1>
-      <p>Week of ${weekLabel()} · You have full control</p>
+      <p>${hasPlan ? 'Plan started ' + planDateLabel(currentPlan) : 'No active plan yet'} · You have full control</p>
     </div>
 
     <div class="week-banner">
       <div>
-        <div class="status-label">Week status</div>
+        <div class="status-label">Plan status</div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
           <div class="status-dot" style="background:${statusColor}"></div>
           <div class="status-text">${statusText}</div>
         </div>
       </div>
       <button class="btn-primary" onclick="openEatingOutModal()">
-        ${hasPlan ? 'Edit eating-out days' : 'Set eating-out days'}
+        ${hasPlan ? 'Start new plan' : 'Set eating-out days'}
       </button>
     </div>
 
@@ -464,7 +465,7 @@ function renderCameron(recipes, name) {
       </div>
       <div class="card stat-tile">
         <div class="stat-num">${hasPlan ? mealCount : '—'}</div>
-        <div class="stat-label">Meals this week</div>
+        <div class="stat-label">Meals this plan</div>
       </div>
     </div>
 
@@ -476,13 +477,13 @@ function renderCameron(recipes, name) {
       </div>
     </div>
 
-    <div class="section-label">This week's meal pool</div>
+    <div class="section-label">This plan's meal pool</div>
     <div class="card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">Suggested meals</div>
         ${hasPlan
           ? `<span class="tag tag-green">${mealCount} meals · ${eatingOutCount} day${eatingOutCount!==1?'s':''} out</span>`
-          : `<span class="tag tag-amber">Set eating-out days first</span>`}
+          : `<span class="tag tag-amber">No active plan</span>`}
       </div>
       ${hasPlan && currentMeals.length > 0
         ? `<div class="meal-list">${currentMeals.map(m => mealRowAdmin(m.recipes)).join('')}</div>`
@@ -497,7 +498,7 @@ function renderCameron(recipes, name) {
       </div>
       <div class="empty" style="padding:20px 0">
         <span class="empty-icon">🛒</span>
-        Once the week is approved, inventory check unlocks here
+        Once the plan is approved, inventory check unlocks here
       </div>
     </div>
 
@@ -541,17 +542,17 @@ function renderSienna(recipes, name) {
   <div class="fade-in">
     <div class="page-header">
       <h1>Hi ${name} 👋</h1>
-      <p>Week of ${weekLabel()} · Plan this week's meals</p>
+      <p>${hasPlan ? 'Plan started ' + planDateLabel(currentPlan) : 'No active plan yet'} · Plan this week's meals</p>
     </div>
 
     <div class="week-banner">
       <div>
-        <div class="status-label">Your task this week</div>
+        <div class="status-label">Your task</div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
           <div class="status-dot" style="background:#4A7C59"></div>
           <div class="status-text">${hasPlan
             ? `Review your ${mealCount} suggested meal${mealCount!==1?'s':''}, then submit to Cameron`
-            : 'Waiting for Cameron to set eating-out days'}</div>
+            : 'Waiting for Cameron to set up this week\'s plan'}</div>
         </div>
       </div>
       <button class="btn-primary" onclick="alert('Submit plan — coming next build')">Submit plan</button>
@@ -649,16 +650,16 @@ function renderKaren(recipes, name) {
   <div class="fade-in">
     <div class="page-header">
       <h1>Hi ${name} 👋</h1>
-      <p>Week of ${weekLabel()} · Review this week's meals</p>
+      <p>${hasPlan ? 'Plan started ' + planDateLabel(currentPlan) : 'No active plan yet'} · Review this week's meals</p>
     </div>
 
     <div class="week-banner">
       <div>
-        <div class="status-label">Week status</div>
+        <div class="status-label">Plan status</div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
           <div class="status-dot" style="background:#2E5F8A"></div>
           <div class="status-text">${hasPlan
-            ? `${mealCount} meal${mealCount!==1?'s':''} suggested this week`
+            ? `${mealCount} meal${mealCount!==1?'s':''} in this week's plan`
             : "Cameron hasn't set this week's meals yet"}</div>
         </div>
       </div>
@@ -740,29 +741,27 @@ const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sun
 let selectedEatingOutDays = [];
 
 function openEatingOutModal() {
-  selectedEatingOutDays = currentPlan?.eating_out_days ? [...currentPlan.eating_out_days] : [];
+  selectedEatingOutDays = [];
 
   const el = document.createElement('div');
   el.id = 'modal-overlay';
   el.className = 'modal-overlay';
   el.innerHTML = `
     <div class="modal" style="max-width:480px">
-      <h3>Set eating-out days</h3>
-      <p>Tap the days you're eating out this week. The app will suggest the right number of home meals.</p>
+      <h3>Start a new plan</h3>
+      <p>Tap the days you'll be eating out. The app will suggest the right number of home meals.</p>
       <div class="day-selector" id="day-selector">
         ${DAYS.map(d => `
-          <button class="day-btn ${selectedEatingOutDays.includes(d)?'selected':''}"
+          <button class="day-btn"
             onclick="toggleDay('${d}',this)">${d}</button>
         `).join('')}
       </div>
       <div id="meal-count-preview" style="margin:14px 0;padding:12px 14px;background:var(--cream);border-radius:10px;font-size:0.88rem;color:var(--mid)">
-        ${mealCountPreview(selectedEatingOutDays.length)}
+        ${mealCountPreview(0)}
       </div>
       <div class="modal-btns">
         <button class="btn-ghost" onclick="closeModal()">Cancel</button>
-        <button class="btn-primary" id="confirm-eating-out" onclick="confirmEatingOut()">
-          ${currentPlan ? 'Update & re-suggest meals' : 'Suggest meals'}
-        </button>
+        <button class="btn-primary" id="confirm-eating-out" onclick="confirmEatingOut()">Suggest meals</button>
       </div>
     </div>`;
   document.body.appendChild(el);
@@ -770,7 +769,7 @@ function openEatingOutModal() {
 
 function mealCountPreview(outCount) {
   const home = Math.max(0, 7 - outCount);
-  return `<span class="day-count">${home}</span> home meal${home!==1?'s':''} needed this week
+  return `<span class="day-count">${home}</span> home meal${home!==1?'s':''} needed
     <span style="margin-left:8px;color:var(--mid);font-size:0.78rem">(7 days − ${outCount} eating out)</span>`;
 }
 
@@ -790,37 +789,23 @@ async function confirmEatingOut() {
   btn.textContent = 'Saving...';
   btn.disabled = true;
 
-  const homeMeals = Math.max(0, 7 - selectedEatingOutDays.length);
-  const weekStart  = getWeekStart();
+  const homeMeals  = Math.max(0, 7 - selectedEatingOutDays.length);
   const allRecipes = await loadRecipes();
-
-  // Shuffle all recipes and pick homeMeals
-  const shuffled = [...allRecipes].sort(() => Math.random() - 0.5);
-  const picked   = shuffled.slice(0, homeMeals);
+  const shuffled   = [...allRecipes].sort(() => Math.random() - 0.5);
+  const picked     = shuffled.slice(0, homeMeals);
 
   try {
-    if (currentPlan) {
-      // Update plan row
-      await sb.from('weekly_plans').update({
+    // Always create a fresh plan
+    const { data: newPlan, error: planError } = await sb
+      .from('weekly_plans').insert({
+        week_start: getTodayDate(),
         eating_out_days: selectedEatingOutDays,
-        status: 'suggested'
-      }).eq('id', currentPlan.id);
-      // Clear old meal rows
-      await sb.from('weekly_plan_meals').delete().eq('plan_id', currentPlan.id);
-    } else {
-      // Create new plan row
-      const { data: newPlan, error: planError } = await sb
-        .from('weekly_plans').insert({
-          week_start: weekStart,
-          eating_out_days: selectedEatingOutDays,
-          status: 'suggested',
-          reshuffle_used: false
-        }).select().single();
-      if (planError) throw planError;
-      currentPlan = newPlan;
-    }
+        status: 'suggested',
+        reshuffle_used: false
+      }).select().single();
+    if (planError) throw planError;
+    currentPlan = newPlan;
 
-    // Insert new meal rows
     if (picked.length > 0) {
       const { error: mealsError } = await sb.from('weekly_plan_meals').insert(
         picked.map(r => ({ plan_id: currentPlan.id, recipe_id: r.id, cooked: false }))
@@ -834,7 +819,7 @@ async function confirmEatingOut() {
 
   } catch(err) {
     alert('Something went wrong. Please try again.\n' + err.message);
-    btn.textContent = currentPlan ? 'Update & re-suggest meals' : 'Suggest meals';
+    btn.textContent = 'Suggest meals';
     btn.disabled = false;
   }
 }
