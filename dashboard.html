@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Plonk — Dashboard</title>
+  <title>Forknight — Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -304,7 +304,7 @@
 
 <div id="app">
   <nav>
-    <div class="nav-brand">🍽️ Pl<span>o</span>nk</div>
+    <div class="nav-brand">🍴 Fork<span>n</span>ight</div>
     <div class="nav-right">
       <div class="user-chip">
         <div class="avatar" id="nav-avatar">?</div>
@@ -384,7 +384,6 @@ function getTodayDate() {
 }
 
 // ── LOAD CURRENT PLAN ────────────────────────────────────
-// Always loads the most recent plan regardless of date
 async function loadWeekData() {
   const { data: planData } = await sb
     .from('weekly_plans')
@@ -735,7 +734,107 @@ function shoppingPreview() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// EATING-OUT MODAL + MEAL SUGGESTION ENGINE
+// FREQUENCY-TIER MEAL SUGGESTION ENGINE
+// ═══════════════════════════════════════════════════════════
+
+// How many weeks must pass before each tier can reappear
+const TIER_INTERVALS = {
+  weekly_favourite: 2,
+  regular:          4,
+  occasional:       8,
+  rare:             12,
+  hibernated:       Infinity  // never eligible
+};
+
+// Tier priority order used when relaxing intervals
+const TIER_ORDER = ['weekly_favourite', 'regular', 'occasional', 'rare'];
+
+async function selectMealsForWeek(allRecipes, homeMealsNeeded) {
+  // Skip if nothing needed
+  if (homeMealsNeeded <= 0) return [];
+
+  // 1. Load all plan_meal rows to find when each recipe last appeared
+  const { data: allPlanMeals } = await sb
+    .from('weekly_plan_meals')
+    .select('recipe_id, plan_id');
+
+  // 2. Load all plans to get their week_start dates
+  const { data: allPlans } = await sb
+    .from('weekly_plans')
+    .select('id, week_start');
+
+  // Build map: plan_id → Date
+  const planDateMap = {};
+  if (allPlans) {
+    for (const plan of allPlans) {
+      planDateMap[plan.id] = new Date(plan.week_start + 'T12:00:00');
+    }
+  }
+
+  // Build map: recipe_id → most recent Date it appeared in any plan
+  const lastSeenMap = {};
+  if (allPlanMeals) {
+    for (const row of allPlanMeals) {
+      const planDate = planDateMap[row.plan_id];
+      if (!planDate) continue;
+      if (!lastSeenMap[row.recipe_id] || planDate > lastSeenMap[row.recipe_id]) {
+        lastSeenMap[row.recipe_id] = planDate;
+      }
+    }
+  }
+
+  const now = new Date();
+
+  // Returns how many weeks ago a date was
+  function weeksAgo(date) {
+    return (now - date) / (1000 * 60 * 60 * 24 * 7);
+  }
+
+  // Is this recipe eligible given a minimum interval (in weeks)?
+  function isEligible(recipe, intervalOverride) {
+    if (recipe.frequency_tier === 'hibernated') return false;
+    const interval = intervalOverride ?? TIER_INTERVALS[recipe.frequency_tier] ?? 8;
+    if (interval === Infinity) return false;
+    const lastSeen = lastSeenMap[recipe.id];
+    if (!lastSeen) return true; // never appeared = always eligible
+    return weeksAgo(lastSeen) >= interval;
+  }
+
+  // 3. Build eligible pool using normal intervals
+  let eligible = allRecipes.filter(r => isEligible(r));
+
+  // 4. If not enough meals, progressively relax each tier's interval by half
+  //    starting from the most frequent tier downward
+  if (eligible.length < homeMealsNeeded) {
+    for (const tier of TIER_ORDER) {
+      if (eligible.length >= homeMealsNeeded) break;
+      const alreadyIn = new Set(eligible.map(r => r.id));
+      const extras = allRecipes.filter(r =>
+        r.frequency_tier === tier &&
+        !alreadyIn.has(r.id) &&
+        isEligible(r, Math.max(1, Math.floor((TIER_INTERVALS[tier] || 8) / 2)))
+      );
+      eligible = [...eligible, ...extras];
+    }
+  }
+
+  // 5. Final fallback — add any non-hibernated meal to fill the pool
+  if (eligible.length < homeMealsNeeded) {
+    const alreadyIn = new Set(eligible.map(r => r.id));
+    const fallback = allRecipes.filter(r =>
+      r.frequency_tier !== 'hibernated' &&
+      !alreadyIn.has(r.id)
+    );
+    eligible = [...eligible, ...fallback];
+  }
+
+  // 6. Shuffle and return the right number
+  const shuffled = eligible.sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, homeMealsNeeded);
+}
+
+// ═══════════════════════════════════════════════════════════
+// EATING-OUT MODAL
 // ═══════════════════════════════════════════════════════════
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 let selectedEatingOutDays = [];
@@ -791,11 +890,11 @@ async function confirmEatingOut() {
 
   const homeMeals  = Math.max(0, 7 - selectedEatingOutDays.length);
   const allRecipes = await loadRecipes();
-  const shuffled   = [...allRecipes].sort(() => Math.random() - 0.5);
-  const picked     = shuffled.slice(0, homeMeals);
+
+  // ── NEW: use frequency-tier engine instead of random shuffle ──
+  const picked = await selectMealsForWeek(allRecipes, homeMeals);
 
   try {
-    // Always create a fresh plan
     const { data: newPlan, error: planError } = await sb
       .from('weekly_plans').insert({
         week_start: getTodayDate(),
