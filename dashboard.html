@@ -809,10 +809,8 @@ async function submitInventory() {
     .eq('id', currentPlan.id);
   if (error) { showToast('Error saving inventory: ' + error.message, 'error'); return; }
   currentPlan.inventory = { ...inventoryState };
+  await renderDashboard();
   showToast('Inventory saved ✓');
-  // Update shopping preview element in place
-  const previewContainers = document.querySelectorAll('[id="shopping-preview"]');
-  previewContainers.forEach(el => el.innerHTML = shoppingPreview());
 }
 
 // ── Shopping preview ──────────────────────────────────────
