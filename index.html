@@ -1,180 +1,1152 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Plonk — Sign in</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-  <style>
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    :root{
-      --cream:#F5F0E8;--clay:#C8674A;--clay-dark:#a85238;
-      --dark:#1A1612;--mid:#6B5F54;--light:#E8DDD0;
-      --surface:rgba(255,255,255,0.85);
-      --border:rgba(200,180,160,0.4);
-      --radius:14px;
-    }
-    body{
-      font-family:'DM Sans',sans-serif;
-      background:var(--cream);
-      color:var(--dark);
-      min-height:100vh;
-      display:flex;align-items:center;justify-content:center;
-    }
-    body::before{
-      content:'';position:fixed;inset:0;
-      background:
-        radial-gradient(ellipse 60% 50% at 85% 10%,rgba(200,103,74,0.12) 0%,transparent 60%),
-        radial-gradient(ellipse 40% 60% at 5% 90%,rgba(200,103,74,0.08) 0%,transparent 50%);
-      pointer-events:none;z-index:0;
-    }
-    .login-wrap{
-      position:relative;z-index:1;
-      width:100%;max-width:400px;
-      padding:24px;
-    }
-    .brand{
-      text-align:center;margin-bottom:32px;
-    }
-    .brand-name{
-      font-family:'Playfair Display',serif;
-      font-size:2.2rem;color:var(--dark);
-    }
-    .brand-name span{color:var(--clay)}
-    .brand-sub{
-      font-size:0.85rem;color:var(--mid);
-      margin-top:4px;font-weight:300;
-    }
-    .card{
-      background:var(--surface);
-      border:1px solid var(--border);
-      border-radius:var(--radius);
-      padding:32px;
-      box-shadow:0 4px 24px rgba(0,0,0,0.07);
-    }
-    .card h2{
-      font-size:1.1rem;font-weight:500;
-      margin-bottom:6px;
-    }
-    .card p{
-      font-size:0.84rem;color:var(--mid);
-      margin-bottom:24px;
-    }
-    .field{margin-bottom:16px}
-    .field label{
-      display:block;font-size:0.78rem;font-weight:500;
-      text-transform:uppercase;letter-spacing:0.06em;
-      color:var(--mid);margin-bottom:6px;
-    }
-    .field input{
-      width:100%;padding:10px 14px;
-      border:1.5px solid var(--border);border-radius:10px;
-      font-family:'DM Sans',sans-serif;font-size:0.9rem;
-      background:white;outline:none;
-      transition:border-color 0.2s;
-    }
-    .field input:focus{border-color:var(--clay)}
-    .btn-primary{
-      width:100%;
-      background:var(--clay);color:white;
-      border:none;border-radius:10px;
-      padding:11px 18px;
-      font-family:'DM Sans',sans-serif;
-      font-size:0.9rem;font-weight:500;
-      cursor:pointer;
-      transition:background 0.18s,transform 0.12s;
-      box-shadow:0 3px 10px rgba(200,103,74,0.3);
-      margin-top:6px;
-    }
-    .btn-primary:hover{background:var(--clay-dark);transform:translateY(-1px)}
-    .btn-primary:disabled{opacity:0.6;cursor:not-allowed;transform:none}
-    .error-msg{
-      margin-top:14px;padding:10px 14px;
-      background:rgba(200,50,50,0.08);
-      border:1px solid rgba(200,50,50,0.2);
-      border-radius:8px;
-      font-size:0.83rem;color:#c03030;
-      display:none;
-    }
-    .error-msg.show{display:block}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forknight — Rate the Meals</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --border: #e8e4dc;
+    --text-primary: #1a1a18;
+    --text-secondary: #6b6860;
+    --text-hint: #a8a49c;
+    --accent: #2d6a4f;
+    --accent-light: #e8f3ed;
+    --accent-text: #1b4332;
+    --danger: #c0392b;
+    --warn: #e67e22;
+    --star-on: #e8a020;
+    --star-off: #d4d0c8;
+    --tier-1: #2d6a4f;
+    --tier-2: #2980b9;
+    --tier-3: #8e44ad;
+    --tier-4: #d35400;
+    --tier-5: #7f8c8d;
+    --radius: 10px;
+    --shadow: 0 2px 8px rgba(0,0,0,0.07);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Georgia', serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  /* AUTH SCREEN */
+  #auth-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+
+  .auth-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2.5rem;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: var(--shadow);
+    text-align: center;
+  }
+
+  .auth-card .logo {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--accent);
+    letter-spacing: -1px;
+    margin-bottom: 0.25rem;
+  }
+
+  .auth-card .tagline {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    font-family: sans-serif;
+    margin-bottom: 2rem;
+  }
+
+  .field {
+    margin-bottom: 1rem;
+    text-align: left;
+  }
+
+  .field label {
+    display: block;
+    font-size: 0.8rem;
+    font-family: sans-serif;
+    color: var(--text-secondary);
+    margin-bottom: 0.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .field input {
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-family: sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .field input:focus { border-color: var(--accent); }
+
+  .btn-primary {
+    width: 100%;
+    padding: 0.7rem 1.5rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-family: sans-serif;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-top: 0.5rem;
+  }
+  .btn-primary:hover { background: #1b4332; }
+  .btn-primary:disabled { background: #a8d5be; cursor: not-allowed; }
+
+  .auth-error {
+    margin-top: 1rem;
+    padding: 0.65rem;
+    background: #fdecea;
+    color: var(--danger);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-family: sans-serif;
+    display: none;
+  }
+
+  /* MAIN APP */
+  #app-screen { display: none; }
+
+  .top-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 1.5rem;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .top-bar .logo {
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+
+  .top-bar .user-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .user-badge {
+    font-size: 0.8rem;
+    font-family: sans-serif;
+    padding: 0.3rem 0.75rem;
+    background: var(--accent-light);
+    color: var(--accent-text);
+    border-radius: 20px;
+    font-weight: 500;
+  }
+
+  .btn-signout {
+    font-size: 0.8rem;
+    font-family: sans-serif;
+    color: var(--text-secondary);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.3rem 0.75rem;
+    cursor: pointer;
+  }
+  .btn-signout:hover { background: var(--bg); }
+
+  /* PROGRESS BANNER */
+  .progress-banner {
+    background: var(--accent);
+    color: #fff;
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .progress-banner .title {
+    font-size: 1rem;
+    font-family: sans-serif;
+    font-weight: 600;
+  }
+
+  .progress-banner .subtitle {
+    font-size: 0.8rem;
+    opacity: 0.8;
+    font-family: sans-serif;
+  }
+
+  .progress-bar-wrap {
+    flex: 1;
+    min-width: 180px;
+    max-width: 320px;
+  }
+
+  .progress-bar-track {
+    background: rgba(255,255,255,0.25);
+    border-radius: 10px;
+    height: 8px;
+    overflow: hidden;
+  }
+
+  .progress-bar-fill {
+    background: #fff;
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.4s ease;
+  }
+
+  .progress-label {
+    font-size: 0.75rem;
+    font-family: sans-serif;
+    margin-top: 0.35rem;
+    opacity: 0.85;
+    text-align: right;
+  }
+
+  /* USER PROGRESS PILLS */
+  .user-progress-row {
+    background: var(--accent-light);
+    border-bottom: 1px solid var(--border);
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .user-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 0.3rem 0.85rem;
+    font-size: 0.8rem;
+    font-family: sans-serif;
+  }
+
+  .user-pill .pip {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--star-off);
+  }
+
+  .user-pill.done .pip { background: var(--accent); }
+  .user-pill.partial .pip { background: var(--warn); }
+
+  .user-pill .count {
+    color: var(--text-secondary);
+  }
+
+  /* CONTENT */
+  .content {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 4rem;
+  }
+
+  .section-label {
+    font-size: 0.7rem;
+    font-family: sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-hint);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* RECIPE CARD */
+  .recipe-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.65rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: border-color 0.15s;
+  }
+
+  .recipe-card:hover { border-color: #c8c4bc; }
+
+  .recipe-card.rated-done {
+    border-left: 3px solid var(--accent);
+  }
+
+  .recipe-name {
+    flex: 1;
+    font-size: 0.95rem;
+  }
+
+  .recipe-name .en {
+    font-family: 'Georgia', serif;
+    color: var(--text-primary);
+  }
+
+  .recipe-name .es {
+    font-size: 0.78rem;
+    font-family: sans-serif;
+    color: var(--text-hint);
+    margin-top: 0.1rem;
+  }
+
+  /* STAR RATING */
+  .star-group {
+    display: flex;
+    gap: 3px;
+  }
+
+  .star {
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--star-off);
+    transition: color 0.1s, transform 0.1s;
+    user-select: none;
+    line-height: 1;
+  }
+
+  .star:hover,
+  .star.on {
+    color: var(--star-on);
+  }
+
+  .star:hover { transform: scale(1.15); }
+
+  .star-group:hover .star { color: var(--star-off); }
+  .star-group:hover .star:hover,
+  .star-group:hover .star:hover ~ .star { color: var(--star-off); }
+  .star-group .star:hover,
+  .star-group:hover .star.hovered { color: var(--star-on); }
+
+  /* Current rating badge */
+  .my-rating-badge {
+    font-size: 0.75rem;
+    font-family: sans-serif;
+    min-width: 44px;
+    text-align: center;
+    color: var(--text-hint);
+  }
+
+  .my-rating-badge.rated {
+    background: var(--accent-light);
+    color: var(--accent-text);
+    padding: 0.2rem 0.5rem;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+
+  /* FAMILY AVERAGE */
+  .family-avg {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 60px;
+  }
+
+  .avg-stars {
+    font-size: 0.75rem;
+    color: var(--star-on);
+    letter-spacing: 1px;
+  }
+
+  .avg-value {
+    font-size: 0.7rem;
+    font-family: sans-serif;
+    color: var(--text-hint);
+    margin-top: 1px;
+  }
+
+  /* TIER BADGE */
+  .tier-badge {
+    font-size: 0.7rem;
+    font-family: sans-serif;
+    padding: 0.2rem 0.6rem;
+    border-radius: 20px;
+    white-space: nowrap;
+    display: none;
+  }
+
+  .tier-badge.visible { display: inline-block; }
+
+  .tier-weekly  { background: #e8f5e9; color: #1b5e20; }
+  .tier-regular { background: #e3f2fd; color: #0d47a1; }
+  .tier-occasional { background: #f3e5f5; color: #4a148c; }
+  .tier-rare    { background: #fff3e0; color: #e65100; }
+  .tier-hibernate { background: #fce4ec; color: #880e4f; }
+
+  /* Cameron OVERRIDE */
+  .override-btn {
+    font-size: 0.7rem;
+    font-family: sans-serif;
+    color: var(--text-hint);
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    padding: 0.15rem 0.5rem;
+    cursor: pointer;
+    display: none;
+  }
+
+  .override-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .override-btn.visible { display: inline-block; }
+
+  /* OVERRIDE MODAL */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 1.75rem;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+
+  .modal h3 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .modal p {
+    font-size: 0.85rem;
+    font-family: sans-serif;
+    color: var(--text-secondary);
+    margin-bottom: 1.25rem;
+  }
+
+  .tier-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .tier-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: sans-serif;
+    font-size: 0.875rem;
+    transition: border-color 0.1s;
+  }
+
+  .tier-option:hover { border-color: var(--accent); background: var(--accent-light); }
+  .tier-option.selected { border-color: var(--accent); background: var(--accent-light); }
+
+  .tier-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+  }
+
+  .btn-ghost {
+    padding: 0.55rem 1rem;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-family: sans-serif;
+    cursor: pointer;
+    color: var(--text-secondary);
+  }
+  .btn-ghost:hover { background: var(--bg); }
+
+  .btn-confirm {
+    padding: 0.55rem 1rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-family: sans-serif;
+    cursor: pointer;
+  }
+  .btn-confirm:hover { background: #1b4332; }
+
+  /* ALL DONE BANNER */
+  .done-banner {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    text-align: center;
+    margin-bottom: 1.5rem;
+    display: none;
+  }
+
+  .done-banner.show { display: block; }
+
+  .done-banner h2 {
+    font-size: 1.1rem;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+  }
+
+  .done-banner p {
+    font-size: 0.875rem;
+    font-family: sans-serif;
+    color: var(--text-secondary);
+  }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--text-primary);
+    color: #fff;
+    padding: 0.65rem 1.25rem;
+    border-radius: 24px;
+    font-size: 0.85rem;
+    font-family: sans-serif;
+    z-index: 300;
+    opacity: 0;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+
+  /* BACK LINK */
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    font-family: sans-serif;
+    color: var(--text-secondary);
+    text-decoration: none;
+    margin-bottom: 1.25rem;
+  }
+
+  .back-link:hover { color: var(--accent); }
+
+  /* loading state */
+  .loading-text {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-secondary);
+    font-family: sans-serif;
+    font-size: 0.9rem;
+  }
+
+  @media (max-width: 600px) {
+    .recipe-card { flex-wrap: wrap; }
+    .family-avg { display: none; }
+    .tier-badge { display: none !important; }
+  }
+</style>
 </head>
 <body>
 
-<div class="login-wrap">
-  <div class="brand">
-    <div class="brand-name">🍽️ Pl<span>o</span>nk</div>
-    <div class="brand-sub">Family meal planning · Celaya</div>
-  </div>
-
-  <div class="card">
-    <h2>Welcome back</h2>
-    <p>Sign in to see this week's meals.</p>
-
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="logo">Forknight</div>
+    <div class="tagline">Family meal planning · Celaya, Mexico</div>
     <div class="field">
       <label>Email</label>
-      <input type="email" id="email" placeholder="you@example.com" autocomplete="email"/>
+      <input type="email" id="email-input" placeholder="your@email.com" />
     </div>
     <div class="field">
       <label>Password</label>
-      <input type="password" id="password" placeholder="••••••••" autocomplete="current-password"/>
+      <input type="password" id="password-input" placeholder="••••••••" />
     </div>
-
-    <button class="btn-primary" id="signin-btn" onclick="signIn()">Sign in</button>
-    <div class="error-msg" id="error-msg"></div>
+    <button class="btn-primary" id="login-btn" onclick="handleLogin()">Sign in</button>
+    <div class="auth-error" id="auth-error"></div>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- MAIN APP -->
+<div id="app-screen">
+  <div class="top-bar">
+    <div class="logo">Forknight</div>
+    <div class="user-info">
+      <span class="user-badge" id="user-badge"></span>
+      <button class="btn-signout" onclick="handleSignOut()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="progress-banner">
+    <div>
+      <div class="title">Rate the meals — initial setup</div>
+      <div class="subtitle">Rate the idea of each meal 1–5 stars. This sets how often it appears.</div>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
+      </div>
+      <div class="progress-label" id="progress-label">Loading…</div>
+    </div>
+  </div>
+
+  <div class="user-progress-row" id="user-progress-row">
+    <!-- user pills injected here -->
+  </div>
+
+  <div class="content">
+    <a class="back-link" href="dashboard.html">← Back to dashboard</a>
+
+    <div class="done-banner" id="done-banner">
+      <h2>All three have rated every meal ✓</h2>
+      <p>Frequency tiers have been calculated and saved. Cameron can override any tier below.</p>
+    </div>
+
+    <div class="section-label">All meals — tap stars to rate</div>
+    <div id="recipe-list">
+      <div class="loading-text">Loading meals…</div>
+    </div>
+  </div>
+</div>
+
+<!-- OVERRIDE MODAL (Cameron only) -->
+<div class="modal-overlay" id="override-modal">
+  <div class="modal">
+    <h3 id="modal-title">Override frequency tier</h3>
+    <p id="modal-subtitle">Current auto-calculated tier shown. Choose a new tier to override.</p>
+    <div class="tier-options" id="tier-options">
+      <div class="tier-option" data-tier="weekly_favourite" onclick="selectTier(this)">
+        <div class="tier-dot" style="background:#1b5e20"></div>
+        <div><strong>Weekly favourite</strong> — every 1–2 weeks (4.5–5★)</div>
+      </div>
+      <div class="tier-option" data-tier="regular" onclick="selectTier(this)">
+        <div class="tier-dot" style="background:#0d47a1"></div>
+        <div><strong>Regular</strong> — every 3–4 weeks (3.5–4.4★)</div>
+      </div>
+      <div class="tier-option" data-tier="occasional" onclick="selectTier(this)">
+        <div class="tier-dot" style="background:#4a148c"></div>
+        <div><strong>Occasional</strong> — every 6–8 weeks (2.5–3.4★)</div>
+      </div>
+      <div class="tier-option" data-tier="rare" onclick="selectTier(this)">
+        <div class="tier-dot" style="background:#e65100"></div>
+        <div><strong>Rare</strong> — every 10–12 weeks (1.5–2.4★)</div>
+      </div>
+      <div class="tier-option" data-tier="hibernated" onclick="selectTier(this)">
+        <div class="tier-dot" style="background:#880e4f"></div>
+        <div><strong>Hibernate</strong> — removed from rotation</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn-confirm" onclick="saveOverride()">Save override</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
 <script>
-const SUPABASE_URL = 'https://znwoiqygmsgabyoslrbt.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_SGLBIKifgg4nGL0pPtQssQ_Ng3dMgDK';
-const { createClient } = supabase;
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+  // ─── CONFIG ───────────────────────────────────────────────────────────────
+  const SUPABASE_URL = 'https://znwoiqygmsgabyoslrbt.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpud29pcXlnbXNnYWJ5b3NscmJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyOTAxNTYsImV4cCI6MjA5Mzg2NjE1Nn0.Vpl3ZJHvOU06OGjh-73zeDouu5PkxvO4JIEv9kzOsPk';
 
-// If already logged in, go straight to dashboard
-async function init() {
-  const { data:{ session } } = await sb.auth.getSession();
-  if (session) window.location.href = 'dashboard.html';
-}
+  const { createClient } = supabase;
+  const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-async function signIn() {
-  const email    = document.getElementById('email').value.trim();
-  const password = document.getElementById('password').value;
-  const btn      = document.getElementById('signin-btn');
-  const errEl    = document.getElementById('error-msg');
+  const ALL_USERS = [
+    { id: '4581c8f1-042d-43a6-ba2d-6ec586dea301', name: 'Cameron', role: 'admin' },
+    { id: 'ca779de4-2052-4bb4-89c6-59b67a5ad788', name: 'Sienna', role: 'planner' },
+    { id: '60688390-f010-4e19-b7e9-bfbe2c35b04c', name: 'Karen', role: 'reviewer' },
+  ];
 
-  errEl.classList.remove('show');
+  let currentUser = null;
+  let currentRole = null;
+  let recipes = [];
+  let allRatings = [];  // all idea ratings across all users
+  let myRatings = {};   // recipeId -> rating value for current user
+  let overrideRecipeId = null;
+  let overrideSelectedTier = null;
 
-  if (!email || !password) {
-    errEl.textContent = 'Please enter your email and password.';
-    errEl.classList.add('show');
-    return;
+  // Spanish meal name map (from recipe list — these are the ES names we know)
+  const ES_NAMES = {
+    'Arrachera Steak': 'Filete de Arrachera',
+    'Beef Stroganoff': 'Estofado de Res',
+    'Beef Wellington': 'Wellington de Res',
+    'Bread Soup Bowl': 'Sopa en Pan',
+    'Carbonara': 'Pasta Carbonara',
+    'Chicken and Tuna Mornay': 'Pollo y Atún Mornay',
+    'Chicken Parmigiana': 'Parmigiana de Pollo',
+    'Chicken Satay': 'Satay de Pollo',
+    'Chicken Snitzel with Honey Mustard Sauce': 'Milanesa de Pollo con Miel Mostaza',
+    'Chicken Wraps': 'Wraps de Pollo',
+    'Curried Sausages with Apple': 'Salchichas al Curry con Manzana',
+    'Fried Rice with Chicken': 'Arroz Frito con Pollo',
+    'Ham & Egg Pie': 'Pay de Jamón y Huevo',
+    'Jacketless Potatoes': 'Papas Rellenas Gratinadas',
+    'Lasagne': 'Lasaña',
+    'Lemon Chicken': 'Pollo al Limón',
+    'Meat Pies': 'Pays de Carne',
+    'Orange Chicken': 'Pollo a la Naranja',
+    'Pesto Sausage Gnocchi': 'Gnocchi con Salchicha y Pesto',
+    'Pizza': 'Pizza Casera',
+    'Roast Beef': 'Roast Beef con Verduras',
+    'Roast Pork': 'Cerdo Asado con Chicharrón',
+    'Sausage Rolls': 'Rollitos de Salchicha',
+    'Sausages': 'Salchichas con Puré',
+    "Shepherd's Pie": 'Pay del Pastor',
+    'Sweet & Sour Chicken': 'Pollo Agridulce',
+    'Sweet & Sour Pork': 'Cerdo Agridulce',
+  };
+
+  function tierFromAvg(avg) {
+    if (avg === null || avg === undefined) return null;
+    if (avg >= 4.5) return 'weekly_favourite';
+    if (avg >= 3.5) return 'regular';
+    if (avg >= 2.5) return 'occasional';
+    if (avg >= 1.5) return 'rare';
+    return 'hibernated';
   }
 
-  btn.textContent = 'Signing in...';
-  btn.disabled = true;
-
-  const { error } = await sb.auth.signInWithPassword({ email, password });
-
-  if (error) {
-    errEl.textContent = 'Incorrect email or password. Please try again.';
-    errEl.classList.add('show');
-    btn.textContent = 'Sign in';
-    btn.disabled = false;
-  } else {
-    window.location.href = 'dashboard.html';
+  function tierLabel(tier) {
+    const map = {
+      weekly_favourite: 'Weekly favourite',
+      regular: 'Regular',
+      occasional: 'Occasional',
+      rare: 'Rare',
+      hibernated: 'Auto-hibernate',
+    };
+    return map[tier] || tier;
   }
-}
 
-// Allow Enter key to submit
-document.addEventListener('keydown', e => {
-  if (e.key === 'Enter') signIn();
-});
+  function tierClass(tier) {
+    const map = {
+      weekly_favourite: 'tier-weekly',
+      regular: 'tier-regular',
+      occasional: 'tier-occasional',
+      rare: 'tier-rare',
+      hibernated: 'tier-hibernate',
+    };
+    return map[tier] || '';
+  }
 
-init();
+  function avgForRecipe(recipeId) {
+    const ratings = allRatings.filter(r => r.recipe_id === recipeId && r.rating_type === 'idea');
+    if (!ratings.length) return null;
+    const sum = ratings.reduce((a, b) => a + b.rating, 0);
+    return sum / ratings.length;
+  }
+
+  function ratedByCount(recipeId) {
+    return new Set(
+      allRatings.filter(r => r.recipe_id === recipeId && r.rating_type === 'idea').map(r => r.user_id)
+    ).size;
+  }
+
+  function starsHtml(count, filled) {
+    let html = '';
+    for (let i = 1; i <= 5; i++) {
+      html += i <= filled ? '★' : '☆';
+    }
+    return html;
+  }
+
+  // ─── AUTH ─────────────────────────────────────────────────────────────────
+  async function handleLogin() {
+    const email = document.getElementById('email-input').value.trim();
+    const password = document.getElementById('password-input').value;
+    const btn = document.getElementById('login-btn');
+    const errEl = document.getElementById('auth-error');
+
+    errEl.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      errEl.textContent = error.message;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Sign in';
+      return;
+    }
+
+    await initApp(data.user);
+  }
+
+  async function handleSignOut() {
+    await sb.auth.signOut();
+    location.reload();
+  }
+
+  // ─── INIT ─────────────────────────────────────────────────────────────────
+  async function initApp(user) {
+    currentUser = user;
+
+    // Get role from users table
+    const { data: userData } = await sb.from('users').select('role, name').eq('id', user.id).single();
+    // Fallback: look up by UUID if DB role is missing
+    const knownRoles = {
+      '4581c8f1-042d-43a6-ba2d-6ec586dea301': 'admin',
+      'ca779de4-2052-4bb4-89c6-59b67a5ad788': 'planner',
+      '60688390-f010-4e19-b7e9-bfbe2c35b04c': 'reviewer',
+    };
+    currentRole = (userData?.role || knownRoles[user.id] || 'reviewer').toLowerCase();
+    const name = userData?.name || user.email;
+
+    document.getElementById('user-badge').textContent = `${name} · ${currentRole}`;
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app-screen').style.display = 'block';
+
+    await loadData();
+  }
+
+  async function loadData() {
+    const list = document.getElementById('recipe-list');
+
+    // Try name_en first, fall back to name column
+    let { data: recipeData, error: recipeError } = await sb.from('recipes').select('id, name_en, name_es, frequency_tier').order('name_en');
+
+    if (recipeError || !recipeData || recipeData.length === 0) {
+      // Try plain 'name' column instead
+      const { data: recipeData2, error: recipeError2 } = await sb.from('recipes').select('id, name, frequency_tier').order('name');
+      if (recipeError2) {
+        list.innerHTML = `<div class="loading-text" style="color:#c0392b">Error loading recipes: ${recipeError2.message}<br><br>Check browser console for details.</div>`;
+        console.error('Recipe load error:', recipeError2);
+        return;
+      }
+      // Normalise — map 'name' to 'name_en' so the rest of the code works
+      recipes = (recipeData2 || []).map(r => ({ ...r, name_en: r.name, name_es: '' }));
+    } else {
+      recipes = recipeData;
+    }
+
+    if (recipes.length === 0) {
+      list.innerHTML = `<div class="loading-text" style="color:#c0392b">No recipes found in database. Make sure the recipes table has data.</div>`;
+      return;
+    }
+
+    // Load all idea ratings
+    const { data: ratingData, error: ratingError } = await sb.from('ratings').select('*').eq('rating_type', 'idea');
+    if (ratingError) {
+      console.error('Ratings load error:', ratingError);
+    }
+    allRatings = ratingData || [];
+
+    // My ratings
+    myRatings = {};
+    allRatings.filter(r => r.user_id === currentUser.id).forEach(r => {
+      myRatings[r.recipe_id] = r.rating;
+    });
+
+    renderUserProgress();
+    renderRecipeList();
+    updateProgressBar();
+  }
+
+  function renderUserProgress() {
+    const row = document.getElementById('user-progress-row');
+    row.innerHTML = '';
+
+    ALL_USERS.forEach(u => {
+      const userRatings = allRatings.filter(r => r.user_id === u.id);
+      const count = userRatings.length;
+      const total = recipes.length;
+      const done = count >= total;
+      const partial = count > 0 && !done;
+
+      const pill = document.createElement('div');
+      pill.className = `user-pill${done ? ' done' : partial ? ' partial' : ''}`;
+      pill.innerHTML = `<span class="pip"></span><strong>${u.name}</strong><span class="count">${count}/${total}</span>`;
+      row.appendChild(pill);
+    });
+  }
+
+  function updateProgressBar() {
+    // Count unique (user, recipe) pairs across all 3 users * 27 recipes
+    const total = ALL_USERS.length * recipes.length;
+    const done = new Set(allRatings.map(r => `${r.user_id}-${r.recipe_id}`)).size;
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-label').textContent = `${done} of ${total} ratings given`;
+
+    // Check if all done — only when recipes loaded
+    if (recipes.length > 0) {
+      const allDone = ALL_USERS.every(u => {
+        const count = new Set(allRatings.filter(r => r.user_id === u.id).map(r => r.recipe_id)).size;
+        return count >= recipes.length;
+      });
+      if (allDone) document.getElementById("done-banner").classList.add("show");
+      else document.getElementById("done-banner").classList.remove("show");
+    }
+  }
+
+  function renderRecipeList() {
+    const list = document.getElementById('recipe-list');
+    list.innerHTML = '';
+
+    recipes.forEach(recipe => {
+      const myRating = myRatings[recipe.id] || 0;
+      const avg = avgForRecipe(recipe.id);
+      const raterCount = ratedByCount(recipe.id);
+      const tier = recipe.frequency_tier || (avg !== null ? tierFromAvg(avg) : null);
+      const esName = recipe.name_es || ES_NAMES[recipe.name_en] || '';
+
+      const card = document.createElement('div');
+      card.className = `recipe-card${myRating > 0 ? ' rated-done' : ''}`;
+      card.dataset.id = recipe.id;
+
+      // Star HTML — interactive for current user
+      let starsHtmlStr = '';
+      for (let i = 1; i <= 5; i++) {
+        starsHtmlStr += `<span class="star${i <= myRating ? ' on' : ''}" data-val="${i}" data-id="${recipe.id}" onclick="rateMeal('${recipe.id}', ${i})" onmouseover="hoverStar(this, ${i}, '${recipe.id}')" onmouseout="unhoverStar('${recipe.id}')">${i <= myRating ? '★' : '☆'}</span>`;
+      }
+
+      // Family average display
+      const avgDisplay = avg !== null
+        ? `<div class="avg-stars">${starsHtmlStr.replace(/<span[^>]*>/g, '').substring(0,5)}</div><div class="avg-value">${avg.toFixed(1)} avg (${raterCount}/3)</div>`
+        : `<div class="avg-value">no ratings yet</div>`;
+
+      // Tier badge
+      const tierVisible = tier ? 'visible' : '';
+      const tierCls = tier ? tierClass(tier) : '';
+      const tierLbl = tier ? tierLabel(tier) : '';
+
+      // Override button (Cameron only, shown when tier exists)
+      const showOverride = currentRole === 'admin' && tier ? 'visible' : '';
+
+      card.innerHTML = `
+        <div class="recipe-name">
+          <div class="en">${recipe.name_en}</div>
+          ${esName ? `<div class="es">${esName}</div>` : ''}
+        </div>
+        <div class="star-group" id="stars-${recipe.id}">${starsHtmlStr}</div>
+        <div class="my-rating-badge${myRating > 0 ? ' rated' : ''}" id="badge-${recipe.id}">
+          ${myRating > 0 ? `My: ${myRating}★` : 'Not rated'}
+        </div>
+        <div class="family-avg" id="avg-${recipe.id}">
+          <div class="avg-value">${avg !== null ? avg.toFixed(1) + ' avg' : '—'}</div>
+          <div class="avg-value" style="font-size:0.65rem">${raterCount}/3 rated</div>
+        </div>
+        <span class="tier-badge ${tierCls} ${tierVisible}" id="tier-${recipe.id}">${tierLbl}</span>
+        <button class="override-btn ${showOverride}" id="override-${recipe.id}" onclick="openOverride('${recipe.id}', '${tier || ''}')">Override</button>
+      `;
+
+      list.appendChild(card);
+    });
+  }
+
+  // ─── RATING ───────────────────────────────────────────────────────────────
+  function hoverStar(el, val, recipeId) {
+    const group = document.getElementById('stars-' + recipeId);
+    group.querySelectorAll('.star').forEach((s, i) => {
+      s.textContent = i < val ? '★' : '☆';
+      s.classList.toggle('on', i < val);
+    });
+  }
+
+  function unhoverStar(recipeId) {
+    const currentRating = myRatings[recipeId] || 0;
+    const group = document.getElementById('stars-' + recipeId);
+    group.querySelectorAll('.star').forEach((s, i) => {
+      s.textContent = i < currentRating ? '★' : '☆';
+      s.classList.toggle('on', i < currentRating);
+    });
+  }
+
+  async function rateMeal(recipeId, value) {
+    const existing = allRatings.find(r => r.recipe_id === recipeId && r.user_id === currentUser.id && r.rating_type === 'idea');
+
+    let error;
+    if (existing) {
+      ({ error } = await sb.from('ratings').update({ rating: value }).eq('id', existing.id));
+      if (!error) existing.rating = value;
+    } else {
+      const { data, error: err } = await sb.from('ratings').insert({
+        recipe_id: recipeId,
+        user_id: currentUser.id,
+        rating: value,
+        rating_type: 'idea',
+      }).select().single();
+      error = err;
+      if (!error && data) allRatings.push(data);
+    }
+
+    if (error) { showToast('Error saving rating'); return; }
+
+    myRatings[recipeId] = value;
+
+    // Update star display
+    unhoverStar(recipeId);
+
+    // Update badge
+    const badge = document.getElementById('badge-' + recipeId);
+    badge.textContent = `My: ${value}★`;
+    badge.className = 'my-rating-badge rated';
+
+    // Update card border
+    document.querySelector(`[data-id="${recipeId}"]`).classList.add('rated-done');
+
+    // Recalculate avg + tier
+    const avg = avgForRecipe(recipeId);
+    const raterCount = ratedByCount(recipeId);
+
+    const avgEl = document.getElementById('avg-' + recipeId);
+    avgEl.innerHTML = `<div class="avg-value">${avg !== null ? avg.toFixed(1) + ' avg' : '—'}</div><div class="avg-value" style="font-size:0.65rem">${raterCount}/3 rated</div>`;
+
+    // If all 3 have rated, save frequency tier to recipe
+    if (raterCount === 3) {
+      const tier = tierFromAvg(avg);
+      const recipe = recipes.find(r => r.id === recipeId);
+
+      // Only set if no manual override already
+      if (!recipe.frequency_tier || recipe.frequency_tier === tier) {
+        await sb.from('recipes').update({ frequency_tier: tier }).eq('id', recipeId);
+        recipe.frequency_tier = tier;
+      }
+
+      // Update tier badge
+      const tierEl = document.getElementById('tier-' + recipeId);
+      tierEl.textContent = tierLabel(tier);
+      tierEl.className = `tier-badge ${tierClass(tier)} visible`;
+
+      // Show override button for Cameron
+      if (currentRole === 'admin') {
+        const overrideEl = document.getElementById('override-' + recipeId);
+        overrideEl.className = 'override-btn visible';
+        overrideEl.setAttribute('onclick', `openOverride('${recipeId}', '${tier}')`);
+      }
+
+      showToast(`${avg.toFixed(1)}★ avg → ${tierLabel(tier)}`);
+    } else {
+      showToast('Rating saved ✓');
+    }
+
+    renderUserProgress();
+    updateProgressBar();
+  }
+
+  // ─── OVERRIDE ─────────────────────────────────────────────────────────────
+  function openOverride(recipeId, currentTier) {
+    overrideRecipeId = recipeId;
+    overrideSelectedTier = currentTier;
+    const recipe = recipes.find(r => r.id === recipeId);
+
+    document.getElementById('modal-title').textContent = `Override: ${recipe.name_en}`;
+    document.getElementById('modal-subtitle').textContent = `Current tier: ${tierLabel(currentTier)}. Pick a new tier to override the auto-calculated value.`;
+
+    document.querySelectorAll('.tier-option').forEach(el => {
+      el.classList.toggle('selected', el.dataset.tier === currentTier);
+    });
+
+    document.getElementById('override-modal').classList.add('open');
+  }
+
+  function selectTier(el) {
+    document.querySelectorAll('.tier-option').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+    overrideSelectedTier = el.dataset.tier;
+  }
+
+  function closeModal() {
+    document.getElementById('override-modal').classList.remove('open');
+    overrideRecipeId = null;
+    overrideSelectedTier = null;
+  }
+
+  async function saveOverride() {
+    if (!overrideRecipeId || !overrideSelectedTier) return;
+
+    const { error } = await sb.from('recipes').update({ frequency_tier: overrideSelectedTier }).eq('id', overrideRecipeId);
+
+    if (error) { showToast('Error saving override'); return; }
+
+    const recipe = recipes.find(r => r.id === overrideRecipeId);
+    recipe.frequency_tier = overrideSelectedTier;
+
+    const tierEl = document.getElementById('tier-' + overrideRecipeId);
+    tierEl.textContent = tierLabel(overrideSelectedTier);
+    tierEl.className = `tier-badge ${tierClass(overrideSelectedTier)} visible`;
+
+    showToast(`Tier overridden → ${tierLabel(overrideSelectedTier)}`);
+    closeModal();
+  }
+
+  // ─── TOAST ────────────────────────────────────────────────────────────────
+  let toastTimer;
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  // ─── BOOT ─────────────────────────────────────────────────────────────────
+  (async () => {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session?.user) {
+      await initApp(session.user);
+    }
+  })();
+
+  // Enter key on password field
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('password-input')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') handleLogin();
+    });
+  });
 </script>
 </body>
 </html>
