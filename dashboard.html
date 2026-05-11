@@ -709,14 +709,27 @@ async function loadInventory() {
   if (!currentPlan) return;
 
   // Load existing saved state if any
-  const saved = currentPlan.inventory || {};
-  inventoryState = saved;
+  inventoryState = currentPlan.inventory || {};
 
-  // Load ingredients for this week's meals (deduplicated by name_en)
-  const { data, error } = await sb
+  // Step 1: get recipe IDs in this plan
+  const { data: planMeals, error: pmError } = await sb
     .from('weekly_plan_meals')
-    .select('recipes(ingredients(id, name_en, name_es, lacomer_category))')
+    .select('recipe_id')
     .eq('plan_id', currentPlan.id);
+
+  if (pmError || !planMeals || planMeals.length === 0) {
+    document.getElementById('inv-list').innerHTML =
+      '<div class="empty">No meals in this plan</div>';
+    return;
+  }
+
+  const recipeIds = planMeals.map(m => m.recipe_id);
+
+  // Step 2: get all ingredients for those recipes
+  const { data, error } = await sb
+    .from('ingredients')
+    .select('id, name_en, name_es, lacomer_category')
+    .in('recipe_id', recipeIds);
 
   if (error || !data) {
     document.getElementById('inv-list').innerHTML =
@@ -724,17 +737,14 @@ async function loadInventory() {
     return;
   }
 
-  // Flatten and deduplicate by name_en
-  const seen  = new Set();
+  // Deduplicate by name_en
+  const seen = new Set();
   inventoryItems = [];
-  for (const meal of data) {
-    for (const ing of (meal.recipes?.ingredients || [])) {
-      if (!seen.has(ing.name_en)) {
-        seen.add(ing.name_en);
-        inventoryItems.push(ing);
-        // Default to 'need' if not already saved
-        if (!inventoryState[ing.id]) inventoryState[ing.id] = 'need';
-      }
+  for (const ing of data) {
+    if (!seen.has(ing.name_en)) {
+      seen.add(ing.name_en);
+      inventoryItems.push(ing);
+      if (!inventoryState[ing.id]) inventoryState[ing.id] = 'need';
     }
   }
 
