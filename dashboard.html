@@ -534,8 +534,9 @@ function mealRowAdmin(r) {
 // SIENNA — PLANNER
 // ═══════════════════════════════════════════════════════════
 function renderSienna(recipes, name) {
-  const hasPlan   = currentPlan !== null;
-  const mealCount = currentMeals.length;
+  const hasPlan        = currentPlan !== null;
+  const mealCount      = currentMeals.length;
+  const reshuffleUsed  = currentPlan?.reshuffle_used === true;
 
   return `
   <div class="fade-in">
@@ -567,8 +568,13 @@ function renderSienna(recipes, name) {
           ? `<div class="meal-list">${currentMeals.map(m => mealRowSienna(m.recipes)).join('')}</div>`
           : `<div class="empty"><span class="empty-icon">🍽️</span>Cameron hasn't set this week's meals yet</div>`}
         <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
-          <button class="btn-secondary" style="width:100%;font-size:0.82rem"
-            onclick="alert('Reshuffle — 1 allowed per week. Coming next build')">🔀 Reshuffle (1 remaining)</button>
+          <button
+            id="reshuffle-btn"
+            class="btn-secondary"
+            style="width:100%;font-size:0.82rem;${reshuffleUsed ? 'opacity:0.5;cursor:not-allowed;' : ''}"
+            ${reshuffleUsed ? 'disabled' : 'onclick="doReshuffle(this)"'}>
+            🔀 ${reshuffleUsed ? 'Reshuffle used' : 'Reshuffle (1 remaining)'}
+          </button>
         </div>
       </div>
 
@@ -737,33 +743,27 @@ function shoppingPreview() {
 // FREQUENCY-TIER MEAL SUGGESTION ENGINE
 // ═══════════════════════════════════════════════════════════
 
-// How many weeks must pass before each tier can reappear
 const TIER_INTERVALS = {
   weekly_favourite: 2,
   regular:          4,
   occasional:       8,
   rare:             12,
-  hibernated:       Infinity  // never eligible
+  hibernated:       Infinity
 };
 
-// Tier priority order used when relaxing intervals
 const TIER_ORDER = ['weekly_favourite', 'regular', 'occasional', 'rare'];
 
 async function selectMealsForWeek(allRecipes, homeMealsNeeded) {
-  // Skip if nothing needed
   if (homeMealsNeeded <= 0) return [];
 
-  // 1. Load all plan_meal rows to find when each recipe last appeared
   const { data: allPlanMeals } = await sb
     .from('weekly_plan_meals')
     .select('recipe_id, plan_id');
 
-  // 2. Load all plans to get their week_start dates
   const { data: allPlans } = await sb
     .from('weekly_plans')
     .select('id, week_start');
 
-  // Build map: plan_id → Date
   const planDateMap = {};
   if (allPlans) {
     for (const plan of allPlans) {
@@ -771,7 +771,6 @@ async function selectMealsForWeek(allRecipes, homeMealsNeeded) {
     }
   }
 
-  // Build map: recipe_id → most recent Date it appeared in any plan
   const lastSeenMap = {};
   if (allPlanMeals) {
     for (const row of allPlanMeals) {
@@ -785,26 +784,21 @@ async function selectMealsForWeek(allRecipes, homeMealsNeeded) {
 
   const now = new Date();
 
-  // Returns how many weeks ago a date was
   function weeksAgo(date) {
     return (now - date) / (1000 * 60 * 60 * 24 * 7);
   }
 
-  // Is this recipe eligible given a minimum interval (in weeks)?
   function isEligible(recipe, intervalOverride) {
     if (recipe.frequency_tier === 'hibernated') return false;
     const interval = intervalOverride ?? TIER_INTERVALS[recipe.frequency_tier] ?? 8;
     if (interval === Infinity) return false;
     const lastSeen = lastSeenMap[recipe.id];
-    if (!lastSeen) return true; // never appeared = always eligible
+    if (!lastSeen) return true;
     return weeksAgo(lastSeen) >= interval;
   }
 
-  // 3. Build eligible pool using normal intervals
   let eligible = allRecipes.filter(r => isEligible(r));
 
-  // 4. If not enough meals, progressively relax each tier's interval by half
-  //    starting from the most frequent tier downward
   if (eligible.length < homeMealsNeeded) {
     for (const tier of TIER_ORDER) {
       if (eligible.length >= homeMealsNeeded) break;
@@ -818,7 +812,6 @@ async function selectMealsForWeek(allRecipes, homeMealsNeeded) {
     }
   }
 
-  // 5. Final fallback — add any non-hibernated meal to fill the pool
   if (eligible.length < homeMealsNeeded) {
     const alreadyIn = new Set(eligible.map(r => r.id));
     const fallback = allRecipes.filter(r =>
@@ -828,9 +821,74 @@ async function selectMealsForWeek(allRecipes, homeMealsNeeded) {
     eligible = [...eligible, ...fallback];
   }
 
-  // 6. Shuffle and return the right number
   const shuffled = eligible.sort(() => Math.random() - 0.5);
   return shuffled.slice(0, homeMealsNeeded);
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOAST NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════
+function showToast(msg, type = 'success') {
+  const t = document.createElement('div');
+  t.style.cssText = `
+    position:fixed;bottom:28px;left:50%;transform:translateX(-50%);
+    background:${type === 'error' ? '#c44' : '#4A7C59'};color:white;
+    padding:11px 22px;border-radius:999px;font-size:0.88rem;
+    font-family:'DM Sans',sans-serif;font-weight:500;
+    box-shadow:0 4px 20px rgba(0,0,0,0.18);z-index:9999;
+    animation:fadeIn 0.3s ease;white-space:nowrap;
+  `;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+// ═══════════════════════════════════════════════════════════
+// RESHUFFLE
+// ═══════════════════════════════════════════════════════════
+async function doReshuffle(btn) {
+  if (!currentPlan || currentPlan.reshuffle_used) return;
+
+  btn.disabled = true;
+  btn.textContent = '🔀 Reshuffling...';
+
+  try {
+    const allRecipes = await loadRecipes();
+    const homeMeals  = Math.max(0, 7 - (currentPlan.eating_out_days?.length || 0));
+    const picked     = await selectMealsForWeek(allRecipes, homeMeals);
+
+    // Delete current meals for this plan
+    const { error: delError } = await sb
+      .from('weekly_plan_meals')
+      .delete()
+      .eq('plan_id', currentPlan.id);
+    if (delError) throw delError;
+
+    // Insert fresh picks
+    if (picked.length > 0) {
+      const { error: insError } = await sb
+        .from('weekly_plan_meals')
+        .insert(picked.map(r => ({ plan_id: currentPlan.id, recipe_id: r.id, cooked: false })));
+      if (insError) throw insError;
+    }
+
+    // Mark reshuffle as used on the plan
+    const { error: updError } = await sb
+      .from('weekly_plans')
+      .update({ reshuffle_used: true })
+      .eq('id', currentPlan.id);
+    if (updError) throw updError;
+
+    // Reload and re-render
+    await loadWeekData();
+    await renderDashboard();
+    showToast('Meals reshuffled ✓ — reshuffle used for this week');
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = '🔀 Reshuffle (1 remaining)';
+    showToast('Something went wrong — ' + err.message, 'error');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -890,9 +948,7 @@ async function confirmEatingOut() {
 
   const homeMeals  = Math.max(0, 7 - selectedEatingOutDays.length);
   const allRecipes = await loadRecipes();
-
-  // ── NEW: use frequency-tier engine instead of random shuffle ──
-  const picked = await selectMealsForWeek(allRecipes, homeMeals);
+  const picked     = await selectMealsForWeek(allRecipes, homeMeals);
 
   try {
     const { data: newPlan, error: planError } = await sb
@@ -917,7 +973,7 @@ async function confirmEatingOut() {
     await renderDashboard();
 
   } catch(err) {
-    alert('Something went wrong. Please try again.\n' + err.message);
+    showToast('Something went wrong. Please try again.', 'error');
     btn.textContent = 'Suggest meals';
     btn.disabled = false;
   }
@@ -955,15 +1011,15 @@ function closeModal() {
 
 async function submitRequest(type) {
   const text = document.getElementById('modal-text').value.trim();
-  if (!text) { alert('Please add a reason before sending.'); return; }
+  if (!text) { showToast('Please add a reason before sending.', 'error'); return; }
   const { error } = await sb.from('requests').insert({
     type, reason: text,
     requested_by: userProfile.id,
     status: 'pending',
     created_at: new Date().toISOString()
   });
-  if (error) alert('Error sending request.\n' + error.message);
-  else { closeModal(); alert('Request sent to Cameron ✓'); }
+  if (error) showToast('Error sending request: ' + error.message, 'error');
+  else { closeModal(); showToast('Request sent to Cameron ✓'); }
 }
 
 // ── Inventory toggles ─────────────────────────────────────
