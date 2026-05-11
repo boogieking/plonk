@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Plonk — Rate the Meals</title>
+<title>Fortnight — Rate the Meals</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
@@ -601,7 +601,7 @@
 <!-- AUTH SCREEN -->
 <div id="auth-screen">
   <div class="auth-card">
-    <div class="logo">Plonk</div>
+    <div class="logo">Fortnight</div>
     <div class="tagline">Family meal planning · Celaya, Mexico</div>
     <div class="field">
       <label>Email</label>
@@ -619,7 +619,7 @@
 <!-- MAIN APP -->
 <div id="app-screen">
   <div class="top-bar">
-    <div class="logo">Plonk</div>
+    <div class="logo">Fortnight</div>
     <div class="user-info">
       <span class="user-badge" id="user-badge"></span>
       <button class="btn-signout" onclick="handleSignOut()">Sign out</button>
@@ -950,7 +950,7 @@
       // Star HTML — interactive for current user
       let starsHtmlStr = '';
       for (let i = 1; i <= 5; i++) {
-        starsHtmlStr += `<span class="star${i <= myRating ? ' on' : ''}" data-val="${i}" data-id="${recipe.id}" onclick="rateMeal('${recipe.id}', ${i})" onmouseover="hoverStar(this, ${i}, '${recipe.id}')" onmouseout="unhoverStar('${recipe.id}', ${myRating})">${i <= myRating ? '★' : '☆'}</span>`;
+        starsHtmlStr += `<span class="star${i <= myRating ? ' on' : ''}" data-val="${i}" data-id="${recipe.id}" onclick="rateMeal('${recipe.id}', ${i})" onmouseover="hoverStar(this, ${i}, '${recipe.id}')" onmouseout="unhoverStar('${recipe.id}')">${i <= myRating ? '★' : '☆'}</span>`;
       }
 
       // Family average display
@@ -996,7 +996,8 @@
     });
   }
 
-  function unhoverStar(recipeId, currentRating) {
+  function unhoverStar(recipeId) {
+    const currentRating = myRatings[recipeId] || 0;
     const group = document.getElementById('stars-' + recipeId);
     group.querySelectorAll('.star').forEach((s, i) => {
       s.textContent = i < currentRating ? '★' : '☆';
@@ -1027,7 +1028,7 @@
     myRatings[recipeId] = value;
 
     // Update star display
-    unhoverStar(recipeId, value);
+    unhoverStar(recipeId);
 
     // Update badge
     const badge = document.getElementById('badge-' + recipeId);
