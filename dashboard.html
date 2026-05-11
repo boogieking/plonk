@@ -808,19 +808,22 @@ async function submitInventory() {
     .update({ inventory: inventoryState })
     .eq('id', currentPlan.id);
   if (error) { showToast('Error saving inventory: ' + error.message, 'error'); return; }
-  currentPlan.inventory = inventoryState;
+  currentPlan.inventory = { ...inventoryState };
   showToast('Inventory saved ✓');
+  // Update shopping preview element in place
+  const previewContainers = document.querySelectorAll('[id="shopping-preview"]');
+  previewContainers.forEach(el => el.innerHTML = shoppingPreview());
 }
 
 // ── Shopping preview ──────────────────────────────────────
 function shoppingPreview() {
   if (!currentPlan?.inventory || Object.keys(currentPlan.inventory).length === 0) {
-    return `<div class="empty"><span class="empty-icon">📋</span>Complete inventory check first</div>`;
+    return `<div id="shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Complete inventory check first</div></div>`;
   }
 
   const needItems = inventoryItems.filter(i => currentPlan.inventory[i.id] === 'need');
   if (needItems.length === 0) {
-    return `<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;
+    return `<div id="shopping-preview"><div class="empty" style="color:var(--green)">✓ You have everything for this week!</div></div>`;
   }
 
   // Group by category
@@ -831,7 +834,7 @@ function shoppingPreview() {
     groups[cat].push(item);
   }
 
-  let html = '<div style="margin-top:4px">';
+  let html = '<div id="shopping-preview" style="margin-top:4px">';
   for (const [cat, items] of Object.entries(groups)) {
     html += `<div style="font-size:0.7rem;font-weight:500;text-transform:uppercase;
       letter-spacing:0.07em;color:var(--mid);margin:12px 0 6px">${cat}</div>`;
