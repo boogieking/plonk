@@ -416,7 +416,7 @@ async function renderDashboard() {
   const content = document.getElementById('dashboard-content');
 
   if      (userProfile.role === 'admin')   content.innerHTML = renderCameron(recipes, userProfile.name);
-  else if (userProfile.role === 'planner') content.innerHTML = renderSienna(recipes, userProfile.name);
+  else if (userProfile.role === 'planner') { content.innerHTML = renderSienna(recipes, userProfile.name); loadInventory(); }
   else                                     content.innerHTML = renderKaren(recipes, userProfile.name);
 }
 
@@ -581,30 +581,12 @@ function renderSienna(recipes, name) {
       <div>
         <div class="card" style="margin-bottom:16px">
           <div class="card-title" style="margin-bottom:14px">📦 Fridge & freezer check</div>
-          <div class="inv-row">
-            <div class="inv-name">Chicken thighs</div>
-            <div class="inv-toggle">
-              <button class="have-btn active" onclick="toggleInv(this)">Have</button>
-              <button class="need-btn" onclick="toggleInv(this)">Need</button>
-            </div>
-          </div>
-          <div class="inv-row">
-            <div class="inv-name">Puff pastry</div>
-            <div class="inv-toggle">
-              <button class="have-btn" onclick="toggleInv(this)">Have</button>
-              <button class="need-btn active" onclick="toggleInv(this)">Need</button>
-            </div>
-          </div>
-          <div class="inv-row">
-            <div class="inv-name">Arrachera steak</div>
-            <div class="inv-toggle">
-              <button class="have-btn" onclick="toggleInv(this)">Have</button>
-              <button class="need-btn" onclick="toggleInv(this)">Need</button>
-            </div>
+          <div id="inv-list">
+            <div class="empty"><span class="spin" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></span>Loading ingredients...</div>
           </div>
           <div style="margin-top:14px">
             <button class="btn-primary" style="width:100%;font-size:0.82rem"
-              onclick="alert('Submit inventory — coming next build')">Submit inventory check</button>
+              onclick="submitInventory()">Submit inventory check</button>
           </div>
         </div>
 
@@ -719,24 +701,143 @@ function mealRowKaren(r) {
   </div>`;
 }
 
-// ── Shopping preview (placeholder) ───────────────────────
+// ── INVENTORY ────────────────────────────────────────────
+let inventoryItems    = [];   // { id, name_en, name_es, lacomer_category }
+let inventoryState    = {};   // { ingredient_id: 'have' | 'need' }
+
+async function loadInventory() {
+  if (!currentPlan) return;
+
+  // Load existing saved state if any
+  const saved = currentPlan.inventory || {};
+  inventoryState = saved;
+
+  // Load ingredients for this week's meals (deduplicated by name_en)
+  const { data, error } = await sb
+    .from('weekly_plan_meals')
+    .select('recipes(ingredients(id, name_en, name_es, lacomer_category))')
+    .eq('plan_id', currentPlan.id);
+
+  if (error || !data) {
+    document.getElementById('inv-list').innerHTML =
+      '<div class="empty">Could not load ingredients</div>';
+    return;
+  }
+
+  // Flatten and deduplicate by name_en
+  const seen  = new Set();
+  inventoryItems = [];
+  for (const meal of data) {
+    for (const ing of (meal.recipes?.ingredients || [])) {
+      if (!seen.has(ing.name_en)) {
+        seen.add(ing.name_en);
+        inventoryItems.push(ing);
+        // Default to 'need' if not already saved
+        if (!inventoryState[ing.id]) inventoryState[ing.id] = 'need';
+      }
+    }
+  }
+
+  // Sort by category then name
+  inventoryItems.sort((a,b) =>
+    a.lacomer_category.localeCompare(b.lacomer_category) ||
+    a.name_en.localeCompare(b.name_en)
+  );
+
+  renderInventoryList();
+}
+
+function renderInventoryList() {
+  const el = document.getElementById('inv-list');
+  if (!el) return;
+
+  // Group by category
+  const groups = {};
+  for (const item of inventoryItems) {
+    const cat = item.lacomer_category || 'Other';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(item);
+  }
+
+  let html = '';
+  for (const [cat, items] of Object.entries(groups)) {
+    html += `<div style="font-size:0.7rem;font-weight:500;text-transform:uppercase;
+      letter-spacing:0.07em;color:var(--mid);margin:12px 0 6px">${cat}</div>`;
+    for (const item of items) {
+      const status = inventoryState[item.id] || 'need';
+      html += `
+      <div class="inv-row">
+        <div>
+          <div class="inv-name">${item.name_en}</div>
+          <div style="font-size:0.72rem;color:var(--mid)">${item.name_es}</div>
+        </div>
+        <div class="inv-toggle">
+          <button class="have-btn ${status==='have'?'active':''}"
+            onclick="setInv('${item.id}','have',this)">Have</button>
+          <button class="need-btn ${status==='need'?'active':''}"
+            onclick="setInv('${item.id}','need',this)">Need</button>
+        </div>
+      </div>`;
+    }
+  }
+
+  el.innerHTML = html || '<div class="empty">No ingredients found</div>';
+}
+
+function setInv(id, status, btn) {
+  inventoryState[id] = status;
+  const row = btn.closest('.inv-toggle');
+  row.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function submitInventory() {
+  if (!currentPlan) return;
+  const { error } = await sb
+    .from('weekly_plans')
+    .update({ inventory: inventoryState })
+    .eq('id', currentPlan.id);
+  if (error) { showToast('Error saving inventory: ' + error.message, 'error'); return; }
+  currentPlan.inventory = inventoryState;
+  showToast('Inventory saved ✓');
+}
+
+// ── Shopping preview ──────────────────────────────────────
 function shoppingPreview() {
-  const items = [
-    { en:'Chicken thighs',    es:'Muslo de Pollo Selecto',        cat:'Meats & Eggs',    status:'need' },
-    { en:'Puff pastry',       es:'Puff Pastry 1 kg',              cat:'Grains & Bakery', status:'need' },
-    { en:'Mushrooms',         es:'Champiñon Entero Monte Blanco', cat:'Produce',          status:'have' },
-    { en:'Pasta tortiglioni', es:'Pasta Tortiglioni Barilla',     cat:'Grains & Bakery', status:'need' },
-  ];
-  return `<div style="margin-top:4px">
-    ${items.map(i => `
-    <div class="inv-row">
-      <div>
-        <div style="font-size:0.88rem">${i.en}</div>
-        <div style="font-size:0.74rem;color:var(--mid)">${i.es} · ${i.cat}</div>
-      </div>
-      <span class="tag ${i.status==='have'?'tag-green':'tag-clay'}">${i.status==='have'?'Have':'Need'}</span>
-    </div>`).join('')}
-  </div>`;
+  if (!currentPlan?.inventory || Object.keys(currentPlan.inventory).length === 0) {
+    return `<div class="empty"><span class="empty-icon">📋</span>Complete inventory check first</div>`;
+  }
+
+  const needItems = inventoryItems.filter(i => currentPlan.inventory[i.id] === 'need');
+  if (needItems.length === 0) {
+    return `<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;
+  }
+
+  // Group by category
+  const groups = {};
+  for (const item of needItems) {
+    const cat = item.lacomer_category || 'Other';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(item);
+  }
+
+  let html = '<div style="margin-top:4px">';
+  for (const [cat, items] of Object.entries(groups)) {
+    html += `<div style="font-size:0.7rem;font-weight:500;text-transform:uppercase;
+      letter-spacing:0.07em;color:var(--mid);margin:12px 0 6px">${cat}</div>`;
+    for (const item of items) {
+      html += `
+      <div class="inv-row">
+        <div>
+          <div style="font-size:0.88rem">${item.name_en}</div>
+          <div style="font-size:0.74rem;color:var(--mid)">${item.name_es}</div>
+        </div>
+        <span class="tag tag-clay">Need</span>
+      </div>`;
+    }
+  }
+  html += '</div>';
+  return html;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1022,12 +1123,7 @@ async function submitRequest(type) {
   else { closeModal(); showToast('Request sent to Cameron ✓'); }
 }
 
-// ── Inventory toggles ─────────────────────────────────────
-function toggleInv(btn) {
-  const row = btn.closest('.inv-toggle');
-  row.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-}
+
 
 // ── GO ────────────────────────────────────────────────────
 init();
