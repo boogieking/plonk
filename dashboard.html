@@ -397,6 +397,46 @@
       display:inline;margin-right:6px;
     }
 
+    /* ── RATING ── */
+    .rating-prompt{
+      margin-top:10px;padding:12px 14px;
+      background:rgba(200,103,74,0.06);
+      border:1px solid rgba(200,103,74,0.2);
+      border-radius:10px;
+    }
+    .rating-prompt-label{font-size:0.78rem;color:var(--clay);font-weight:500;margin-bottom:8px}
+    .star-row{display:flex;gap:6px;align-items:center}
+    .star-btn{
+      font-size:1.4rem;background:none;border:none;
+      cursor:pointer;padding:2px;line-height:1;
+      transition:transform 0.1s;color:#ccc;
+    }
+    .star-btn:hover,.star-btn.active{color:#C8674A;transform:scale(1.15)}
+    .rating-submit-btn{
+      margin-top:8px;padding:5px 14px;
+      font-size:0.78rem;font-weight:500;
+      background:var(--clay);color:white;
+      border:none;border-radius:8px;cursor:pointer;
+      font-family:'DM Sans',sans-serif;
+      transition:background 0.15s;
+    }
+    .rating-submit-btn:hover{background:var(--clay-dark)}
+    .rating-submitted{
+      font-size:0.78rem;color:var(--green);
+      margin-top:6px;font-weight:500;
+    }
+    .meal-item.cooked{
+      opacity:0.6;
+      background:rgba(74,124,89,0.06);
+      border-color:rgba(74,124,89,0.2);
+    }
+    .meal-item.cooked .meal-name::after{
+      content:' ✓';color:var(--green);font-size:0.8rem;
+    }
+    .tier-change-toast{
+      display:flex;flex-direction:column;gap:2px;
+    }
+
     .fade-in{animation:fadeIn 0.4s ease both}
     @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
   </style>
@@ -470,6 +510,7 @@ async function init() {
 
   renderNav();
   await loadWeekData();
+  await loadMyRatingsThisWeek();
   await renderDashboard();
 
   document.getElementById('loading').style.display = 'none';
@@ -611,7 +652,7 @@ function renderCameron(recipes, name) {
           : `<span class="tag tag-amber">No active plan</span>`}
       </div>
       ${hasPlan && currentMeals.length > 0
-        ? `<div class="meal-list">${currentMeals.map(m => mealRowAdmin(m.recipes)).join('')}</div>`
+        ? `<div class="meal-list">${currentMeals.map(m => mealRowAdmin(m)).join('')}</div>`
         : `<div class="empty"><span class="empty-icon">🍽️</span>No meals suggested yet — set eating-out days above</div>`}
     </div>
 
@@ -647,17 +688,25 @@ function renderCameron(recipes, name) {
   </div>`;
 }
 
-function mealRowAdmin(r) {
-  if (!r) return '';
+function mealRowAdmin(m) {
+  if (!m) return '';
+  const r = m.recipes || m;
+  const planMeal = currentMeals.find(pm => pm.recipe_id === r.id) || {};
+  const isCooked = planMeal.cooked === true;
+  const ratingWindowOpen = isCooked && isWithin24Hours(planMeal.cooked_at);
+  const myRating = myRatingsThisWeek[r.id];
   return `
-  <div class="meal-item">
-    <div>
+  <div class="meal-item ${isCooked ? 'cooked' : ''}" id="meal-item-${r.id}">
+    <div style="flex:1">
       <div class="meal-name">${r.name_en}</div>
-      <div class="meal-meta">${r.prep_time_minutes||'—'} min prep · ${r.cook_time_minutes||'—'} min cook</div>
+      <div class="meal-meta">${r.prep_time_minutes||'—'} min prep · ${r.cook_time_minutes||'—'} min cook${r.avg_rating ? ' · ⭐ ' + Number(r.avg_rating).toFixed(1) : ''}</div>
+      ${ratingWindowOpen && !myRating ? ratingPromptHTML(r.id) : ''}
+      ${myRating ? '<div class="rating-submitted">Your rating: ' + '★'.repeat(myRating) + '☆'.repeat(5-myRating) + '</div>' : ''}
     </div>
     <div class="meal-actions">
-      <button class="btn-secondary" style="font-size:0.78rem;padding:5px 10px"
-        onclick="alert('Hibernate — coming next build')">Hibernate</button>
+      ${!isCooked
+        ? '<button class="btn-secondary" style="font-size:0.78rem;padding:5px 10px" onclick="markCooked('' + r.id + '', '' + planMeal.id + '')">✓ Cooked</button>'
+        : '<span class="tag tag-green">Cooked</span>'}
     </div>
   </div>`;
 }
@@ -927,7 +976,7 @@ function renderSienna(recipes, name) {
           <span class="tag tag-amber">${hasPlan ? `${mealCount} meals` : 'Not set yet'}</span>
         </div>
         ${hasPlan && currentMeals.length > 0
-          ? `<div class="meal-list">${currentMeals.map(m => mealRowSienna(m.recipes)).join('')}</div>`
+          ? `<div class="meal-list">${currentMeals.map(m => mealRowSienna(m)).join('')}</div>`
           : `<div class="empty"><span class="empty-icon">🍽️</span>Cameron hasn't set this week's meals yet</div>`}
         <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
           <button
@@ -1025,16 +1074,24 @@ async function loadSiennaShoppingPreview() {
   }
 }
 
-function mealRowSienna(r) {
-  if (!r) return '';
+function mealRowSienna(m) {
+  if (!m) return '';
+  const r = m.recipes || m;
+  const planMeal = currentMeals.find(pm => pm.recipe_id === r.id) || {};
+  const isCooked = planMeal.cooked === true;
+  const ratingWindowOpen = isCooked && isWithin24Hours(planMeal.cooked_at);
+  const myRating = myRatingsThisWeek[r.id];
   return `
-  <div class="meal-item">
-    <div>
+  <div class="meal-item ${isCooked ? 'cooked' : ''}" id="meal-item-${r.id}">
+    <div style="flex:1">
       <div class="meal-name">${r.name_en}</div>
-      <div class="meal-meta">${r.prep_time_minutes||'—'} min prep</div>
+      <div class="meal-meta">${r.prep_time_minutes||'—'} min prep${r.avg_rating ? ' · ⭐ ' + Number(r.avg_rating).toFixed(1) : ''}</div>
+      ${ratingWindowOpen && !myRating ? ratingPromptHTML(r.id) : ''}
+      ${myRating ? '<div class="rating-submitted">Your rating: ' + '★'.repeat(myRating) + '☆'.repeat(5-myRating) + '</div>' : ''}
     </div>
-    <button class="btn-secondary" style="font-size:0.75rem;padding:4px 10px"
-      onclick="alert('Mark as cooked — coming next build')">✓ Cooked</button>
+    ${!isCooked
+      ? '<button class="btn-secondary" style="font-size:0.75rem;padding:4px 10px" onclick="markCooked('' + r.id + '', '' + planMeal.id + '')">✓ Cooked</button>'
+      : '<span class="tag tag-green" style="flex-shrink:0">Cooked</span>'}
   </div>`;
 }
 
@@ -1071,7 +1128,7 @@ function renderKaren(recipes, name) {
           <span class="tag tag-blue">${hasPlan ? `${mealCount} meals` : 'Pending'}</span>
         </div>
         ${hasPlan && currentMeals.length > 0
-          ? `<div class="meal-list">${currentMeals.map(m => mealRowKaren(m.recipes)).join('')}</div>`
+          ? `<div class="meal-list">${currentMeals.map(m => mealRowKaren(m)).join('')}</div>`
           : `<div class="empty"><span class="empty-icon">🍽️</span>No meals set for this week yet</div>`}
       </div>
 
@@ -1147,16 +1204,24 @@ async function loadKarenShoppingPreview() {
   }
 }
 
-function mealRowKaren(r) {
-  if (!r) return '';
+function mealRowKaren(m) {
+  if (!m) return '';
+  const r = m.recipes || m;
+  const planMeal = currentMeals.find(pm => pm.recipe_id === r.id) || {};
+  const isCooked = planMeal.cooked === true;
+  const ratingWindowOpen = isCooked && isWithin24Hours(planMeal.cooked_at);
+  const myRating = myRatingsThisWeek[r.id];
   return `
-  <div class="meal-item">
-    <div>
+  <div class="meal-item ${isCooked ? 'cooked' : ''}" id="meal-item-${r.id}">
+    <div style="flex:1">
       <div class="meal-name">${r.name_en}</div>
-      <div class="meal-meta">${r.prep_time_minutes||'—'} min prep</div>
+      <div class="meal-meta">${r.prep_time_minutes||'—'} min prep${r.avg_rating ? ' · ⭐ ' + Number(r.avg_rating).toFixed(1) : ''}</div>
+      ${ratingWindowOpen && !myRating ? ratingPromptHTML(r.id) : ''}
+      ${myRating ? '<div class="rating-submitted">Your rating: ' + '★'.repeat(myRating) + '☆'.repeat(5-myRating) + '</div>' : ''}
     </div>
-    <button class="btn-secondary" style="font-size:0.75rem;padding:4px 10px"
-      onclick="alert('Mark as cooked — coming next build')">✓ Cooked</button>
+    ${!isCooked
+      ? '<button class="btn-secondary" style="font-size:0.75rem;padding:4px 10px" onclick="markCooked('' + r.id + '', '' + planMeal.id + '')">✓ Cooked</button>'
+      : '<span class="tag tag-green" style="flex-shrink:0">Cooked</span>'}
   </div>`;
 }
 
@@ -1275,14 +1340,38 @@ async function submitInventory() {
 // ═══════════════════════════════════════════════════════════
 
 const TIER_INTERVALS = {
-  weekly_favourite: 2,
-  regular:          4,
-  occasional:       8,
-  rare:             12,
-  hibernated:       Infinity
+  weekly:    2,
+  regular:   4,
+  occasional:8,
+  rare:      12,
+  hibernated:Infinity
 };
 
-const TIER_ORDER = ['weekly_favourite', 'regular', 'occasional', 'rare'];
+const TIER_ORDER = ['weekly', 'regular', 'occasional', 'rare'];
+
+// Tier thresholds for auto-adjustment from ratings
+const TIER_THRESHOLDS = [
+  { min: 4.5, tier: 'weekly' },
+  { min: 3.5, tier: 'regular' },
+  { min: 2.5, tier: 'occasional' },
+  { min: 1.5, tier: 'rare' },
+  { min: 0,   tier: 'hibernated' }
+];
+
+function tierFromRating(avg) {
+  for (const t of TIER_THRESHOLDS) {
+    if (avg >= t.min) return t.tier;
+  }
+  return 'hibernated';
+}
+
+const TIER_LABELS = {
+  weekly:    'Weekly Favourite',
+  regular:   'Regular',
+  occasional:'Occasional',
+  rare:      'Rare',
+  hibernated:'Hibernated'
+};
 
 async function selectMealsForWeek(allRecipes, homeMealsNeeded) {
   if (homeMealsNeeded <= 0) return [];
@@ -1337,7 +1426,7 @@ async function selectMealsForWeek(allRecipes, homeMealsNeeded) {
       const extras = allRecipes.filter(r =>
         r.frequency_tier === tier &&
         !alreadyIn.has(r.id) &&
-        isEligible(r, Math.max(1, Math.floor((TIER_INTERVALS[tier] || 8) / 2)))
+        isEligible(r, Math.max(1, Math.floor((TIER_INTERVALS[r.frequency_tier] || 8) / 2)))
       );
       eligible = [...eligible, ...extras];
     }
@@ -1408,6 +1497,7 @@ async function doReshuffle(btn) {
     if (updError) throw updError;
 
     await loadWeekData();
+    await loadMyRatingsThisWeek();
     await renderDashboard();
     showToast('Meals reshuffled ✓ — reshuffle used for this week');
 
@@ -1566,6 +1656,215 @@ async function renderDashboard() {
     await loadInventory();
     loadKarenShoppingPreview();
   }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// MARK AS COOKED + RATING ENGINE
+// ═══════════════════════════════════════════════════════════
+
+let myRatingsThisWeek = {}; // { recipe_id: star_count } for current user this week
+
+async function loadMyRatingsThisWeek() {
+  if (!currentPlan) return;
+  // Get cook ratings submitted by this user for meals in this plan
+  const recipeIds = currentMeals.map(m => m.recipe_id);
+  if (recipeIds.length === 0) return;
+  const { data } = await sb
+    .from('ratings')
+    .select('recipe_id, rating')
+    .eq('user_id', userProfile.id)
+    .eq('rating_type', 'cook')
+    .in('recipe_id', recipeIds);
+  if (data) {
+    for (const row of data) {
+      myRatingsThisWeek[row.recipe_id] = row.rating;
+    }
+  }
+}
+
+function isWithin24Hours(cookedAt) {
+  if (!cookedAt) return false;
+  const cooked = new Date(cookedAt);
+  const now = new Date();
+  return (now - cooked) < 24 * 60 * 60 * 1000;
+}
+
+function ratingPromptHTML(recipeId) {
+  return `
+  <div class="rating-prompt" id="rating-prompt-${recipeId}">
+    <div class="rating-prompt-label">⭐ Rate this meal (window closes in 24hrs)</div>
+    <div class="star-row" id="stars-${recipeId}">
+      ${[1,2,3,4,5].map(n => `
+        <button class="star-btn" data-val="${n}"
+          onclick="selectStar('${recipeId}', ${n})">☆</button>
+      `).join('')}
+      <button class="rating-submit-btn" id="rate-submit-${recipeId}"
+        style="display:none" onclick="submitRating('${recipeId}')">Submit</button>
+    </div>
+  </div>`;
+}
+
+function selectStar(recipeId, val) {
+  const row = document.getElementById(`stars-${recipeId}`);
+  if (!row) return;
+  row.querySelectorAll('.star-btn').forEach(btn => {
+    const n = parseInt(btn.dataset.val);
+    btn.textContent = n <= val ? '★' : '☆';
+    btn.classList.toggle('active', n <= val);
+  });
+  row.dataset.selected = val;
+  const submitBtn = document.getElementById(`rate-submit-${recipeId}`);
+  if (submitBtn) submitBtn.style.display = 'inline-block';
+}
+
+async function submitRating(recipeId) {
+  const row = document.getElementById(`stars-${recipeId}`);
+  if (!row) return;
+  const val = parseInt(row.dataset.selected);
+  if (!val) { showToast('Pick a star rating first', 'error'); return; }
+
+  const submitBtn = document.getElementById(`rate-submit-${recipeId}`);
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving...'; }
+
+  try {
+    // How many times has this recipe been cooked (count existing cook ratings from any user)
+    const { count } = await sb
+      .from('ratings')
+      .select('id', { count: 'exact', head: true })
+      .eq('recipe_id', recipeId)
+      .eq('rating_type', 'cook')
+      .eq('user_id', userProfile.id);
+
+    const cookNumber = (count || 0) + 1;
+
+    // Save this rating
+    const { error: rateError } = await sb.from('ratings').insert({
+      recipe_id: recipeId,
+      user_id: userProfile.id,
+      rating: val,
+      rating_type: 'cook',
+      cook_number: cookNumber,
+      created_at: new Date().toISOString()
+    });
+    if (rateError) throw rateError;
+
+    // Store locally
+    myRatingsThisWeek[recipeId] = val;
+
+    // Recalculate avg and possibly update tier
+    await recalculateRecipeRating(recipeId);
+
+    // Update UI
+    const prompt = document.getElementById(`rating-prompt-${recipeId}`);
+    if (prompt) {
+      prompt.outerHTML = `<div class="rating-submitted">Your rating: ${'★'.repeat(val)}${'☆'.repeat(5-val)} — saved ✓</div>`;
+    }
+    showToast('Rating saved ✓');
+
+  } catch(err) {
+    showToast('Error saving rating: ' + err.message, 'error');
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit'; }
+  }
+}
+
+async function recalculateRecipeRating(recipeId) {
+  // Get all ratings for this recipe
+  const { data: allRatings } = await sb
+    .from('ratings')
+    .select('rating, rating_type, cook_number')
+    .eq('recipe_id', recipeId);
+
+  if (!allRatings || allRatings.length === 0) return;
+
+  const ideaRatings  = allRatings.filter(r => r.rating_type === 'idea');
+  const cookRatings  = allRatings.filter(r => r.rating_type === 'cook');
+
+  // Has this recipe been cooked at least once?
+  const maxCookNum = cookRatings.length > 0
+    ? Math.max(...cookRatings.map(r => r.cook_number || 1))
+    : 0;
+
+  let newAvg;
+
+  if (cookRatings.length === 0) {
+    // No cook ratings yet — pure idea average
+    newAvg = ideaRatings.reduce((s,r) => s + r.rating, 0) / ideaRatings.length;
+  } else {
+    // Average of all cook ratings across all users
+    const cookAvg = cookRatings.reduce((s,r) => s + r.rating, 0) / cookRatings.length;
+
+    if (maxCookNum === 1) {
+      // First cook: 60% cook avg, 40% idea avg
+      const ideaAvg = ideaRatings.reduce((s,r) => s + r.rating, 0) / (ideaRatings.length || 1);
+      newAvg = (cookAvg * 0.6) + (ideaAvg * 0.4);
+    } else {
+      // Second cook onwards: 100% cook average
+      newAvg = cookAvg;
+    }
+  }
+
+  newAvg = Math.round(newAvg * 100) / 100;
+
+  // Determine new tier
+  const newTier = tierFromRating(newAvg);
+
+  // Get current recipe data to check if tier changed
+  const { data: recipe } = await sb
+    .from('recipes')
+    .select('frequency_tier, frequency_override, name_en')
+    .eq('id', recipeId)
+    .single();
+
+  const oldTier = recipe?.frequency_tier;
+  const tierChanged = newTier !== oldTier && !recipe?.frequency_override;
+
+  // Update recipe
+  const updateData = { avg_rating: newAvg };
+  if (tierChanged) updateData.frequency_tier = newTier;
+
+  await sb.from('recipes').update(updateData).eq('id', recipeId);
+
+  // Notify if tier changed
+  if (tierChanged && (userProfile.role === 'admin' || userProfile.role === 'planner')) {
+    const direction = TIER_THRESHOLDS.findIndex(t => t.tier === newTier) <
+                      TIER_THRESHOLDS.findIndex(t => t.tier === oldTier) ? '⬆️' : '⬇️';
+    showToast(
+      `${direction} ${recipe.name_en} moved to ${TIER_LABELS[newTier]} (avg ${newAvg.toFixed(1)})`,
+      newTier === 'weekly' || newTier === 'regular' ? 'success' : 'error'
+    );
+  }
+}
+
+async function markCooked(recipeId, planMealId) {
+  if (!planMealId || planMealId === 'undefined') {
+    // Find planMeal id from currentMeals
+    const pm = currentMeals.find(m => m.recipe_id === recipeId);
+    if (pm) planMealId = pm.id;
+  }
+  if (!planMealId) { showToast('Cannot find meal record', 'error'); return; }
+
+  const cookedAt = new Date().toISOString();
+  const { error } = await sb
+    .from('weekly_plan_meals')
+    .update({ cooked: true, cooked_at: cookedAt })
+    .eq('id', planMealId);
+
+  if (error) {
+    // cooked_at column may not exist yet — try without it
+    const { error: e2 } = await sb
+      .from('weekly_plan_meals')
+      .update({ cooked: true })
+      .eq('id', planMealId);
+    if (e2) { showToast('Error marking as cooked: ' + e2.message, 'error'); return; }
+  }
+
+  // Update local state
+  const pm = currentMeals.find(m => m.id === planMealId || m.recipe_id === recipeId);
+  if (pm) { pm.cooked = true; pm.cooked_at = cookedAt; }
+
+  showToast('Marked as cooked ✓ — rate it below!');
+  await renderDashboard();
 }
 
 // ── GO ────────────────────────────────────────────────────
