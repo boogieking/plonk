@@ -439,6 +439,58 @@
 
     .fade-in{animation:fadeIn 0.4s ease both}
     @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+    /* ── PREP WARNINGS ── */
+    .prep-warning-modal{
+      background:white;border-radius:var(--radius);
+      padding:28px;width:100%;max-width:460px;
+      box-shadow:0 20px 60px rgba(0,0,0,0.2);
+    }
+    .prep-warning-modal .warn-icon{font-size:2rem;margin-bottom:10px}
+    .prep-warning-modal h3{font-size:1.05rem;font-weight:500;margin-bottom:6px;color:#c03030}
+    .prep-warning-modal .warn-reason{
+      font-size:0.85rem;color:var(--dark);margin-bottom:14px;
+      padding:10px 14px;background:rgba(200,50,50,0.06);
+      border-left:3px solid #c44;border-radius:0 8px 8px 0;
+    }
+    .prep-warning-modal .alt-label{
+      font-size:0.74rem;font-weight:500;text-transform:uppercase;
+      letter-spacing:0.07em;color:var(--mid);margin-bottom:8px;
+    }
+    .prep-alt-item{
+      padding:8px 12px;border-radius:8px;
+      background:rgba(74,124,89,0.07);
+      border:1px solid rgba(74,124,89,0.2);
+      font-size:0.85rem;margin-bottom:6px;color:var(--dark);
+    }
+    .schedule-btn{
+      padding:4px 10px;font-size:0.72rem;font-weight:500;
+      border-radius:999px;border:1.5px solid var(--border);
+      color:var(--mid);background:transparent;cursor:pointer;
+      font-family:'DM Sans',sans-serif;transition:all 0.15s;
+      white-space:nowrap;
+    }
+    .schedule-btn:hover{border-color:var(--blue);color:var(--blue)}
+    .scheduled-tag{
+      font-size:0.72rem;font-weight:500;
+      padding:3px 9px;border-radius:999px;
+      background:rgba(46,95,138,0.1);color:var(--blue);
+    }
+    .prep-reminders-card{
+      background:rgba(200,103,74,0.06);
+      border:1px solid rgba(200,103,74,0.2);
+      border-radius:var(--radius);
+      padding:18px 22px;margin-bottom:20px;
+    }
+    .prep-reminder-row{
+      display:flex;align-items:flex-start;gap:10px;
+      padding:9px 0;border-bottom:1px solid rgba(200,180,160,0.2);
+      font-size:0.85rem;
+    }
+    .prep-reminder-row:last-child{border-bottom:none}
+    .prep-reminder-icon{flex-shrink:0;font-size:1rem;margin-top:1px}
+    .prep-reminder-meal{font-weight:500;color:var(--dark)}
+    .prep-reminder-desc{font-size:0.78rem;color:var(--mid);margin-top:2px}
   </style>
 </head>
 <body>
@@ -563,7 +615,7 @@ async function loadWeekData() {
   if (currentPlan) {
     const { data: mealData } = await sb
       .from('weekly_plan_meals')
-      .select('*, recipes(id, name_en, name_es, prep_time_minutes, cook_time_minutes, advance_prep_required, avg_rating)')
+      .select('*, recipes(id, name_en, name_es, prep_time_minutes, cook_time_minutes, advance_prep_required, advance_prep_description, same_day_cookable, avg_rating)')
       .eq('plan_id', currentPlan.id);
     currentMeals = mealData || [];
   }
@@ -637,6 +689,7 @@ function renderCameron(recipes, name) {
     </div>
 
     <div class="section-label">This plan's meal pool</div>
+    ${renderPrepReminders()}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">Suggested meals</div>
@@ -696,11 +749,23 @@ function mealRowAdmin(m) {
   const avgStr = r.avg_rating ? ' · ⭐ ' + Number(r.avg_rating).toFixed(1) : '';
   const ratingHtml = ratingWindowOpen && !myRating ? ratingPromptHTML(r.id) : '';
   const ratedHtml = myRating ? '<div class="rating-submitted">Your rating: ' + '★'.repeat(myRating) + '☆'.repeat(5 - myRating) + '</div>' : '';
+
+  const scheduledLabel = planMeal.assigned_day
+    ? `<span class="scheduled-tag">📅 ${planMeal.assigned_day}${planMeal.target_eat_time ? ' · eat ' + planMeal.target_eat_time : ''}${planMeal.prep_start_time ? ' · prep ' + planMeal.prep_start_time : ''}</span>`
+    : `<button class="schedule-btn" onclick="openScheduleModal('${r.id}')">📅 Schedule</button>`;
+
+  const advPrepTag = r.advance_prep_required
+    ? `<span class="tag tag-amber" style="font-size:0.65rem;padding:2px 7px">⏰ Advance prep</span>`
+    : '';
+
   const actionHtml = !isCooked ? cookedBtn(r.id, planMeal.id, false) : '<span class="tag tag-green">Cooked</span>';
   return '<div class="meal-item ' + (isCooked ? 'cooked' : '') + '" id="meal-item-' + r.id + '">'
     + '<div style="flex:1">'
-    + '<div class="meal-name">' + r.name_en + '</div>'
-    + '<div class="meal-meta">' + (r.prep_time_minutes || '—') + ' min prep · ' + (r.cook_time_minutes || '—') + ' min cook' + avgStr + '</div>'
+    + '<div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + r.name_en + ' ' + advPrepTag + '</div>'
+    + '<div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">'
+    + (r.prep_time_minutes || '—') + ' min prep · ' + (r.cook_time_minutes || '—') + ' min cook' + avgStr
+    + ' ' + scheduledLabel
+    + '</div>'
     + ratingHtml + ratedHtml
     + '</div>'
     + '<div class="meal-actions">' + actionHtml + '</div>'
@@ -1304,6 +1369,13 @@ async function markCooked(recipeId, planMealId) {
   }
   if (!planMealId) { showToast('Cannot find meal record', 'error'); return; }
 
+  // Check prep time warning — if warning fires, it handles the flow via callback
+  checkPrepBeforeCook(recipeId, planMealId, () => doMarkCooked(recipeId, planMealId));
+  return; // doMarkCooked called by callback (or directly if no warning)
+}
+
+async function doMarkCooked(recipeId, planMealId) {
+
   const cookedAt = new Date().toISOString();
   const { error } = await sb
     .from('weekly_plan_meals')
@@ -1477,6 +1549,7 @@ function renderSienna(recipes, name) {
     </div>
 
     <div class="section-label">This week's meals</div>
+    ${renderPrepReminders()}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">Meal pool</div>
@@ -1534,10 +1607,22 @@ function mealRowSienna(m) {
   const ratingHtml = ratingWindowOpen && !myRating ? ratingPromptHTML(r.id) : '';
   const ratedHtml = myRating ? '<div class="rating-submitted">Your rating: ' + '★'.repeat(myRating) + '☆'.repeat(5 - myRating) + '</div>' : '';
   const actionHtml = !isCooked ? cookedBtn(r.id, planMeal.id, true) : '<span class="tag tag-green">Cooked ✓</span>';
+
+  const scheduledLabel = planMeal.assigned_day
+    ? `<span class="scheduled-tag">📅 ${planMeal.assigned_day}${planMeal.target_eat_time ? ' · eat ' + planMeal.target_eat_time : ''}${planMeal.prep_start_time ? ' · prep ' + planMeal.prep_start_time : ''}</span>`
+    : `<button class="schedule-btn" onclick="openScheduleModal('${r.id}')">📅 Schedule</button>`;
+
+  const advPrepTag = r.advance_prep_required
+    ? `<span class="tag tag-amber" style="font-size:0.65rem;padding:2px 7px">⏰ Advance prep</span>`
+    : '';
+
   return '<div class="meal-item ' + (isCooked ? 'cooked' : '') + '">'
     + '<div style="flex:1">'
-    + '<div class="meal-name">' + r.name_en + '</div>'
-    + '<div class="meal-meta">' + (r.prep_time_minutes || '—') + ' min prep' + avgStr + '</div>'
+    + '<div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + r.name_en + ' ' + advPrepTag + '</div>'
+    + '<div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">'
+    + (r.prep_time_minutes || '—') + ' min prep' + avgStr
+    + ' ' + scheduledLabel
+    + '</div>'
     + ratingHtml + ratedHtml
     + '</div>'
     + '<div class="meal-actions">' + actionHtml + '</div>'
@@ -1921,6 +2006,200 @@ async function tickCKItem(itemId, btn) {
   } catch(err) {
     showToast('Error: ' + err.message, 'error');
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// PREP TIME WARNINGS
+// ═══════════════════════════════════════════════════════════
+
+// Called when "Cook today" is tapped — checks if advance prep needed and not same-day cookable
+function checkPrepBeforeCook(recipeId, planMealId, onConfirm) {
+  const meal = currentMeals.find(m => m.recipe_id === recipeId);
+  const recipe = meal?.recipes;
+  if (!recipe) { onConfirm(); return; }
+
+  // Only warn Cameron and Sienna
+  if (userProfile.role === 'reviewer') { onConfirm(); return; }
+
+  if (recipe.advance_prep_required && recipe.same_day_cookable === false) {
+    const desc = recipe.advance_prep_description || 'Advance preparation is required for this meal.';
+    // Find alternatives from this week's pool that ARE same-day cookable
+    const alternatives = currentMeals
+      .filter(m => m.recipe_id !== recipeId && !m.cooked)
+      .map(m => m.recipes)
+      .filter(r => r && r.same_day_cookable !== false);
+
+    showPrepWarningModal(recipe.name_en, desc, alternatives, onConfirm);
+    return;
+  }
+  onConfirm();
+}
+
+function showPrepWarningModal(mealName, reason, alternatives, onProceedAnyway) {
+  const altHtml = alternatives.length > 0
+    ? `<div class="alt-label">Same-day alternatives from this week</div>
+       ${alternatives.slice(0,3).map(r =>
+         `<div class="prep-alt-item">✓ ${r.name_en}</div>`
+       ).join('')}`
+    : `<div class="prep-alt-item" style="background:rgba(107,95,84,0.07);border-color:var(--border)">No ready-to-cook alternatives this week</div>`;
+
+  const el = document.createElement('div');
+  el.id = 'modal-overlay';
+  el.className = 'modal-overlay';
+  el.innerHTML = `
+    <div class="prep-warning-modal">
+      <div class="warn-icon">⚠️</div>
+      <h3>Not enough time to cook ${mealName} today</h3>
+      <div class="warn-reason">${reason}</div>
+      ${altHtml}
+      <div class="modal-btns" style="margin-top:18px">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn-secondary" style="color:#c44;border-color:#c44"
+          onclick="closeModal();(${onProceedAnyway.toString()})()">
+          Cook it anyway
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+// Schedule a meal to a specific day with a target eat time
+function openScheduleModal(recipeId) {
+  const meal = currentMeals.find(m => m.recipe_id === recipeId);
+  const recipe = meal?.recipes;
+  if (!meal || !recipe) return;
+
+  const totalPrepCook = (recipe.prep_time_minutes || 0) + (recipe.cook_time_minutes || 0);
+
+  const el = document.createElement('div');
+  el.id = 'modal-overlay';
+  el.className = 'modal-overlay';
+  el.innerHTML = `
+    <div class="modal" style="max-width:400px">
+      <h3>Schedule ${recipe.name_en}</h3>
+      <p>Set which day and what time you want to eat. The app will tell you when to start prep.</p>
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Day</label>
+        <select id="sched-day" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white">
+          <option value="">— Pick a day —</option>
+          ${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d =>
+            `<option value="${d}">${d}</option>`
+          ).join('')}
+        </select>
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Target eat time</label>
+        <input type="time" id="sched-time" value="13:00"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none">
+      </div>
+      <div id="sched-calc" style="font-size:0.83rem;color:var(--mid);padding:10px 12px;background:var(--cream);border-radius:8px;margin-bottom:4px">
+        Total prep + cook: <strong>${totalPrepCook} min</strong>. Set a time above to see when to start.
+      </div>
+      <div id="sched-warn" style="display:none;margin-top:8px;padding:10px 12px;background:rgba(200,50,50,0.07);border-left:3px solid #c44;border-radius:0 8px 8px 0;font-size:0.82rem;color:#c03030"></div>
+      <div class="modal-btns">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="confirmSchedule('${meal.id}','${recipeId}',${totalPrepCook})">Save schedule</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+
+  // Live calculation as user changes time
+  document.getElementById('sched-time').addEventListener('input', () => updateSchedCalc(totalPrepCook));
+  document.getElementById('sched-day').addEventListener('change', () => updateSchedCalc(totalPrepCook));
+}
+
+function updateSchedCalc(totalMinutes) {
+  const eatTime = document.getElementById('sched-time').value;
+  const day     = document.getElementById('sched-day').value;
+  const calcEl  = document.getElementById('sched-calc');
+  const warnEl  = document.getElementById('sched-warn');
+  if (!eatTime || !calcEl) return;
+
+  const [h, m] = eatTime.split(':').map(Number);
+  const eatMins = h * 60 + m;
+  const startMins = eatMins - totalMinutes;
+  const startH = Math.floor(Math.abs(startMins) / 60);
+  const startM = Math.abs(startMins) % 60;
+  const startLabel = startMins < 0
+    ? `the day before at ${String(23 - startH).padStart(2,'0')}:${String(60 - startM).padStart(2,'0')}`
+    : `${String(Math.floor(startMins/60)).padStart(2,'0')}:${String(startMins%60).padStart(2,'0')}`;
+
+  calcEl.innerHTML = `Total prep + cook: <strong>${totalMinutes} min</strong>. Start by <strong>${startLabel}</strong>.`;
+
+  // Warn if the scheduled day is today and start time has already passed
+  const now = new Date();
+  const today = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][now.getDay()];
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+
+  if (day === today && startMins < nowMins && startMins >= 0) {
+    warnEl.style.display = 'block';
+    warnEl.textContent = `⚠️ Start time ${startLabel} has already passed today — you may not have enough time.`;
+  } else if (startMins < 0) {
+    warnEl.style.display = 'block';
+    warnEl.textContent = `⚠️ Prep needs to start the evening before — plan ahead!`;
+  } else {
+    warnEl.style.display = 'none';
+  }
+}
+
+async function confirmSchedule(planMealId, recipeId, totalMinutes) {
+  const day      = document.getElementById('sched-day').value;
+  const eatTime  = document.getElementById('sched-time').value;
+  if (!day) { showToast('Please pick a day', 'error'); return; }
+  if (!eatTime) { showToast('Please set an eat time', 'error'); return; }
+
+  const [h, m] = eatTime.split(':').map(Number);
+  const eatMins   = h * 60 + m;
+  const startMins = eatMins - totalMinutes;
+  const prepStartTime = startMins < 0
+    ? `${String(Math.floor((1440 + startMins)/60)).padStart(2,'0')}:${String((1440+startMins)%60).padStart(2,'0')} (day before)`
+    : `${String(Math.floor(startMins/60)).padStart(2,'0')}:${String(startMins%60).padStart(2,'0')}`;
+
+  const { error } = await sb
+    .from('weekly_plan_meals')
+    .update({ assigned_day: day, target_eat_time: eatTime, prep_start_time: prepStartTime })
+    .eq('id', planMealId);
+
+  if (error) { showToast('Error saving: ' + error.message, 'error'); return; }
+
+  const pm = currentMeals.find(m => m.id === planMealId || m.recipe_id === recipeId);
+  if (pm) { pm.assigned_day = day; pm.target_eat_time = eatTime; pm.prep_start_time = prepStartTime; }
+
+  closeModal();
+  showToast(`Scheduled for ${day} · Start prep by ${prepStartTime} ✓`);
+  await renderDashboard();
+}
+
+// Render the weekly prep reminders panel (shown to Cameron + Sienna when plan approved)
+function renderPrepReminders() {
+  if (!currentPlan || currentPlan.status !== 'approved') return '';
+  if (userProfile.role === 'reviewer') return '';
+
+  const advancePrepMeals = currentMeals
+    .filter(m => m.recipes?.advance_prep_required && !m.cooked);
+
+  if (advancePrepMeals.length === 0) return '';
+
+  const rows = advancePrepMeals.map(m => {
+    const r = m.recipes;
+    const dayLabel = m.assigned_day ? ` · scheduled ${m.assigned_day}` : '';
+    return `<div class="prep-reminder-row">
+      <div class="prep-reminder-icon">⏰</div>
+      <div>
+        <div class="prep-reminder-meal">${r.name_en}${dayLabel}</div>
+        <div class="prep-reminder-desc">${r.advance_prep_description || 'Advance preparation required'}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="section-label">Prep reminders</div>
+    <div class="prep-reminders-card">
+      <div style="font-size:0.78rem;font-weight:500;color:var(--clay);margin-bottom:12px">
+        🗒️ These meals need advance prep this week
+      </div>
+      ${rows}
+    </div>`;
 }
 
 // ── GO ────────────────────────────────────────────────────
