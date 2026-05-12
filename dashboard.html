@@ -751,7 +751,7 @@ function mealRowAdmin(m) {
   const ratedHtml = myRating ? '<div class="rating-submitted">Your rating: ' + '★'.repeat(myRating) + '☆'.repeat(5 - myRating) + '</div>' : '';
 
   const scheduledLabel = planMeal.assigned_day
-    ? `<span class="scheduled-tag">📅 ${planMeal.assigned_day}${planMeal.target_eat_time ? ' · eat ' + planMeal.target_eat_time : ''}${planMeal.prep_start_time ? ' · prep ' + planMeal.prep_start_time : ''}</span>`
+    ? `<span class="scheduled-tag">📅 ${dateToDayName(planMeal.assigned_day)}${planMeal.target_eat_time ? ' · eat ' + planMeal.target_eat_time : ''}${planMeal.prep_start_time ? ' · prep ' + planMeal.prep_start_time : ''}</span>`
     : `<button class="schedule-btn" onclick="openScheduleModal('${r.id}')">📅 Schedule</button>`;
 
   const advPrepTag = r.advance_prep_required
@@ -1609,7 +1609,7 @@ function mealRowSienna(m) {
   const actionHtml = !isCooked ? cookedBtn(r.id, planMeal.id, true) : '<span class="tag tag-green">Cooked ✓</span>';
 
   const scheduledLabel = planMeal.assigned_day
-    ? `<span class="scheduled-tag">📅 ${planMeal.assigned_day}${planMeal.target_eat_time ? ' · eat ' + planMeal.target_eat_time : ''}${planMeal.prep_start_time ? ' · prep ' + planMeal.prep_start_time : ''}</span>`
+    ? `<span class="scheduled-tag">📅 ${dateToDayName(planMeal.assigned_day)}${planMeal.target_eat_time ? ' · eat ' + planMeal.target_eat_time : ''}${planMeal.prep_start_time ? ' · prep ' + planMeal.prep_start_time : ''}</span>`
     : `<button class="schedule-btn" onclick="openScheduleModal('${r.id}')">📅 Schedule</button>`;
 
   const advPrepTag = r.advance_prep_required
@@ -2142,31 +2142,50 @@ function updateSchedCalc(totalMinutes) {
   }
 }
 
+function dayNameToDate(dayName) {
+  const dayIndex = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].indexOf(dayName);
+  if (dayIndex === -1) return null;
+  const now = new Date();
+  const diff = ((dayIndex - now.getDay()) + 7) % 7;
+  const target = new Date(now);
+  target.setDate(now.getDate() + diff);
+  return target.toISOString().substring(0, 10);
+}
+
+function dateToDayName(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr.substring(0, 10) + 'T12:00:00');
+  return d.toLocaleDateString('en-AU', { weekday: 'long' });
+}
+
 async function confirmSchedule(planMealId, recipeId, totalMinutes) {
-  const day      = document.getElementById('sched-day').value;
+  const dayName  = document.getElementById('sched-day').value;
   const eatTime  = document.getElementById('sched-time').value;
-  if (!day) { showToast('Please pick a day', 'error'); return; }
+  if (!dayName) { showToast('Please pick a day', 'error'); return; }
   if (!eatTime) { showToast('Please set an eat time', 'error'); return; }
+
+  const assignedDate = dayNameToDate(dayName);
+  if (!assignedDate) { showToast('Could not calculate date for that day', 'error'); return; }
 
   const [h, m] = eatTime.split(':').map(Number);
   const eatMins   = h * 60 + m;
   const startMins = eatMins - totalMinutes;
   const prepStartTime = startMins < 0
-    ? `${String(Math.floor((1440 + startMins)/60)).padStart(2,'0')}:${String((1440+startMins)%60).padStart(2,'0')} (day before)`
+    ? `${String(Math.floor((1440+startMins)/60)).padStart(2,'0')}:${String((1440+startMins)%60).padStart(2,'0')} (day before)`
     : `${String(Math.floor(startMins/60)).padStart(2,'0')}:${String(startMins%60).padStart(2,'0')}`;
 
   const { error } = await sb
     .from('weekly_plan_meals')
-    .update({ assigned_day: day, target_eat_time: eatTime, prep_start_time: prepStartTime })
+    .update({ assigned_day: assignedDate, target_eat_time: eatTime, prep_start_time: prepStartTime })
     .eq('id', planMealId);
 
   if (error) { showToast('Error saving: ' + error.message, 'error'); return; }
 
   const pm = currentMeals.find(m => m.id === planMealId || m.recipe_id === recipeId);
-  if (pm) { pm.assigned_day = day; pm.target_eat_time = eatTime; pm.prep_start_time = prepStartTime; }
+  if (pm) { pm.assigned_day = assignedDate; pm.target_eat_time = eatTime; pm.prep_start_time = prepStartTime; }
 
   closeModal();
-  showToast(`Scheduled for ${day} · Start prep by ${prepStartTime} ✓`);
+  showToast(`Scheduled for ${dayName} · Start prep by ${prepStartTime} ✓`);
   await renderDashboard();
 }
 
@@ -2182,7 +2201,7 @@ function renderPrepReminders() {
 
   const rows = advancePrepMeals.map(m => {
     const r = m.recipes;
-    const dayLabel = m.assigned_day ? ` · scheduled ${m.assigned_day}` : '';
+    const dayLabel = m.assigned_day ? ` · scheduled ${dateToDayName(m.assigned_day)}` : '';
     return `<div class="prep-reminder-row">
       <div class="prep-reminder-icon">⏰</div>
       <div>
