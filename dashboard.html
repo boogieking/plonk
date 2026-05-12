@@ -831,7 +831,6 @@ const TIER_INTERVALS = {
 
 const TIER_ORDER = ['weekly', 'regular', 'occasional', 'rare'];
 
-// Tier thresholds for auto-adjustment from ratings
 const TIER_THRESHOLDS = [
   { min: 4.5, tier: 'weekly' },
   { min: 3.5, tier: 'regular' },
@@ -1108,11 +1107,12 @@ function closeModal() {
   if (el) el.remove();
 }
 
+// ── FIX 4: use request_type column ───────────────────────
 async function submitRequest(type) {
   const text = document.getElementById('modal-text').value.trim();
   if (!text) { showToast('Please add a reason before sending.', 'error'); return; }
   const { error } = await sb.from('requests').insert({
-    type, reason: text,
+    request_type: type, reason: text,
     requested_by: userProfile.id,
     status: 'pending',
     created_at: new Date().toISOString()
@@ -1139,16 +1139,14 @@ async function renderDashboard() {
   }
 }
 
-
 // ═══════════════════════════════════════════════════════════
 // MARK AS COOKED + RATING ENGINE
 // ═══════════════════════════════════════════════════════════
 
-let myRatingsThisWeek = {}; // { recipe_id: star_count } for current user this week
+let myRatingsThisWeek = {};
 
 async function loadMyRatingsThisWeek() {
   if (!currentPlan) return;
-  // Get cook ratings submitted by this user for meals in this plan
   const recipeIds = currentMeals.map(m => m.recipe_id);
   if (recipeIds.length === 0) return;
   const { data } = await sb
@@ -1209,7 +1207,6 @@ async function submitRating(recipeId) {
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving...'; }
 
   try {
-    // How many times has this recipe been cooked (count existing cook ratings from any user)
     const { count } = await sb
       .from('ratings')
       .select('id', { count: 'exact', head: true })
@@ -1219,7 +1216,6 @@ async function submitRating(recipeId) {
 
     const cookNumber = (count || 0) + 1;
 
-    // Save this rating
     const { error: rateError } = await sb.from('ratings').insert({
       recipe_id: recipeId,
       user_id: userProfile.id,
@@ -1230,13 +1226,9 @@ async function submitRating(recipeId) {
     });
     if (rateError) throw rateError;
 
-    // Store locally
     myRatingsThisWeek[recipeId] = val;
-
-    // Recalculate avg and possibly update tier
     await recalculateRecipeRating(recipeId);
 
-    // Update UI
     const prompt = document.getElementById(`rating-prompt-${recipeId}`);
     if (prompt) {
       prompt.outerHTML = `<div class="rating-submitted">Your rating: ${'★'.repeat(val)}${'☆'.repeat(5-val)} — saved ✓</div>`;
@@ -1250,7 +1242,6 @@ async function submitRating(recipeId) {
 }
 
 async function recalculateRecipeRating(recipeId) {
-  // Get all ratings for this recipe
   const { data: allRatings } = await sb
     .from('ratings')
     .select('rating, rating_type, cook_number')
@@ -1261,7 +1252,6 @@ async function recalculateRecipeRating(recipeId) {
   const ideaRatings  = allRatings.filter(r => r.rating_type === 'idea');
   const cookRatings  = allRatings.filter(r => r.rating_type === 'cook');
 
-  // Has this recipe been cooked at least once?
   const maxCookNum = cookRatings.length > 0
     ? Math.max(...cookRatings.map(r => r.cook_number || 1))
     : 0;
@@ -1269,28 +1259,20 @@ async function recalculateRecipeRating(recipeId) {
   let newAvg;
 
   if (cookRatings.length === 0) {
-    // No cook ratings yet — pure idea average
     newAvg = ideaRatings.reduce((s,r) => s + r.rating, 0) / ideaRatings.length;
   } else {
-    // Average of all cook ratings across all users
     const cookAvg = cookRatings.reduce((s,r) => s + r.rating, 0) / cookRatings.length;
-
     if (maxCookNum === 1) {
-      // First cook: 60% cook avg, 40% idea avg
       const ideaAvg = ideaRatings.reduce((s,r) => s + r.rating, 0) / (ideaRatings.length || 1);
       newAvg = (cookAvg * 0.6) + (ideaAvg * 0.4);
     } else {
-      // Second cook onwards: 100% cook average
       newAvg = cookAvg;
     }
   }
 
   newAvg = Math.round(newAvg * 100) / 100;
-
-  // Determine new tier
   const newTier = tierFromRating(newAvg);
 
-  // Get current recipe data to check if tier changed
   const { data: recipe } = await sb
     .from('recipes')
     .select('frequency_tier, frequency_override, name_en')
@@ -1300,13 +1282,11 @@ async function recalculateRecipeRating(recipeId) {
   const oldTier = recipe?.frequency_tier;
   const tierChanged = newTier !== oldTier && !recipe?.frequency_override;
 
-  // Update recipe
   const updateData = { avg_rating: newAvg };
   if (tierChanged) updateData.frequency_tier = newTier;
 
   await sb.from('recipes').update(updateData).eq('id', recipeId);
 
-  // Notify if tier changed
   if (tierChanged && (userProfile.role === 'admin' || userProfile.role === 'planner')) {
     const direction = TIER_THRESHOLDS.findIndex(t => t.tier === newTier) <
                       TIER_THRESHOLDS.findIndex(t => t.tier === oldTier) ? '⬆️' : '⬇️';
@@ -1319,7 +1299,6 @@ async function recalculateRecipeRating(recipeId) {
 
 async function markCooked(recipeId, planMealId) {
   if (!planMealId || planMealId === 'undefined') {
-    // Find planMeal id from currentMeals
     const pm = currentMeals.find(m => m.recipe_id === recipeId);
     if (pm) planMealId = pm.id;
   }
@@ -1332,7 +1311,6 @@ async function markCooked(recipeId, planMealId) {
     .eq('id', planMealId);
 
   if (error) {
-    // cooked_at column may not exist yet — try without it
     const { error: e2 } = await sb
       .from('weekly_plan_meals')
       .update({ cooked: true })
@@ -1340,7 +1318,6 @@ async function markCooked(recipeId, planMealId) {
     if (e2) { showToast('Error marking as cooked: ' + e2.message, 'error'); return; }
   }
 
-  // Update local state
   const pm = currentMeals.find(m => m.id === planMealId || m.recipe_id === recipeId);
   if (pm) { pm.cooked = true; pm.cooked_at = cookedAt; }
 
@@ -1367,9 +1344,10 @@ async function loadPendingRequests() {
   const countEl   = document.getElementById('pending-count');
   if (!container) return;
 
+  // FIX 1: select only columns that exist, using request_type not type
   const { data, error } = await sb
     .from('requests')
-    .select('*, users(name)')
+    .select('id, request_type, reason, requested_by, status, created_at, users(name)')
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
 
@@ -1393,7 +1371,8 @@ async function loadPendingRequests() {
 
   container.innerHTML = requests.map(req => {
     const fromName = req.users?.name || 'Unknown';
-    const label    = REQUEST_LABELS[req.type] || req.type;
+    // FIX 2: use request_type not type
+    const label    = REQUEST_LABELS[req.request_type] || req.request_type;
     const date     = new Date(req.created_at).toLocaleDateString('en-AU', { month:'short', day:'numeric' });
     return `
       <div class="request-item" id="req-${req.id}">
@@ -1402,9 +1381,9 @@ async function loadPendingRequests() {
         ${req.reason ? `<div class="request-reason">"${req.reason}"</div>` : ''}
         <div class="request-btns">
           <button class="btn-primary" style="font-size:0.78rem;padding:6px 14px"
-            onclick="handleRequest('${req.id}','${req.type}','approved')">Approve</button>
+            onclick="handleRequest('${req.id}','${req.request_type}','approved')">Approve</button>
           <button class="btn-secondary" style="font-size:0.78rem;padding:5px 14px"
-            onclick="handleRequest('${req.id}','${req.type}','rejected')">Reject</button>
+            onclick="handleRequest('${req.id}','${req.request_type}','rejected')">Reject</button>
         </div>
       </div>`;
   }).join('');
@@ -1418,7 +1397,6 @@ async function handleRequest(requestId, type, decision) {
 
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
 
-  // If approving a plan submission → update plan status too
   if (type === 'plan_submitted' && decision === 'approved') {
     if (currentPlan) {
       await sb.from('weekly_plans').update({ status: 'approved' }).eq('id', currentPlan.id);
@@ -1426,11 +1404,9 @@ async function handleRequest(requestId, type, decision) {
     }
   }
 
-  // Remove card from DOM
   const el = document.getElementById(`req-${requestId}`);
   if (el) el.remove();
 
-  // Update count
   const container = document.getElementById('requests-container');
   const countEl   = document.getElementById('pending-count');
   if (countEl && container) {
@@ -1452,9 +1428,9 @@ async function handleRequest(requestId, type, decision) {
 // SIENNA — PLANNER
 // ═══════════════════════════════════════════════════════════
 function renderSienna(recipes, name) {
-  const hasPlan      = currentPlan !== null;
-  const mealCount    = currentMeals.length;
-  const planStatus   = currentPlan?.status || 'none';
+  const hasPlan       = currentPlan !== null;
+  const mealCount     = currentMeals.length;
+  const planStatus    = currentPlan?.status || 'none';
   const reshuffleUsed = currentPlan?.reshuffle_used || false;
 
   const alreadySubmitted = planStatus === 'submitted' || planStatus === 'approved';
@@ -1565,6 +1541,7 @@ function mealRowSienna(m) {
     + '</div>';
 }
 
+// FIX 5: use request_type column
 async function submitPlan(btn) {
   if (!currentPlan) return;
   btn.disabled = true;
@@ -1578,7 +1555,7 @@ async function submitPlan(btn) {
     if (planErr) throw planErr;
 
     const { error: reqErr } = await sb.from('requests').insert({
-      type: 'plan_submitted',
+      request_type: 'plan_submitted',
       reason: 'Sienna has submitted the meal plan for approval.',
       requested_by: userProfile.id,
       status: 'pending',
@@ -1771,7 +1748,6 @@ async function loadKarenShoppingPreview() {
 function renderShoppingListHTML(mealItems, ckItems, isAdmin) {
   let html = '';
 
-  // Group meal items by La Comer category
   const groups = {};
   for (const ing of mealItems) {
     const cat = ing.lacomer_category || 'Other';
@@ -1798,7 +1774,6 @@ function renderShoppingListHTML(mealItems, ckItems, isAdmin) {
     }
   }
 
-  // Casa King section (admin only)
   if (isAdmin && ckItems.length > 0) {
     html += `
       <div class="casa-king-section">
@@ -1916,7 +1891,6 @@ async function saveLink(ingId) {
 
   const row = document.getElementById(`shop-row-${ingId}`);
   if (row) {
-    const linkArea = row.querySelector('.add-link-btn')?.parentElement || row;
     const form = document.getElementById(`link-form-${ingId}`);
     if (form) form.remove();
     const addBtn = row.querySelector('.add-link-btn');
