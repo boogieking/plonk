@@ -576,14 +576,7 @@ async function loadRecipes() {
 }
 
 // ── RENDER DASHBOARD ─────────────────────────────────────
-async function renderDashboard() {
-  const recipes = await loadRecipes();
-  const content = document.getElementById('dashboard-content');
-
-  if      (userProfile.role === 'admin')   content.innerHTML = renderCameron(recipes, userProfile.name);
-  else if (userProfile.role === 'planner') { content.innerHTML = renderSienna(recipes, userProfile.name); loadInventory(); }
-  else                                     content.innerHTML = renderKaren(recipes, userProfile.name);
-}
+// (defined fully in POST-RENDER HOOKS section below)
 
 // ═══════════════════════════════════════════════════════════
 // CAMERON — ADMIN
@@ -626,7 +619,7 @@ function renderCameron(recipes, name) {
         <div class="stat-label">Recipes in rotation</div>
       </div>
       <div class="card stat-tile">
-        <div class="stat-num">0</div>
+        <div class="stat-num" id="pending-count">—</div>
         <div class="stat-label">Pending requests</div>
       </div>
       <div class="card stat-tile">
@@ -636,10 +629,10 @@ function renderCameron(recipes, name) {
     </div>
 
     <div class="section-label">Pending requests</div>
-    <div class="card" style="margin-bottom:20px">
+    <div class="card" style="margin-bottom:20px" id="requests-container">
       <div class="empty">
         <span class="empty-icon">📋</span>
-        No pending requests from Sienna or Karen
+        Loading requests...
       </div>
     </div>
 
@@ -1129,14 +1122,13 @@ async function submitRequest(type) {
 }
 
 // ── POST-RENDER HOOKS ─────────────────────────────────────
-// Called after renderDashboard for roles that need async data loaded into the page
-const _origRenderDashboard = renderDashboard;
 async function renderDashboard() {
   const recipes = await loadRecipes();
   const content = document.getElementById('dashboard-content');
 
   if (userProfile.role === 'admin') {
     content.innerHTML = renderCameron(recipes, userProfile.name);
+    loadPendingRequests();
   } else if (userProfile.role === 'planner') {
     content.innerHTML = renderSienna(recipes, userProfile.name);
     await loadInventory();
@@ -1354,6 +1346,604 @@ async function markCooked(recipeId, planMealId) {
 
   showToast('Marked as cooked ✓ — rate it below!');
   await renderDashboard();
+}
+
+// ═══════════════════════════════════════════════════════════
+// PENDING REQUESTS ENGINE
+// ═══════════════════════════════════════════════════════════
+
+const REQUEST_LABELS = {
+  plan_submitted:   '📋 Plan submitted for approval',
+  swap:             '🔄 Meal swap request',
+  hibernate:        '😴 Hibernation request',
+  new:              '✨ New meal suggestion',
+  frequency_change: '📊 Frequency change request',
+};
+
+async function loadPendingRequests() {
+  if (userProfile.role !== 'admin') return;
+
+  const container = document.getElementById('requests-container');
+  const countEl   = document.getElementById('pending-count');
+  if (!container) return;
+
+  const { data, error } = await sb
+    .from('requests')
+    .select('*, users(name)')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    container.innerHTML = '<div class="empty">Could not load requests</div>';
+    if (countEl) countEl.textContent = '?';
+    return;
+  }
+
+  const requests = data || [];
+  if (countEl) countEl.textContent = requests.length;
+
+  if (requests.length === 0) {
+    container.innerHTML = `
+      <div class="empty">
+        <span class="empty-icon">📋</span>
+        No pending requests from Sienna or Karen
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = requests.map(req => {
+    const fromName = req.users?.name || 'Unknown';
+    const label    = REQUEST_LABELS[req.type] || req.type;
+    const date     = new Date(req.created_at).toLocaleDateString('en-AU', { month:'short', day:'numeric' });
+    return `
+      <div class="request-item" id="req-${req.id}">
+        <div class="request-from">${fromName} · ${date}</div>
+        <div class="request-text">${label}</div>
+        ${req.reason ? `<div class="request-reason">"${req.reason}"</div>` : ''}
+        <div class="request-btns">
+          <button class="btn-primary" style="font-size:0.78rem;padding:6px 14px"
+            onclick="handleRequest('${req.id}','${req.type}','approved')">Approve</button>
+          <button class="btn-secondary" style="font-size:0.78rem;padding:5px 14px"
+            onclick="handleRequest('${req.id}','${req.type}','rejected')">Reject</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function handleRequest(requestId, type, decision) {
+  const { error } = await sb
+    .from('requests')
+    .update({ status: decision })
+    .eq('id', requestId);
+
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+
+  // If approving a plan submission → update plan status too
+  if (type === 'plan_submitted' && decision === 'approved') {
+    if (currentPlan) {
+      await sb.from('weekly_plans').update({ status: 'approved' }).eq('id', currentPlan.id);
+      currentPlan.status = 'approved';
+    }
+  }
+
+  // Remove card from DOM
+  const el = document.getElementById(`req-${requestId}`);
+  if (el) el.remove();
+
+  // Update count
+  const container = document.getElementById('requests-container');
+  const countEl   = document.getElementById('pending-count');
+  if (countEl && container) {
+    const remaining = container.querySelectorAll('.request-item').length;
+    countEl.textContent = remaining;
+    if (remaining === 0) {
+      container.innerHTML = `
+        <div class="empty">
+          <span class="empty-icon">📋</span>
+          No pending requests from Sienna or Karen
+        </div>`;
+    }
+  }
+
+  showToast(decision === 'approved' ? 'Request approved ✓' : 'Request rejected');
+}
+
+// ═══════════════════════════════════════════════════════════
+// SIENNA — PLANNER
+// ═══════════════════════════════════════════════════════════
+function renderSienna(recipes, name) {
+  const hasPlan      = currentPlan !== null;
+  const mealCount    = currentMeals.length;
+  const planStatus   = currentPlan?.status || 'none';
+  const reshuffleUsed = currentPlan?.reshuffle_used || false;
+
+  const alreadySubmitted = planStatus === 'submitted' || planStatus === 'approved';
+
+  const submitLabel = planStatus === 'submitted' ? '✓ Plan Submitted'
+    : planStatus === 'approved' ? '✓ Approved'
+    : 'Submit plan for approval';
+
+  return `
+  <div class="fade-in">
+    <div class="page-header">
+      <h1>Hi ${name} 👋</h1>
+      <p>${hasPlan ? 'Plan started ' + planDateLabel(currentPlan) : 'No active plan yet'}</p>
+    </div>
+
+    <div class="week-banner">
+      <div>
+        <div class="status-label">Plan status</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <div class="status-dot" style="background:${hasPlan ? '#4A7C59' : '#C8674A'}"></div>
+          <div class="status-text">
+            ${hasPlan
+              ? `${mealCount} meal${mealCount!==1?'s':''} suggested · status: <strong>${planStatus}</strong>`
+              : 'Waiting for Cameron to start this week\'s plan'}
+          </div>
+        </div>
+      </div>
+      ${hasPlan ? `
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn-secondary"
+            ${reshuffleUsed || alreadySubmitted ? 'disabled' : ''}
+            onclick="doReshuffle(this)">
+            ${reshuffleUsed ? '🔀 Reshuffle used' : '🔀 Reshuffle'}
+          </button>
+          <button class="btn-primary" id="submit-plan-btn"
+            ${alreadySubmitted ? 'disabled style="opacity:0.6"' : ''}
+            onclick="submitPlan(this)">
+            ${submitLabel}
+          </button>
+        </div>` : ''}
+    </div>
+
+    <div class="section-label">This week's meals</div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header">
+        <div class="card-title">Meal pool</div>
+        ${hasPlan ? `<span class="tag tag-green">${mealCount} meals</span>` : ''}
+      </div>
+      ${hasPlan && currentMeals.length > 0
+        ? `<div class="meal-list">${currentMeals.map(m => mealRowSienna(m)).join('')}</div>`
+        : `<div class="empty"><span class="empty-icon">🍽️</span>${hasPlan ? 'No meals in plan yet' : 'No plan yet this week'}</div>`}
+    </div>
+
+    <div class="section-label">Request from Cameron</div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header">
+        <div class="card-title">Requests</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">
+        <button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button>
+        <button class="btn-secondary" onclick="openModal('hibernate')">😴 Request hibernation</button>
+        <button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button>
+      </div>
+    </div>
+
+    <div class="section-label">Inventory check</div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header">
+        <div class="card-title">Fridge & freezer</div>
+        ${hasPlan ? `<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>` : ''}
+      </div>
+      ${hasPlan
+        ? `<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`
+        : `<div class="empty"><span class="empty-icon">🛒</span>No active plan</div>`}
+    </div>
+
+    <div class="section-label">Shopping preview</div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Items needed · La Comer + Casa King</div>
+        <span class="tag tag-gray">View only · Cameron generates</span>
+      </div>
+      <div id="sienna-shopping-preview">
+        <div class="empty"><span class="empty-icon">📋</span>Loading preview...</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function mealRowSienna(m) {
+  if (!m) return '';
+  const r = m.recipes || m;
+  const planMeal = currentMeals.find(pm => pm.recipe_id === r.id) || {};
+  const isCooked = planMeal.cooked === true;
+  const ratingWindowOpen = isCooked && isWithin24Hours(planMeal.cooked_at);
+  const myRating = myRatingsThisWeek[r.id];
+  const avgStr = r.avg_rating ? ' · ⭐ ' + Number(r.avg_rating).toFixed(1) : '';
+  const ratingHtml = ratingWindowOpen && !myRating ? ratingPromptHTML(r.id) : '';
+  const ratedHtml = myRating ? '<div class="rating-submitted">Your rating: ' + '★'.repeat(myRating) + '☆'.repeat(5 - myRating) + '</div>' : '';
+  const actionHtml = !isCooked ? cookedBtn(r.id, planMeal.id, true) : '<span class="tag tag-green">Cooked ✓</span>';
+  return '<div class="meal-item ' + (isCooked ? 'cooked' : '') + '">'
+    + '<div style="flex:1">'
+    + '<div class="meal-name">' + r.name_en + '</div>'
+    + '<div class="meal-meta">' + (r.prep_time_minutes || '—') + ' min prep' + avgStr + '</div>'
+    + ratingHtml + ratedHtml
+    + '</div>'
+    + '<div class="meal-actions">' + actionHtml + '</div>'
+    + '</div>';
+}
+
+async function submitPlan(btn) {
+  if (!currentPlan) return;
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  try {
+    const { error: planErr } = await sb
+      .from('weekly_plans')
+      .update({ status: 'submitted' })
+      .eq('id', currentPlan.id);
+    if (planErr) throw planErr;
+
+    const { error: reqErr } = await sb.from('requests').insert({
+      type: 'plan_submitted',
+      reason: 'Sienna has submitted the meal plan for approval.',
+      requested_by: userProfile.id,
+      status: 'pending',
+      created_at: new Date().toISOString()
+    });
+    if (reqErr) throw reqErr;
+
+    currentPlan.status = 'submitted';
+    btn.textContent = '✓ Plan Submitted';
+    showToast('Plan submitted to Cameron ✓');
+  } catch(err) {
+    btn.disabled = false;
+    btn.textContent = 'Submit plan for approval';
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+async function loadSiennaShoppingPreview() {
+  const el = document.getElementById('sienna-shopping-preview');
+  if (!el) return;
+
+  if (!currentPlan?.inventory || Object.keys(currentPlan.inventory).length === 0) {
+    el.innerHTML = `<div class="empty"><span class="empty-icon">📋</span>Complete inventory check to see preview</div>`;
+    return;
+  }
+
+  const needIds = Object.entries(currentPlan.inventory)
+    .filter(([,s]) => s === 'need').map(([id]) => id);
+
+  if (needIds.length === 0) {
+    el.innerHTML = `<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;
+    return;
+  }
+
+  try {
+    const { data: ingredients, error } = await sb
+      .from('ingredients')
+      .select('id, name_en, name_es, lacomer_category, lacomer_url')
+      .in('id', needIds);
+    if (error) throw error;
+
+    const deduped = {};
+    for (const ing of ingredients) {
+      const key = ing.name_en.toLowerCase();
+      if (!deduped[key] || (!deduped[key].lacomer_url && ing.lacomer_url)) {
+        deduped[key] = ing;
+      }
+    }
+    const items = Object.values(deduped).sort((a,b) =>
+      (a.lacomer_category||'').localeCompare(b.lacomer_category||'') ||
+      a.name_en.localeCompare(b.name_en)
+    );
+
+    el.innerHTML = renderShoppingListHTML(items, [], false);
+  } catch(err) {
+    el.innerHTML = `<div class="empty" style="color:#c44">Could not load preview: ${err.message}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// KAREN — REVIEWER
+// ═══════════════════════════════════════════════════════════
+function renderKaren(recipes, name) {
+  const hasPlan   = currentPlan !== null;
+  const mealCount = currentMeals.length;
+
+  return `
+  <div class="fade-in">
+    <div class="page-header">
+      <h1>Hi ${name} 👋</h1>
+      <p>${hasPlan ? 'Plan started ' + planDateLabel(currentPlan) : 'No active plan yet'}</p>
+    </div>
+
+    <div class="week-banner">
+      <div>
+        <div class="status-label">Plan status</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <div class="status-dot" style="background:${hasPlan ? '#4A7C59' : '#C8674A'}"></div>
+          <div class="status-text">
+            ${hasPlan
+              ? `${mealCount} meal${mealCount!==1?'s':''} this week · status: <strong>${currentPlan.status}</strong>`
+              : 'No active plan yet'}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label">This week's meals</div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header">
+        <div class="card-title">Meal pool</div>
+        ${hasPlan ? `<span class="tag tag-blue">${mealCount} meals</span>` : ''}
+      </div>
+      ${hasPlan && currentMeals.length > 0
+        ? `<div class="meal-list">${currentMeals.map(m => mealRowKaren(m)).join('')}</div>`
+        : `<div class="empty"><span class="empty-icon">🍽️</span>No meals yet this week</div>`}
+    </div>
+
+    <div class="section-label">Suggest a change</div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header">
+        <div class="card-title">Requests (require Cameron's approval)</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">
+        <button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button>
+        <button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button>
+      </div>
+    </div>
+
+    <div class="section-label">Shopping list</div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Items needed · La Comer</div>
+        <span class="tag tag-gray">View only</span>
+      </div>
+      <div id="karen-shopping-preview">
+        <div class="empty"><span class="empty-icon">📋</span>Loading preview...</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function mealRowKaren(m) {
+  if (!m) return '';
+  const r = m.recipes || m;
+  const planMeal = currentMeals.find(pm => pm.recipe_id === r.id) || {};
+  const isCooked = planMeal.cooked === true;
+  const ratingWindowOpen = isCooked && isWithin24Hours(planMeal.cooked_at);
+  const myRating = myRatingsThisWeek[r.id];
+  const avgStr = r.avg_rating ? ' · ⭐ ' + Number(r.avg_rating).toFixed(1) : '';
+  const ratingHtml = ratingWindowOpen && !myRating ? ratingPromptHTML(r.id) : '';
+  const ratedHtml = myRating ? '<div class="rating-submitted">Your rating: ' + '★'.repeat(myRating) + '☆'.repeat(5 - myRating) + '</div>' : '';
+  const actionHtml = !isCooked ? cookedBtn(r.id, planMeal.id, true) : '<span class="tag tag-green">Cooked ✓</span>';
+  return '<div class="meal-item ' + (isCooked ? 'cooked' : '') + '">'
+    + '<div style="flex:1">'
+    + '<div class="meal-name">' + r.name_en + '</div>'
+    + '<div class="meal-meta">' + (r.prep_time_minutes || '—') + ' min prep' + avgStr + '</div>'
+    + ratingHtml + ratedHtml
+    + '</div>'
+    + '<div class="meal-actions">' + actionHtml + '</div>'
+    + '</div>';
+}
+
+async function loadKarenShoppingPreview() {
+  const el = document.getElementById('karen-shopping-preview');
+  if (!el) return;
+
+  if (!currentPlan?.inventory || Object.keys(currentPlan.inventory).length === 0) {
+    el.innerHTML = `<div class="empty"><span class="empty-icon">📋</span>Shopping list not generated yet</div>`;
+    return;
+  }
+
+  const needIds = Object.entries(currentPlan.inventory)
+    .filter(([,s]) => s === 'need').map(([id]) => id);
+
+  if (needIds.length === 0) {
+    el.innerHTML = `<div class="empty" style="color:var(--green)">✓ Everything is in stock!</div>`;
+    return;
+  }
+
+  try {
+    const { data: ingredients, error } = await sb
+      .from('ingredients')
+      .select('id, name_en, name_es, lacomer_category, lacomer_url')
+      .in('id', needIds);
+    if (error) throw error;
+
+    const deduped = {};
+    for (const ing of ingredients) {
+      const key = ing.name_en.toLowerCase();
+      if (!deduped[key] || (!deduped[key].lacomer_url && ing.lacomer_url)) {
+        deduped[key] = ing;
+      }
+    }
+    const items = Object.values(deduped).sort((a,b) =>
+      (a.lacomer_category||'').localeCompare(b.lacomer_category||'') ||
+      a.name_en.localeCompare(b.name_en)
+    );
+
+    el.innerHTML = renderShoppingListHTML(items, [], false);
+  } catch(err) {
+    el.innerHTML = `<div class="empty" style="color:#c44">Could not load list: ${err.message}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// SHOPPING LIST GENERATION — CAMERON
+// ═══════════════════════════════════════════════════════════
+
+function renderShoppingListHTML(mealItems, ckItems, isAdmin) {
+  let html = '';
+
+  // Group meal items by La Comer category
+  const groups = {};
+  for (const ing of mealItems) {
+    const cat = ing.lacomer_category || 'Other';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(ing);
+  }
+
+  for (const [cat, items] of Object.entries(groups)) {
+    html += `<div class="shop-category-label">${cat}</div>`;
+    for (const ing of items) {
+      const linkHtml = ing.lacomer_url
+        ? `<a href="${ing.lacomer_url}" target="_blank" class="shop-link">🛒 La Comer</a>`
+        : isAdmin
+          ? `<button class="add-link-btn" onclick="showAddLinkForm('${ing.id}',this)">+ Add link</button>`
+          : `<span style="font-size:0.72rem;color:var(--mid)">No link</span>`;
+      html += `
+        <div class="shop-row" id="shop-row-${ing.id}">
+          <div class="shop-names">
+            <div class="shop-name-en">${ing.name_en}</div>
+            <div class="shop-name-es">${ing.name_es || ''}</div>
+          </div>
+          ${linkHtml}
+        </div>`;
+    }
+  }
+
+  // Casa King section (admin only)
+  if (isAdmin && ckItems.length > 0) {
+    html += `
+      <div class="casa-king-section">
+        <div class="casa-king-header">
+          <div class="card-title">Household items</div>
+          <span class="casa-king-badge">Casa King</span>
+        </div>`;
+    for (const item of ckItems) {
+      html += `
+        <div class="ck-item-row" id="ck-row-${item.id}">
+          <div class="ck-item-text">${item.text}</div>
+          <button class="ck-done-btn ${item.done?'done':''}"
+            onclick="tickCKItem('${item.id}',this)">
+            ${item.done ? 'Done ✓' : 'Got it'}
+          </button>
+        </div>`;
+    }
+    html += `</div>`;
+  }
+
+  return html || `<div class="empty" style="color:var(--green)">✓ Nothing needed — you have everything!</div>`;
+}
+
+async function generateShoppingList() {
+  const btn     = document.getElementById('generate-btn');
+  const content = document.getElementById('shopping-list-content');
+  btn.disabled  = true;
+  btn.textContent = 'Loading...';
+  content.innerHTML = `<div class="empty"><div class="spin" style="width:24px;height:24px;border-width:2px;margin:0 auto 8px"></div>Building your list...</div>`;
+
+  try {
+    const inventory = currentPlan?.inventory || {};
+    const needIds = Object.entries(inventory)
+      .filter(([,s]) => s === 'need').map(([id]) => id);
+
+    if (needIds.length === 0) {
+      content.innerHTML = `<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;
+      btn.textContent = 'Generate list';
+      btn.disabled = false;
+      return;
+    }
+
+    const { data: ingredients, error } = await sb
+      .from('ingredients')
+      .select('id, name_en, name_es, lacomer_category, lacomer_url')
+      .in('id', needIds);
+    if (error) throw error;
+
+    const deduped = {};
+    for (const ing of ingredients) {
+      const key = ing.name_en.toLowerCase();
+      if (!deduped[key] || (!deduped[key].lacomer_url && ing.lacomer_url)) {
+        deduped[key] = ing;
+      }
+    }
+    const mealItems = Object.values(deduped).sort((a,b) =>
+      (a.lacomer_category||'').localeCompare(b.lacomer_category||'') ||
+      a.name_en.localeCompare(b.name_en)
+    );
+
+    let ckItems = [];
+    try {
+      ckItems = await ckFetch('ck_items?cat=eq.shopping&done=eq.false&select=id,text,done&order=text.asc');
+    } catch(e) {
+      console.warn('Casa King fetch failed:', e.message);
+    }
+
+    content.innerHTML = renderShoppingListHTML(mealItems, ckItems, true);
+    btn.textContent = 'Regenerate list';
+    btn.disabled = false;
+
+  } catch(err) {
+    content.innerHTML = `<div class="empty" style="color:#c44">Error: ${err.message}</div>`;
+    btn.textContent = 'Generate list';
+    btn.disabled = false;
+  }
+}
+
+function showAddLinkForm(ingId, btn) {
+  const row = document.getElementById(`shop-row-${ingId}`);
+  if (!row) return;
+  btn.style.display = 'none';
+  const formDiv = document.createElement('div');
+  formDiv.className = 'add-link-form';
+  formDiv.id = `link-form-${ingId}`;
+  formDiv.innerHTML = `
+    <input class="add-link-input" id="link-input-${ingId}"
+      placeholder="Paste La Comer URL..." type="url">
+    <button class="save-link-btn" onclick="saveLink('${ingId}')">Save</button>
+    <button class="cancel-link-btn" onclick="cancelLink('${ingId}')">Cancel</button>`;
+  row.appendChild(formDiv);
+}
+
+function cancelLink(ingId) {
+  const form = document.getElementById(`link-form-${ingId}`);
+  if (form) form.remove();
+  const row = document.getElementById(`shop-row-${ingId}`);
+  if (row) {
+    const addBtn = row.querySelector('.add-link-btn');
+    if (addBtn) addBtn.style.display = '';
+  }
+}
+
+async function saveLink(ingId) {
+  const input = document.getElementById(`link-input-${ingId}`);
+  const url   = input?.value?.trim();
+  if (!url) { showToast('Please paste a URL first', 'error'); return; }
+
+  const { error } = await sb
+    .from('ingredients')
+    .update({ lacomer_url: url })
+    .eq('id', ingId);
+
+  if (error) { showToast('Error saving: ' + error.message, 'error'); return; }
+
+  const row = document.getElementById(`shop-row-${ingId}`);
+  if (row) {
+    const linkArea = row.querySelector('.add-link-btn')?.parentElement || row;
+    const form = document.getElementById(`link-form-${ingId}`);
+    if (form) form.remove();
+    const addBtn = row.querySelector('.add-link-btn');
+    if (addBtn) addBtn.replaceWith(Object.assign(document.createElement('a'), {
+      href: url, target: '_blank', className: 'shop-link', textContent: '🛒 La Comer'
+    }));
+  }
+  showToast('Link saved ✓');
+}
+
+async function tickCKItem(itemId, btn) {
+  try {
+    await ckFetch(`ck_items?id=eq.${itemId}`, {
+      method: 'PATCH',
+      prefer: 'return=minimal',
+      body: JSON.stringify({ done: true })
+    });
+    const row = document.getElementById(`ck-row-${itemId}`);
+    if (row) {
+      row.classList.add('ticked');
+      btn.classList.add('done');
+      btn.textContent = 'Done ✓';
+    }
+    showToast('Item ticked off ✓');
+  } catch(err) {
+    showToast('Error: ' + err.message, 'error');
+  }
 }
 
 // ── GO ────────────────────────────────────────────────────
