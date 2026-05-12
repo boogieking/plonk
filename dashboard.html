@@ -117,6 +117,7 @@
       box-shadow:0 3px 10px rgba(200,103,74,0.3);
     }
     .btn-primary:hover{background:var(--clay-dark);transform:translateY(-1px)}
+    .btn-primary:disabled{opacity:0.45;cursor:not-allowed;transform:none;box-shadow:none}
     .btn-secondary{
       background:white;color:var(--dark);
       border:1.5px solid var(--border);border-radius:10px;
@@ -166,7 +167,6 @@
     .meal-item:hover{border-color:var(--clay);background:rgba(255,255,255,0.85)}
     .meal-name{font-size:0.9rem;font-weight:400}
     .meal-meta{font-size:0.75rem;color:var(--mid)}
-    .stars{color:#C8674A;font-size:0.8rem;letter-spacing:1px}
     .meal-actions{display:flex;gap:6px}
 
     /* ── TAGS ── */
@@ -216,6 +216,109 @@
     .have-btn.active{background:var(--green);color:white}
     .need-btn{border-color:#C44;color:#C44;background:transparent}
     .need-btn.active{background:#C44;color:white}
+
+    /* ── SHOPPING LIST ── */
+    .shop-category-label{
+      font-size:0.7rem;font-weight:500;
+      text-transform:uppercase;letter-spacing:0.07em;
+      color:var(--mid);margin:16px 0 8px;
+      padding-bottom:4px;
+      border-bottom:1px solid var(--border);
+    }
+    .shop-row{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:9px 0;
+      border-bottom:1px solid rgba(200,180,160,0.15);
+      gap:12px;
+    }
+    .shop-row:last-child{border-bottom:none}
+    .shop-names{flex:1;min-width:0}
+    .shop-name-en{font-size:0.88rem;font-weight:400;color:var(--dark)}
+    .shop-name-es{font-size:0.74rem;color:var(--mid);margin-top:1px}
+    .shop-link{
+      display:inline-flex;align-items:center;gap:5px;
+      font-size:0.75rem;font-weight:500;color:var(--clay);
+      text-decoration:none;padding:4px 10px;
+      border:1.5px solid rgba(200,103,74,0.3);
+      border-radius:999px;white-space:nowrap;
+      transition:all 0.15s;background:rgba(200,103,74,0.04);
+      flex-shrink:0;
+    }
+    .shop-link:hover{background:var(--clay);color:white;border-color:var(--clay)}
+    .add-link-btn{
+      font-size:0.72rem;font-weight:500;color:var(--mid);
+      background:transparent;border:1.5px dashed var(--border);
+      border-radius:999px;padding:4px 10px;cursor:pointer;
+      font-family:'DM Sans',sans-serif;white-space:nowrap;
+      transition:all 0.15s;flex-shrink:0;
+    }
+    .add-link-btn:hover{border-color:var(--clay);color:var(--clay)}
+    .add-link-form{
+      display:flex;gap:6px;align-items:center;
+      margin-top:6px;flex-wrap:wrap;
+    }
+    .add-link-input{
+      flex:1;min-width:180px;
+      padding:5px 10px;
+      border:1.5px solid var(--clay);border-radius:8px;
+      font-family:'DM Sans',sans-serif;font-size:0.78rem;
+      outline:none;color:var(--dark);
+    }
+    .save-link-btn{
+      padding:5px 12px;font-size:0.75rem;font-weight:500;
+      background:var(--clay);color:white;border:none;
+      border-radius:8px;cursor:pointer;
+      font-family:'DM Sans',sans-serif;white-space:nowrap;
+      transition:background 0.15s;
+    }
+    .save-link-btn:hover{background:var(--clay-dark)}
+    .cancel-link-btn{
+      padding:5px 10px;font-size:0.75rem;
+      background:none;border:none;cursor:pointer;
+      color:var(--mid);font-family:'DM Sans',sans-serif;
+    }
+    .cancel-link-btn:hover{color:var(--dark)}
+
+    /* ── CASA KING SECTION ── */
+    .casa-king-section{
+      margin-top:24px;
+      padding-top:20px;
+      border-top:2px dashed rgba(200,180,160,0.4);
+    }
+    .casa-king-header{
+      display:flex;align-items:center;gap:10px;
+      margin-bottom:14px;
+    }
+    .casa-king-badge{
+      font-size:0.68rem;font-weight:500;
+      letter-spacing:0.06em;text-transform:uppercase;
+      background:rgba(46,95,138,0.1);color:var(--blue);
+      padding:3px 9px;border-radius:999px;
+    }
+    .ck-item-row{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:8px 0;
+      border-bottom:1px solid rgba(200,180,160,0.15);
+      gap:10px;
+    }
+    .ck-item-row:last-child{border-bottom:none}
+    .ck-item-text{font-size:0.88rem;color:var(--dark)}
+    .ck-done-btn{
+      padding:4px 12px;font-size:0.72rem;font-weight:500;
+      border-radius:999px;border:1.5px solid var(--green);
+      color:var(--green);background:transparent;cursor:pointer;
+      font-family:'DM Sans',sans-serif;transition:all 0.15s;
+      white-space:nowrap;flex-shrink:0;
+    }
+    .ck-done-btn:hover{background:var(--green);color:white}
+    .ck-done-btn.done{
+      background:var(--green);color:white;
+      opacity:0.5;cursor:default;
+      text-decoration:line-through;
+    }
+    .ck-item-row.ticked .ck-item-text{
+      text-decoration:line-through;color:var(--mid);opacity:0.6;
+    }
 
     /* ── EMPTY STATE ── */
     .empty{
@@ -319,10 +422,31 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+// ── SUPABASE CLIENTS ──────────────────────────────────────
 const SUPABASE_URL = 'https://znwoiqygmsgabyoslrbt.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_SGLBIKifgg4nGL0pPtQssQ_Ng3dMgDK';
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Casa King Supabase (direct REST — no JS client needed)
+const CK_URL = 'https://irpfhfdzlpmgvtndbodo.supabase.co';
+const CK_KEY = 'sb_publishable_J2GeLhSczAmtyXBaTuKuFQ_lyZvsRQL';
+
+async function ckFetch(path, options = {}) {
+  const res = await fetch(`${CK_URL}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      'apikey': CK_KEY,
+      'Authorization': `Bearer ${CK_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': options.prefer || '',
+      ...(options.headers || {})
+    }
+  });
+  if (!res.ok) throw new Error(`Casa King API error: ${res.status}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
 
 const roleColor = { admin:'#C8674A', planner:'#4A7C59', reviewer:'#2E5F8A' };
 const roleLabel = { admin:'Admin', planner:'Planner', reviewer:'Reviewer' };
@@ -433,6 +557,8 @@ function renderCameron(recipes, name) {
     ? `Current plan: <strong>${mealCount} home meal${mealCount!==1?'s':''}</strong>, ${eatingOutCount} day${eatingOutCount!==1?'s':''} eating out`
     : "Set eating-out days to generate this week's meal suggestions";
 
+  const hasInventory = currentPlan?.inventory && Object.keys(currentPlan.inventory).length > 0;
+
   return `
   <div class="fade-in">
     <div class="page-header">
@@ -502,14 +628,20 @@ function renderCameron(recipes, name) {
     </div>
 
     <div class="section-label">Shopping list</div>
-    <div class="card">
+    <div class="card" id="cameron-shopping-card">
       <div class="card-header">
-        <div class="card-title">La Comer list</div>
-        <button class="btn-primary" style="opacity:0.5;cursor:not-allowed" disabled>Generate list</button>
+        <div class="card-title">La Comer + Casa King</div>
+        <button class="btn-primary" id="generate-btn"
+          ${hasInventory ? '' : 'disabled'}
+          onclick="generateShoppingList()">
+          ${hasInventory ? 'Generate list' : 'Complete inventory first'}
+        </button>
       </div>
-      <div class="empty">
-        <span class="empty-icon">🛍️</span>
-        Complete inventory check first to generate the shopping list
+      <div id="shopping-list-content">
+        <div class="empty">
+          <span class="empty-icon">🛍️</span>
+          ${hasInventory ? 'Click Generate list to build your shopping list' : 'Complete inventory check first to generate the shopping list'}
+        </div>
       </div>
     </div>
   </div>`;
@@ -528,6 +660,236 @@ function mealRowAdmin(r) {
         onclick="alert('Hibernate — coming next build')">Hibernate</button>
     </div>
   </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// SHOPPING LIST GENERATION — CAMERON
+// ═══════════════════════════════════════════════════════════
+
+async function generateShoppingList() {
+  const btn = document.getElementById('generate-btn');
+  const content = document.getElementById('shopping-list-content');
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+  content.innerHTML = `<div class="empty"><div class="spin" style="width:24px;height:24px;border-width:2px;margin:0 auto 8px"></div>Building your list...</div>`;
+
+  try {
+    // 1. Get NEED ingredient IDs from inventory
+    const inventory = currentPlan.inventory || {};
+    const needIds = Object.entries(inventory)
+      .filter(([,status]) => status === 'need')
+      .map(([id]) => id);
+
+    if (needIds.length === 0) {
+      content.innerHTML = `<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;
+      btn.textContent = 'Generate list';
+      btn.disabled = false;
+      return;
+    }
+
+    // 2. Fetch full ingredient details including URLs
+    const { data: ingredients, error } = await sb
+      .from('ingredients')
+      .select('id, name_en, name_es, lacomer_category, lacomer_url')
+      .in('id', needIds);
+
+    if (error) throw error;
+
+    // 3. Deduplicate by name_en, keep one with URL if available
+    const deduped = {};
+    for (const ing of ingredients) {
+      const key = ing.name_en.toLowerCase();
+      if (!deduped[key] || (!deduped[key].lacomer_url && ing.lacomer_url)) {
+        deduped[key] = ing;
+      }
+    }
+    const mealItems = Object.values(deduped).sort((a,b) =>
+      (a.lacomer_category||'').localeCompare(b.lacomer_category||'') ||
+      a.name_en.localeCompare(b.name_en)
+    );
+
+    // 4. Fetch Casa King shopping items
+    let ckItems = [];
+    try {
+      ckItems = await ckFetch('ck_items?cat=eq.shopping&done=eq.false&select=id,text,done&order=text.asc');
+    } catch(e) {
+      console.warn('Casa King fetch failed:', e.message);
+    }
+
+    // 5. Render
+    content.innerHTML = renderShoppingListHTML(mealItems, ckItems, true);
+    btn.textContent = 'Regenerate list';
+    btn.disabled = false;
+
+  } catch(err) {
+    content.innerHTML = `<div class="empty" style="color:#c44">Error loading list: ${err.message}</div>`;
+    btn.textContent = 'Try again';
+    btn.disabled = false;
+  }
+}
+
+// ── Render shopping list HTML (shared between Cameron full + Sienna/Karen preview)
+// isAdmin = true shows Add Link buttons and Casa King tick-off
+function renderShoppingListHTML(mealItems, ckItems, isAdmin) {
+
+  // Group meal items by category
+  const groups = {};
+  for (const item of mealItems) {
+    const cat = item.lacomer_category || 'Other';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(item);
+  }
+
+  let html = '';
+
+  if (mealItems.length === 0) {
+    html += `<div class="empty" style="color:var(--green);padding:16px 0">✓ You have everything for this week's meals!</div>`;
+  } else {
+    // Meal ingredients section
+    html += `<div style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--clay);margin-bottom:4px">🍴 Meal ingredients</div>`;
+    for (const [cat, items] of Object.entries(groups)) {
+      html += `<div class="shop-category-label">${cat}</div>`;
+      for (const item of items) {
+        html += shopRow(item, isAdmin);
+      }
+    }
+  }
+
+  // Casa King section
+  html += `<div class="casa-king-section">`;
+  html += `<div class="casa-king-header">
+    <div class="card-title">🏠 Household items</div>
+    <span class="casa-king-badge">Casa King</span>
+  </div>`;
+
+  if (!ckItems || ckItems.length === 0) {
+    html += `<div style="font-size:0.84rem;color:var(--mid);padding:8px 0">No pending items in Casa King shopping list</div>`;
+  } else {
+    for (const item of ckItems) {
+      html += `
+      <div class="ck-item-row" id="ck-row-${item.id}">
+        <div class="ck-item-text">${escapeHtml(item.text)}</div>
+        ${isAdmin
+          ? `<button class="ck-done-btn" onclick="tickCkItem('${item.id}', this)">✓ Done</button>`
+          : `<span class="tag tag-gray">Needed</span>`
+        }
+      </div>`;
+    }
+  }
+  html += `</div>`;
+
+  return html;
+}
+
+function shopRow(item, isAdmin) {
+  const hasUrl = item.lacomer_url && item.lacomer_url.trim() !== '';
+  return `
+  <div class="shop-row" id="shop-row-${item.id}">
+    <div class="shop-names">
+      <div class="shop-name-en">${escapeHtml(item.name_en)}</div>
+      <div class="shop-name-es">${escapeHtml(item.name_es || '')}</div>
+    </div>
+    <div style="flex-shrink:0">
+      ${hasUrl
+        ? `<a class="shop-link" href="${item.lacomer_url}" target="_blank" rel="noopener">
+            🛒 La Comer
+           </a>`
+        : isAdmin
+          ? `<button class="add-link-btn" id="add-btn-${item.id}"
+              onclick="showAddLinkForm('${item.id}')">+ Add link</button>`
+          : `<span style="font-size:0.72rem;color:var(--mid)">No link yet</span>`
+      }
+    </div>
+  </div>
+  ${isAdmin && !hasUrl ? `<div id="link-form-${item.id}" style="display:none;padding:0 0 8px 0"></div>` : ''}`;
+}
+
+function showAddLinkForm(ingredientId) {
+  const formDiv = document.getElementById(`link-form-${ingredientId}`);
+  const addBtn  = document.getElementById(`add-btn-${ingredientId}`);
+  if (!formDiv) return;
+
+  addBtn.style.display = 'none';
+  formDiv.style.display = 'block';
+  formDiv.innerHTML = `
+    <div class="add-link-form">
+      <input class="add-link-input" id="link-input-${ingredientId}"
+        type="url" placeholder="Paste La Comer URL here..." />
+      <button class="save-link-btn" onclick="saveLinkUrl('${ingredientId}')">Save</button>
+      <button class="cancel-link-btn" onclick="cancelLinkForm('${ingredientId}')">Cancel</button>
+    </div>`;
+  document.getElementById(`link-input-${ingredientId}`).focus();
+}
+
+function cancelLinkForm(ingredientId) {
+  document.getElementById(`link-form-${ingredientId}`).style.display = 'none';
+  document.getElementById(`add-btn-${ingredientId}`).style.display = 'inline-flex';
+}
+
+async function saveLinkUrl(ingredientId) {
+  const input = document.getElementById(`link-input-${ingredientId}`);
+  const url = input.value.trim();
+  if (!url) { showToast('Please paste a URL first', 'error'); return; }
+  if (!url.startsWith('http')) { showToast('URL should start with https://', 'error'); return; }
+
+  input.disabled = true;
+
+  const { error } = await sb
+    .from('ingredients')
+    .update({ lacomer_url: url })
+    .eq('id', ingredientId);
+
+  if (error) {
+    showToast('Error saving URL: ' + error.message, 'error');
+    input.disabled = false;
+    return;
+  }
+
+  // Replace the row with the linked version
+  const row = document.getElementById(`shop-row-${ingredientId}`);
+  if (row) {
+    const nameEn = row.querySelector('.shop-name-en')?.textContent || '';
+    const nameEs = row.querySelector('.shop-name-es')?.textContent || '';
+    row.outerHTML = `
+    <div class="shop-row" id="shop-row-${ingredientId}">
+      <div class="shop-names">
+        <div class="shop-name-en">${escapeHtml(nameEn)}</div>
+        <div class="shop-name-es">${escapeHtml(nameEs)}</div>
+      </div>
+      <div style="flex-shrink:0">
+        <a class="shop-link" href="${url}" target="_blank" rel="noopener">🛒 La Comer</a>
+      </div>
+    </div>`;
+  }
+  const formDiv = document.getElementById(`link-form-${ingredientId}`);
+  if (formDiv) formDiv.remove();
+
+  showToast('Link saved ✓ — will appear automatically next time');
+}
+
+async function tickCkItem(itemId, btn) {
+  btn.disabled = true;
+  try {
+    await ckFetch(`ck_items?id=eq.${itemId}`, {
+      method: 'PATCH',
+      prefer: 'return=minimal',
+      body: JSON.stringify({ done: true })
+    });
+    const row = document.getElementById(`ck-row-${itemId}`);
+    if (row) {
+      row.classList.add('ticked');
+      btn.classList.add('done');
+      btn.textContent = '✓ Done';
+    }
+  } catch(err) {
+    showToast('Could not update Casa King: ' + err.message, 'error');
+    btn.disabled = false;
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -582,7 +944,7 @@ function renderSienna(recipes, name) {
         <div class="card" style="margin-bottom:16px">
           <div class="card-title" style="margin-bottom:14px">📦 Fridge & freezer check</div>
           <div id="inv-list">
-            <div class="empty"><span class="spin" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></span>Loading ingredients...</div>
+            <div class="empty"><div class="spin" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></div>Loading ingredients...</div>
           </div>
           <div style="margin-top:14px">
             <button class="btn-primary" style="width:100%;font-size:0.82rem"
@@ -605,12 +967,62 @@ function renderSienna(recipes, name) {
     <div class="section-label">Shopping list preview</div>
     <div class="card">
       <div class="card-header">
-        <div class="card-title">Items needed</div>
+        <div class="card-title">Items needed · La Comer + Casa King</div>
         <span class="tag tag-gray">View only · Cameron generates</span>
       </div>
-      ${shoppingPreview()}
+      <div id="sienna-shopping-preview">
+        <div class="empty"><span class="empty-icon">📋</span>Loading preview...</div>
+      </div>
     </div>
   </div>`;
+}
+
+// Load Sienna's read-only shopping preview after render
+async function loadSiennaShoppingPreview() {
+  const el = document.getElementById('sienna-shopping-preview');
+  if (!el) return;
+
+  if (!currentPlan?.inventory || Object.keys(currentPlan.inventory).length === 0) {
+    el.innerHTML = `<div class="empty"><span class="empty-icon">📋</span>Complete inventory check first</div>`;
+    return;
+  }
+
+  const needIds = Object.entries(currentPlan.inventory)
+    .filter(([,s]) => s === 'need').map(([id]) => id);
+
+  if (needIds.length === 0) {
+    el.innerHTML = `<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;
+    return;
+  }
+
+  try {
+    const { data: ingredients, error } = await sb
+      .from('ingredients')
+      .select('id, name_en, name_es, lacomer_category, lacomer_url')
+      .in('id', needIds);
+    if (error) throw error;
+
+    const deduped = {};
+    for (const ing of ingredients) {
+      const key = ing.name_en.toLowerCase();
+      if (!deduped[key] || (!deduped[key].lacomer_url && ing.lacomer_url)) {
+        deduped[key] = ing;
+      }
+    }
+    const mealItems = Object.values(deduped).sort((a,b) =>
+      (a.lacomer_category||'').localeCompare(b.lacomer_category||'') ||
+      a.name_en.localeCompare(b.name_en)
+    );
+
+    let ckItems = [];
+    try { ckItems = await ckFetch('ck_items?cat=eq.shopping&done=eq.false&select=id,text,done&order=text.asc'); }
+    catch(e) { console.warn('Casa King unavailable:', e.message); }
+
+    el.innerHTML = renderShoppingListHTML(mealItems, ckItems, false);
+
+  } catch(err) {
+    el.innerHTML = `<div class="empty" style="color:#c44">Could not load preview: ${err.message}</div>`;
+  }
 }
 
 function mealRowSienna(r) {
@@ -680,12 +1092,59 @@ function renderKaren(recipes, name) {
     <div class="section-label">Shopping list</div>
     <div class="card">
       <div class="card-header">
-        <div class="card-title">This week's items</div>
+        <div class="card-title">This week's items · La Comer + Casa King</div>
         <span class="tag tag-gray">Cameron generates after inventory</span>
       </div>
-      ${shoppingPreview()}
+      <div id="karen-shopping-preview">
+        <div class="empty"><span class="empty-icon">📋</span>Loading preview...</div>
+      </div>
     </div>
   </div>`;
+}
+
+async function loadKarenShoppingPreview() {
+  const el = document.getElementById('karen-shopping-preview');
+  if (!el) return;
+
+  if (!currentPlan?.inventory || Object.keys(currentPlan.inventory).length === 0) {
+    el.innerHTML = `<div class="empty"><span class="empty-icon">📋</span>Inventory check not yet done</div>`;
+    return;
+  }
+
+  const needIds = Object.entries(currentPlan.inventory)
+    .filter(([,s]) => s === 'need').map(([id]) => id);
+
+  if (needIds.length === 0) {
+    el.innerHTML = `<div class="empty" style="color:var(--green)">✓ Nothing needed this week!</div>`;
+    return;
+  }
+
+  try {
+    const { data: ingredients, error } = await sb
+      .from('ingredients')
+      .select('id, name_en, name_es, lacomer_category, lacomer_url')
+      .in('id', needIds);
+    if (error) throw error;
+
+    const deduped = {};
+    for (const ing of ingredients) {
+      const key = ing.name_en.toLowerCase();
+      if (!deduped[key] || (!deduped[key].lacomer_url && ing.lacomer_url)) deduped[key] = ing;
+    }
+    const mealItems = Object.values(deduped).sort((a,b) =>
+      (a.lacomer_category||'').localeCompare(b.lacomer_category||'') ||
+      a.name_en.localeCompare(b.name_en)
+    );
+
+    let ckItems = [];
+    try { ckItems = await ckFetch('ck_items?cat=eq.shopping&done=eq.false&select=id,text,done&order=text.asc'); }
+    catch(e) { console.warn('Casa King unavailable:', e.message); }
+
+    el.innerHTML = renderShoppingListHTML(mealItems, ckItems, false);
+
+  } catch(err) {
+    el.innerHTML = `<div class="empty" style="color:#c44">Could not load list: ${err.message}</div>`;
+  }
 }
 
 function mealRowKaren(r) {
@@ -702,16 +1161,14 @@ function mealRowKaren(r) {
 }
 
 // ── INVENTORY ────────────────────────────────────────────
-let inventoryItems    = [];   // { id, name_en, name_es, lacomer_category }
-let inventoryState    = {};   // { ingredient_id: 'have' | 'need' }
+let inventoryItems    = [];
+let inventoryState    = {};
 
 async function loadInventory() {
   if (!currentPlan) return;
 
-  // Load existing saved state if any
   inventoryState = currentPlan.inventory || {};
 
-  // Step 1: get recipe IDs in this plan
   const { data: planMeals, error: pmError } = await sb
     .from('weekly_plan_meals')
     .select('recipe_id')
@@ -725,7 +1182,6 @@ async function loadInventory() {
 
   const recipeIds = planMeals.map(m => m.recipe_id);
 
-  // Step 2: get all ingredients for those recipes
   const { data, error } = await sb
     .from('ingredients')
     .select('id, name_en, name_es, lacomer_category')
@@ -737,7 +1193,6 @@ async function loadInventory() {
     return;
   }
 
-  // Deduplicate by name_en
   const seen = new Set();
   inventoryItems = [];
   for (const ing of data) {
@@ -748,20 +1203,22 @@ async function loadInventory() {
     }
   }
 
-  // Sort by category then name
   inventoryItems.sort((a,b) =>
-    a.lacomer_category.localeCompare(b.lacomer_category) ||
+    (a.lacomer_category||'').localeCompare(b.lacomer_category||'') ||
     a.name_en.localeCompare(b.name_en)
   );
 
   renderInventoryList();
+
+  // Load shopping preview after inventory is ready
+  if (userProfile.role === 'planner') loadSiennaShoppingPreview();
+  if (userProfile.role === 'reviewer') loadKarenShoppingPreview();
 }
 
 function renderInventoryList() {
   const el = document.getElementById('inv-list');
   if (!el) return;
 
-  // Group by category
   const groups = {};
   for (const item of inventoryItems) {
     const cat = item.lacomer_category || 'Other';
@@ -811,44 +1268,6 @@ async function submitInventory() {
   currentPlan.inventory = { ...inventoryState };
   await renderDashboard();
   showToast('Inventory saved ✓');
-}
-
-// ── Shopping preview ──────────────────────────────────────
-function shoppingPreview() {
-  if (!currentPlan?.inventory || Object.keys(currentPlan.inventory).length === 0) {
-    return `<div id="shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Complete inventory check first</div></div>`;
-  }
-
-  const needItems = inventoryItems.filter(i => currentPlan.inventory[i.id] === 'need');
-  if (needItems.length === 0) {
-    return `<div id="shopping-preview"><div class="empty" style="color:var(--green)">✓ You have everything for this week!</div></div>`;
-  }
-
-  // Group by category
-  const groups = {};
-  for (const item of needItems) {
-    const cat = item.lacomer_category || 'Other';
-    if (!groups[cat]) groups[cat] = [];
-    groups[cat].push(item);
-  }
-
-  let html = '<div id="shopping-preview" style="margin-top:4px">';
-  for (const [cat, items] of Object.entries(groups)) {
-    html += `<div style="font-size:0.7rem;font-weight:500;text-transform:uppercase;
-      letter-spacing:0.07em;color:var(--mid);margin:12px 0 6px">${cat}</div>`;
-    for (const item of items) {
-      html += `
-      <div class="inv-row">
-        <div>
-          <div style="font-size:0.88rem">${item.name_en}</div>
-          <div style="font-size:0.74rem;color:var(--mid)">${item.name_es}</div>
-        </div>
-        <span class="tag tag-clay">Need</span>
-      </div>`;
-    }
-  }
-  html += '</div>';
-  return html;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -969,14 +1388,12 @@ async function doReshuffle(btn) {
     const homeMeals  = Math.max(0, 7 - (currentPlan.eating_out_days?.length || 0));
     const picked     = await selectMealsForWeek(allRecipes, homeMeals);
 
-    // Delete current meals for this plan
     const { error: delError } = await sb
       .from('weekly_plan_meals')
       .delete()
       .eq('plan_id', currentPlan.id);
     if (delError) throw delError;
 
-    // Insert fresh picks
     if (picked.length > 0) {
       const { error: insError } = await sb
         .from('weekly_plan_meals')
@@ -984,14 +1401,12 @@ async function doReshuffle(btn) {
       if (insError) throw insError;
     }
 
-    // Mark reshuffle as used on the plan
     const { error: updError } = await sb
       .from('weekly_plans')
       .update({ reshuffle_used: true })
       .eq('id', currentPlan.id);
     if (updError) throw updError;
 
-    // Reload and re-render
     await loadWeekData();
     await renderDashboard();
     showToast('Meals reshuffled ✓ — reshuffle used for this week');
@@ -1134,7 +1549,24 @@ async function submitRequest(type) {
   else { closeModal(); showToast('Request sent to Cameron ✓'); }
 }
 
+// ── POST-RENDER HOOKS ─────────────────────────────────────
+// Called after renderDashboard for roles that need async data loaded into the page
+const _origRenderDashboard = renderDashboard;
+async function renderDashboard() {
+  const recipes = await loadRecipes();
+  const content = document.getElementById('dashboard-content');
 
+  if (userProfile.role === 'admin') {
+    content.innerHTML = renderCameron(recipes, userProfile.name);
+  } else if (userProfile.role === 'planner') {
+    content.innerHTML = renderSienna(recipes, userProfile.name);
+    await loadInventory();
+  } else {
+    content.innerHTML = renderKaren(recipes, userProfile.name);
+    await loadInventory();
+    loadKarenShoppingPreview();
+  }
+}
 
 // ── GO ────────────────────────────────────────────────────
 init();
