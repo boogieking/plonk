@@ -1344,10 +1344,10 @@ async function loadPendingRequests() {
   const countEl   = document.getElementById('pending-count');
   if (!container) return;
 
-  // FIX 1: select only columns that exist, using request_type not type
+  // FIX 1: select only columns that exist, no join needed
   const { data, error } = await sb
     .from('requests')
-    .select('id, request_type, reason, requested_by, status, created_at, users(name)')
+    .select('id, request_type, reason, requested_by, status, created_at')
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
 
@@ -1370,7 +1370,10 @@ async function loadPendingRequests() {
   }
 
   container.innerHTML = requests.map(req => {
-    const fromName = req.users?.name || 'Unknown';
+    const fromName = req.requested_by === '4581c8f1-042d-43a6-ba2d-6ec586dea301' ? 'Cameron'
+      : req.requested_by === 'ca779de4-2052-4bb4-89c6-59b67a5ad788' ? 'Sienna'
+      : req.requested_by === '60688390-f010-4e19-b7e9-bfbe2c35b04c' ? 'Karen'
+      : 'Unknown';
     // FIX 2: use request_type not type
     const label    = REQUEST_LABELS[req.request_type] || req.request_type;
     const date     = new Date(req.created_at).toLocaleDateString('en-AU', { month:'short', day:'numeric' });
