@@ -481,9 +481,56 @@
     .btn-remove-meal:hover{background:rgba(200,103,74,0.08);opacity:1;border-color:var(--clay)}
     .meal-side{
       font-size:0.72rem;color:var(--mid);margin-top:3px;
+      display:flex;align-items:center;gap:6px;flex-wrap:wrap;
     }
     .meal-side span{font-weight:500;color:var(--dark)}
     .meal-side em{font-style:normal;color:var(--mid)}
+    .side-edit-btn{
+      background:none;border:none;cursor:pointer;
+      font-size:0.68rem;color:var(--clay);opacity:0.7;
+      padding:1px 5px;border-radius:4px;
+      font-family:'DM Sans',sans-serif;
+      transition:opacity 0.15s;
+    }
+    .side-edit-btn:hover{opacity:1;background:rgba(200,103,74,0.08)}
+    .side-dropdown-wrap{
+      position:relative;display:inline-block;
+    }
+    .side-dropdown-panel{
+      position:absolute;left:0;top:calc(100% + 4px);
+      background:white;border:1px solid var(--border);
+      border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.10);
+      z-index:200;min-width:220px;padding:8px;
+    }
+    .side-dropdown-panel input{
+      width:100%;padding:6px 10px;font-size:0.78rem;
+      border:1px solid var(--border);border-radius:6px;
+      font-family:'DM Sans',sans-serif;color:var(--dark);
+      outline:none;margin-bottom:6px;
+    }
+    .side-dropdown-panel input:focus{border-color:var(--clay)}
+    .side-options{max-height:160px;overflow-y:auto;}
+    .side-option{
+      padding:6px 10px;font-size:0.78rem;border-radius:6px;
+      cursor:pointer;color:var(--dark);transition:background 0.12s;
+    }
+    .side-option:hover{background:var(--light)}
+    .side-option.current{font-weight:500;color:var(--clay)}
+    .side-dropdown-footer{
+      border-top:1px solid var(--border);margin-top:6px;padding-top:6px;
+      display:flex;gap:6px;
+    }
+    .side-save-btn{
+      flex:1;padding:5px 0;font-size:0.75rem;font-weight:500;
+      background:var(--clay);color:white;border:none;border-radius:6px;
+      cursor:pointer;font-family:'DM Sans',sans-serif;
+    }
+    .side-save-btn:hover{background:var(--clay-dark)}
+    .side-cancel-btn{
+      padding:5px 10px;font-size:0.75rem;
+      background:none;border:1px solid var(--border);border-radius:6px;
+      cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--mid);
+    }
     .scheduled-tag{
       font-size:0.72rem;font-weight:500;
       padding:3px 9px;border-radius:999px;
@@ -775,9 +822,7 @@ function mealRowAdmin(m) {
   const removeBtn = !isCooked
     ? `<button class="btn-remove-meal" title="Remove from this week" onclick="removeMealFromPlan('${planMeal.id}','${r.name_en}')">✕ Remove</button>`
     : '';
-  const sideHtml = r.default_side_en
-    ? `<div class="meal-side">🍽 With: <span>${r.default_side_en}</span>${r.default_side_es ? ' · <em>' + r.default_side_es + '</em>' : ''}</div>`
-    : '';
+  const sideHtml = `<div class="meal-side" id="side-row-${r.id}">🍽 With: <span id="side-label-${r.id}">${r.default_side_en || 'No side set'}</span>${r.default_side_es ? ' · <em id="side-label-es-' + r.id + '">' + r.default_side_es + '</em>' : '<em id="side-label-es-' + r.id + '"></em>'} <button class="side-edit-btn" onclick="openSideDropdown(event,'${r.id}','${(r.default_side_en||'').replace(/'/g,"\\'")}')">✏️ change</button><div class="side-dropdown-wrap" id="side-dd-${r.id}" style="display:none"><div class="side-dropdown-panel"><input type="text" id="side-input-${r.id}" placeholder="Search or type new side..." oninput="filterSideOptions('${r.id}',this.value)"><div class="side-options" id="side-opts-${r.id}"></div><div class="side-dropdown-footer"><button class="side-cancel-btn" onclick="closeSideDropdown('${r.id}')">Cancel</button><button class="side-save-btn" onclick="saveSide('${r.id}')">Save</button></div></div></div></div>`;
   return '<div class="meal-item ' + (isCooked ? 'cooked' : '') + '" id="meal-item-' + r.id + '">'
     + '<div style="flex:1">'
     + '<div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + r.name_en + ' ' + advPrepTag + '</div>'
@@ -1208,6 +1253,7 @@ async function submitRequest(type) {
 
 // ── POST-RENDER HOOKS ─────────────────────────────────────
 async function renderDashboard() {
+  await loadSidesLibrary();
   const recipes = await loadRecipes();
   const content = document.getElementById('dashboard-content');
 
@@ -1381,6 +1427,117 @@ async function recalculateRecipeRating(recipeId) {
     );
   }
 }
+
+// ── SIDES DROPDOWN ──────────────────────────────────────
+let allSides = [];
+
+async function loadSidesLibrary() {
+  const { data, error } = await sb.from('sides').select('*').order('name_en');
+  if (!error && data) allSides = data;
+}
+
+function openSideDropdown(event, recipeId, currentSide) {
+  event.stopPropagation();
+  // Close any other open dropdowns
+  document.querySelectorAll('.side-dropdown-wrap').forEach(el => {
+    if (el.id !== 'side-dd-' + recipeId) el.style.display = 'none';
+  });
+  const dd = document.getElementById('side-dd-' + recipeId);
+  if (!dd) return;
+  const isOpen = dd.style.display !== 'none';
+  dd.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    const input = document.getElementById('side-input-' + recipeId);
+    if (input) { input.value = ''; input.focus(); }
+    renderSideOptions(recipeId, currentSide, '');
+  }
+}
+
+function filterSideOptions(recipeId, query) {
+  const currentSide = document.getElementById('side-label-' + recipeId)?.textContent || '';
+  renderSideOptions(recipeId, currentSide, query);
+}
+
+function renderSideOptions(recipeId, currentSide, query) {
+  const container = document.getElementById('side-opts-' + recipeId);
+  if (!container) return;
+  const q = query.toLowerCase();
+  const filtered = allSides.filter(s => !q || s.name_en.toLowerCase().includes(q));
+  if (filtered.length === 0 && query) {
+    container.innerHTML = `<div class="side-option" style="color:var(--clay)" onclick="selectSideOption('${recipeId}','${query.replace(/'/g,"\'")}','')">＋ Add "${query}"</div>`;
+    return;
+  }
+  container.innerHTML = filtered.map(s =>
+    `<div class="side-option ${s.name_en === currentSide ? 'current' : ''}" onclick="selectSideOption('${recipeId}','${s.name_en.replace(/'/g,"\'")}','${(s.name_es||'').replace(/'/g,"\'")}')">
+      ${s.name_en}${s.name_es ? ' <em style='font-size:0.7rem;color:var(--mid)'>· ' + s.name_es + '</em>' : ''}
+    </div>`
+  ).join('');
+}
+
+function selectSideOption(recipeId, nameEn, nameEs) {
+  const input = document.getElementById('side-input-' + recipeId);
+  if (input) input.value = nameEn;
+  input.dataset.nameEs = nameEs;
+  // Highlight selected
+  document.querySelectorAll(`#side-opts-${recipeId} .side-option`).forEach(el => {
+    el.classList.toggle('current', el.textContent.trim().startsWith(nameEn));
+  });
+}
+
+async function saveSide(recipeId) {
+  const input = document.getElementById('side-input-' + recipeId);
+  if (!input) return;
+  const nameEn = input.value.trim();
+  if (!nameEn) { showToast('Please enter a side dish name', true); return; }
+  const nameEs = input.dataset.nameEs || '';
+
+  // 1. Upsert into sides table
+  let sideId;
+  const existing = allSides.find(s => s.name_en.toLowerCase() === nameEn.toLowerCase());
+  if (existing) {
+    sideId = existing.id;
+  } else {
+    const { data: newSide, error: sideErr } = await sb
+      .from('sides').insert({ name_en: nameEn, name_es: nameEs || null }).select().single();
+    if (sideErr) { showToast('Could not save side: ' + sideErr.message, true); return; }
+    sideId = newSide.id;
+    allSides.push(newSide);
+  }
+
+  // 2. Set previous current to false
+  await sb.from('recipe_sides').update({ is_current: false })
+    .eq('recipe_id', recipeId).eq('is_current', true);
+
+  // 3. Insert new recipe_sides row
+  await sb.from('recipe_sides').insert({
+    recipe_id: recipeId, side_id: sideId, is_current: true,
+    assigned_by: currentUser?.id || null
+  });
+
+  // 4. Update recipes table
+  await sb.from('recipes').update({ default_side_en: nameEn, default_side_es: nameEs || null }).eq('id', recipeId);
+
+  // 5. Update UI
+  const label = document.getElementById('side-label-' + recipeId);
+  const labelEs = document.getElementById('side-label-es-' + recipeId);
+  if (label) label.textContent = nameEn;
+  if (labelEs) labelEs.textContent = nameEs ? ' · ' + nameEs : '';
+
+  closeSideDropdown(recipeId);
+  showToast(`Side updated to "${nameEn}" ✓`);
+}
+
+function closeSideDropdown(recipeId) {
+  const dd = document.getElementById('side-dd-' + recipeId);
+  if (dd) dd.style.display = 'none';
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.side-dropdown-wrap') && !e.target.closest('.side-edit-btn')) {
+    document.querySelectorAll('.side-dropdown-wrap').forEach(el => el.style.display = 'none');
+  }
+});
 
 async function removeMealFromPlan(planMealId, mealName) {
   if (!confirm(`Remove "${mealName}" from this week's plan?`)) return;
