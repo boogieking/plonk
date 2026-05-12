@@ -1469,7 +1469,7 @@ function renderSideOptions(recipeId, currentSide, query) {
   }
   container.innerHTML = filtered.map(s =>
     `<div class="side-option ${s.name_en === currentSide ? 'current' : ''}" onclick="selectSideOption('${recipeId}','${s.name_en.replace(/'/g,"\'")}','${(s.name_es||'').replace(/'/g,"\'")}')">
-      ${s.name_en}${s.name_es ? ' <em style='font-size:0.7rem;color:var(--mid)'>· ' + s.name_es + '</em>' : ''}
+      ${s.name_en}${s.name_es ? '<em style="font-size:0.7rem;color:var(--mid)"> · ' + s.name_es + '</em>' : ''}
     </div>`
   ).join('');
 }
