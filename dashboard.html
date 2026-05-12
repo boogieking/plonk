@@ -509,7 +509,7 @@
       outline:none;margin-bottom:6px;
     }
     .side-dropdown-panel input:focus{border-color:var(--clay)}
-    .side-options{max-height:160px;overflow-y:auto;}
+    .side-options{max-height:180px;min-height:60px;overflow-y:auto;}
     .side-option{
       padding:6px 10px;font-size:0.78rem;border-radius:6px;
       cursor:pointer;color:var(--dark);transition:background 0.12s;
@@ -822,7 +822,7 @@ function mealRowAdmin(m) {
   const removeBtn = !isCooked
     ? `<button class="btn-remove-meal" title="Remove from this week" onclick="removeMealFromPlan('${planMeal.id}','${r.name_en}')">✕ Remove</button>`
     : '';
-  const sideHtml = `<div class="meal-side" id="side-row-${r.id}">🍽 With: <span id="side-label-${r.id}">${r.default_side_en || 'No side set'}</span>${r.default_side_es ? ' · <em id="side-label-es-' + r.id + '">' + r.default_side_es + '</em>' : '<em id="side-label-es-' + r.id + '"></em>'} <button class="side-edit-btn" onclick="openSideDropdown(event,'${r.id}','${(r.default_side_en||'').replace(/'/g,"\\'")}')">✏️ change</button><div class="side-dropdown-wrap" id="side-dd-${r.id}" style="display:none"><div class="side-dropdown-panel"><input type="text" id="side-input-${r.id}" placeholder="Search or type new side..." oninput="filterSideOptions('${r.id}',this.value)"><div class="side-options" id="side-opts-${r.id}"></div><div class="side-dropdown-footer"><button class="side-cancel-btn" onclick="closeSideDropdown('${r.id}')">Cancel</button><button class="side-save-btn" onclick="saveSide('${r.id}')">Save</button></div></div></div></div>`;
+  const sideHtml = `<div class="meal-side" id="side-row-${r.id}">🍽 With: <span id="side-label-${r.id}">${r.default_side_en || 'No side set'}</span>${r.default_side_es ? ' · <em id="side-label-es-' + r.id + '">' + r.default_side_es + '</em>' : '<em id="side-label-es-' + r.id + '"></em>'} <button class="side-edit-btn" onclick="openSideDropdown(event,'${r.id}','${(r.default_side_en||'').replace(/'/g,"\\'")}')">✏️ change</button><div class="side-dropdown-wrap" id="side-dd-${r.id}" style="display:none"><div class="side-dropdown-panel"><input type="text" id="side-input-${r.id}" placeholder="Or type a new side..." oninput="filterSideOptions('${r.id}',this.value)"><div class="side-options" id="side-opts-${r.id}"></div><div class="side-dropdown-footer"><button class="side-cancel-btn" onclick="closeSideDropdown('${r.id}')">Cancel</button><button class="side-save-btn" onclick="saveSide('${r.id}')">Save</button></div></div></div></div>`;
   return '<div class="meal-item ' + (isCooked ? 'cooked' : '') + '" id="meal-item-' + r.id + '">'
     + '<div style="flex:1">'
     + '<div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + r.name_en + ' ' + advPrepTag + '</div>'
@@ -1448,8 +1448,9 @@ function openSideDropdown(event, recipeId, currentSide) {
   dd.style.display = isOpen ? 'none' : 'block';
   if (!isOpen) {
     const input = document.getElementById('side-input-' + recipeId);
-    if (input) { input.value = ''; input.focus(); }
+    if (input) { input.value = ''; }
     renderSideOptions(recipeId, currentSide, '');
+    if (input) input.focus();
   }
 }
 
