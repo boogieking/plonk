@@ -536,6 +536,32 @@
       padding:3px 9px;border-radius:999px;
       background:rgba(46,95,138,0.1);color:var(--blue);
     }
+    /* ── KAREN ADDITIONS ── */
+    .karen-add-row{
+      display:flex;gap:8px;align-items:center;margin-bottom:14px;
+    }
+    .karen-add-input{
+      flex:1;padding:8px 12px;
+      border:1.5px solid var(--border);border-radius:10px;
+      font-family:'DM Sans',sans-serif;font-size:0.88rem;
+      outline:none;color:var(--dark);
+      transition:border-color 0.2s;
+    }
+    .karen-add-input:focus{border-color:var(--clay)}
+    .karen-addition-item{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:8px 0;border-bottom:1px solid rgba(200,180,160,0.15);
+      font-size:0.88rem;gap:10px;
+    }
+    .karen-addition-item:last-child{border-bottom:none}
+    .karen-rm-btn{
+      background:none;border:none;cursor:pointer;
+      color:var(--mid);font-size:0.85rem;padding:2px 6px;
+      border-radius:4px;transition:color 0.15s,background 0.15s;
+      flex-shrink:0;
+    }
+    .karen-rm-btn:hover{color:#c44;background:rgba(200,50,50,0.07)}
+
     .prep-reminders-card{
       background:rgba(200,103,74,0.06);
       border:1px solid rgba(200,103,74,0.2);
@@ -598,6 +624,86 @@ async function ckFetch(path, options = {}) {
   if (!res.ok) throw new Error(`Casa King API error: ${res.status}`);
   const text = await res.text();
   return text ? JSON.parse(text) : null;
+}
+
+// ── KAREN ADDITIONS ──────────────────────────────────────
+const KAREN_CATEGORY_RULES = [
+  { cat:'Meats & Eggs',         words:['chicken','beef','pork','steak','egg','eggs','lamb','fish','tuna','mince','ham','sausage','bacon','arrachera','milanesa','muslo','huevo'] },
+  { cat:'Dairy',                words:['milk','cream','butter','cheese','yogurt','queso','crema','leche','mantequilla','parmesan','mozzarella'] },
+  { cat:'Produce',              words:['tomato','onion','garlic','carrot','potato','lemon','lime','orange','avocado','mushroom','lettuce','apple','pumpkin','capsicum','ginger','zucchini','cebolla','jitomate','zanahoria','papa','naranja','aguacate','champiñon','jengibre','calabaza','camote','sweet potato'] },
+  { cat:'Grains, Pasta & Bakery',words:['pasta','rice','bread','flour','tortilla','noodle','yeast','arroz','harina','pan','lasagna','gnocchi','pastry'] },
+  { cat:'Canned & Packaged',    words:['canned','tin','sauce','paste','stock','broth','cornflour','coconut','soy','ketchup','peanut','jam','vinegar','oil','olive','sugar','salt','pepper','spice','paprika','cumin','curry','mustard','chili','salsa','pesto','worcestershire','oyster','dijon','maple','honey'] },
+  { cat:'Herbs, Vinegar & Condiments', words:['herb','thyme','parsley','basil','oregano','dill','cilantro','vinagre','tomillo'] },
+];
+
+function guessKarenCategory(name) {
+  const lower = name.toLowerCase();
+  for (const rule of KAREN_CATEGORY_RULES) {
+    if (rule.words.some(w => lower.includes(w))) return rule.cat;
+  }
+  return 'Other';
+}
+
+let karenAdditions = [];
+
+async function loadKarenAdditions() {
+  if (!currentPlan) { karenAdditions = []; return; }
+  const { data, error } = await sb
+    .from('karen_additions')
+    .select('*')
+    .eq('plan_id', currentPlan.id)
+    .order('added_at', { ascending: true });
+  karenAdditions = (!error && data) ? data : [];
+}
+
+async function addKarenItem() {
+  const input = document.getElementById('karen-add-input');
+  if (!input) return;
+  const name = input.value.trim();
+  if (!name) { showToast('Type an item first', 'error'); return; }
+  if (!currentPlan) { showToast('No active plan', 'error'); return; }
+
+  // Duplicate check
+  if (karenAdditions.some(a => a.name_en.toLowerCase() === name.toLowerCase())) {
+    showToast('That item is already on the list', 'error'); return;
+  }
+
+  const cat = guessKarenCategory(name);
+  const { data, error } = await sb.from('karen_additions').insert({
+    plan_id: currentPlan.id,
+    name_en: name,
+    lacomer_category: cat,
+    added_by: userProfile.id,
+    added_at: new Date().toISOString()
+  }).select().single();
+
+  if (error) { showToast('Error adding item: ' + error.message, 'error'); return; }
+  karenAdditions.push(data);
+  input.value = '';
+  renderKarenAdditionsList();
+  showToast(`"${name}" added to shopping list ✓`);
+}
+
+async function removeKarenItem(id) {
+  const { error } = await sb.from('karen_additions').delete().eq('id', id);
+  if (error) { showToast('Error removing item', 'error'); return; }
+  karenAdditions = karenAdditions.filter(a => a.id !== id);
+  renderKarenAdditionsList();
+}
+
+function renderKarenAdditionsList() {
+  const el = document.getElementById('karen-additions-list');
+  if (!el) return;
+  if (karenAdditions.length === 0) {
+    el.innerHTML = `<div style="font-size:0.82rem;color:var(--mid)">No items added yet</div>`;
+    return;
+  }
+  el.innerHTML = karenAdditions.map(a =>
+    `<div class="karen-addition-item">
+      <span>${a.name_en} <em style="font-size:0.72rem;color:var(--mid)">· ${a.lacomer_category}</em></span>
+      <button class="karen-rm-btn" onclick="removeKarenItem('${a.id}')" title="Remove">✕</button>
+    </div>`
+  ).join('');
 }
 
 const roleColor = { admin:'#C8674A', planner:'#4A7C59', reviewer:'#2E5F8A' };
@@ -1257,6 +1363,8 @@ async function renderDashboard() {
   const recipes = await loadRecipes();
   const content = document.getElementById('dashboard-content');
 
+  await loadKarenAdditions();
+
   if (userProfile.role === 'admin') {
     content.innerHTML = renderCameron(recipes, userProfile.name);
     loadPendingRequests();
@@ -1265,6 +1373,7 @@ async function renderDashboard() {
     await loadInventory();
   } else {
     content.innerHTML = renderKaren(recipes, userProfile.name);
+    renderKarenAdditionsList();
     await loadInventory();
     loadKarenShoppingPreview();
   }
@@ -1890,7 +1999,7 @@ async function loadSiennaShoppingPreview() {
       a.name_en.localeCompare(b.name_en)
     );
 
-    el.innerHTML = renderShoppingListHTML(items, [], false);
+    el.innerHTML = renderShoppingListHTML(items, [], false, karenAdditions);
   } catch(err) {
     el.innerHTML = `<div class="empty" style="color:#c44">Could not load preview: ${err.message}</div>`;
   }
@@ -1943,6 +2052,23 @@ function renderKaren(recipes, name) {
       <div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">
         <button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button>
         <button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button>
+      </div>
+    </div>
+
+    <div class="section-label">Add to shopping list</div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header">
+        <div class="card-title">Your additions</div>
+        <span class="tag tag-blue">Mixed into the list</span>
+      </div>
+      <div class="karen-add-row">
+        <input class="karen-add-input" id="karen-add-input"
+          placeholder="e.g. olive oil, chocolate, shampoo..."
+          onkeydown="if(event.key==='Enter')addKarenItem()">
+        <button class="btn-primary" style="padding:8px 16px;font-size:0.85rem" onclick="addKarenItem()">Add</button>
+      </div>
+      <div id="karen-additions-list">
+        <div style="font-size:0.82rem;color:var(--mid)">No items added yet</div>
       </div>
     </div>
 
@@ -2017,7 +2143,7 @@ async function loadKarenShoppingPreview() {
       a.name_en.localeCompare(b.name_en)
     );
 
-    el.innerHTML = renderShoppingListHTML(items, [], false);
+    el.innerHTML = renderShoppingListHTML(items, [], false, karenAdditions);
   } catch(err) {
     el.innerHTML = `<div class="empty" style="color:#c44">Could not load list: ${err.message}</div>`;
   }
@@ -2027,32 +2153,55 @@ async function loadKarenShoppingPreview() {
 // SHOPPING LIST GENERATION — CAMERON
 // ═══════════════════════════════════════════════════════════
 
-function renderShoppingListHTML(mealItems, ckItems, isAdmin) {
+function renderShoppingListHTML(mealItems, ckItems, isAdmin, karenItems) {
   let html = '';
 
   const groups = {};
   for (const ing of mealItems) {
     const cat = ing.lacomer_category || 'Other';
     if (!groups[cat]) groups[cat] = [];
-    groups[cat].push(ing);
+    groups[cat].push({ ...ing, _type: 'ingredient' });
+  }
+
+  // Merge Karen additions into groups (skip if name already in that category)
+  if (karenItems && karenItems.length > 0) {
+    const existingNames = new Set(mealItems.map(i => i.name_en.toLowerCase()));
+    for (const ka of karenItems) {
+      if (!existingNames.has(ka.name_en.toLowerCase())) {
+        const cat = ka.lacomer_category || 'Other';
+        if (!groups[cat]) groups[cat] = [];
+        groups[cat].push({ ...ka, _type: 'karen' });
+      }
+    }
   }
 
   for (const [cat, items] of Object.entries(groups)) {
     html += `<div class="shop-category-label">${cat}</div>`;
     for (const ing of items) {
-      const linkHtml = ing.lacomer_url
-        ? `<a href="${ing.lacomer_url}" target="_blank" class="shop-link">🛒 La Comer</a>`
-        : isAdmin
-          ? `<button class="add-link-btn" onclick="showAddLinkForm('${ing.id}',this)">+ Add link</button>`
-          : `<span style="font-size:0.72rem;color:var(--mid)">No link</span>`;
-      html += `
-        <div class="shop-row" id="shop-row-${ing.id}">
-          <div class="shop-names">
-            <div class="shop-name-en">${ing.name_en}</div>
-            <div class="shop-name-es">${ing.name_es || ''}</div>
-          </div>
-          ${linkHtml}
-        </div>`;
+      if (ing._type === 'karen') {
+        html += `
+          <div class="shop-row">
+            <div class="shop-names">
+              <div class="shop-name-en">${ing.name_en}</div>
+              <div class="shop-name-es" style="color:var(--blue);font-size:0.7rem">Karen's addition</div>
+            </div>
+            <span style="font-size:0.72rem;color:var(--mid)">—</span>
+          </div>`;
+      } else {
+        const linkHtml = ing.lacomer_url
+          ? `<a href="${ing.lacomer_url}" target="_blank" class="shop-link">🛒 La Comer</a>`
+          : isAdmin
+            ? `<button class="add-link-btn" onclick="showAddLinkForm('${ing.id}',this)">+ Add link</button>`
+            : `<span style="font-size:0.72rem;color:var(--mid)">No link</span>`;
+        html += `
+          <div class="shop-row" id="shop-row-${ing.id}">
+            <div class="shop-names">
+              <div class="shop-name-en">${ing.name_en}</div>
+              <div class="shop-name-es">${ing.name_es || ''}</div>
+            </div>
+            ${linkHtml}
+          </div>`;
+      }
     }
   }
 
@@ -2123,7 +2272,7 @@ async function generateShoppingList() {
       console.warn('Casa King fetch failed:', e.message);
     }
 
-    content.innerHTML = renderShoppingListHTML(mealItems, ckItems, true);
+    content.innerHTML = renderShoppingListHTML(mealItems, ckItems, true, karenAdditions);
     btn.textContent = 'Regenerate list';
     btn.disabled = false;
 
