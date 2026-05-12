@@ -1462,6 +1462,11 @@ function filterSideOptions(recipeId, query) {
 function renderSideOptions(recipeId, currentSide, query) {
   const container = document.getElementById('side-opts-' + recipeId);
   if (!container) return;
+  if (allSides.length === 0) {
+    container.innerHTML = '<div class="side-option" style="color:var(--mid)">Loading sides...</div>';
+    loadSidesLibrary().then(() => renderSideOptions(recipeId, currentSide, query));
+    return;
+  }
   const q = query.toLowerCase();
   const filtered = allSides.filter(s => !q || s.name_en.toLowerCase().includes(q));
   if (filtered.length === 0 && query) {
