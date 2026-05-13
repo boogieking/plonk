@@ -320,6 +320,30 @@
       text-decoration:line-through;color:var(--mid);opacity:0.6;
     }
 
+    /* ── TIER OVERRIDE ── */
+    .tier-badge{
+      display:inline-flex;align-items:center;gap:5px;
+      font-size:0.68rem;font-weight:500;
+      padding:2px 8px;border-radius:999px;
+      border:1.5px solid;cursor:pointer;
+      font-family:'DM Sans',sans-serif;
+      transition:all 0.15s;white-space:nowrap;
+    }
+    .tier-badge:hover{opacity:0.8}
+    .tier-weekly  {color:#4A7C59;border-color:rgba(74,124,89,0.4);background:rgba(74,124,89,0.08)}
+    .tier-regular {color:#2E5F8A;border-color:rgba(46,95,138,0.4);background:rgba(46,95,138,0.08)}
+    .tier-occasional{color:#B8860B;border-color:rgba(184,134,11,0.4);background:rgba(184,134,11,0.08)}
+    .tier-rare    {color:#C8674A;border-color:rgba(200,103,74,0.4);background:rgba(200,103,74,0.08)}
+    .tier-hibernated{color:#6B5F54;border-color:rgba(107,95,84,0.3);background:rgba(107,95,84,0.07)}
+    .tier-locked::after{content:' 🔒';font-size:0.6rem}
+    .tier-select{
+      width:100%;padding:9px 12px;
+      border:1.5px solid var(--border);border-radius:10px;
+      font-family:'DM Sans',sans-serif;font-size:0.88rem;
+      outline:none;background:white;margin-bottom:10px;
+    }
+    .tier-select:focus{border-color:var(--clay)}
+
     /* ── SIDE SWAP ── */
     .side-swap-btn{
       font-size:0.7rem;font-weight:500;
@@ -799,7 +823,7 @@ async function loadWeekData() {
   if (currentPlan) {
     const { data: mealData } = await sb
       .from('weekly_plan_meals')
-      .select('*, recipes(id, name_en, name_es, prep_time_minutes, cook_time_minutes, advance_prep_required, advance_prep_description, same_day_cookable, avg_rating, default_side_en, default_side_es)')
+      .select('*, recipes(id, name_en, name_es, prep_time_minutes, cook_time_minutes, advance_prep_required, advance_prep_description, same_day_cookable, avg_rating, default_side_en, default_side_es, frequency_tier, frequency_override)')
       .eq('plan_id', currentPlan.id);
     currentMeals = mealData || [];
   }
@@ -942,6 +966,11 @@ function mealRowAdmin(m) {
     ? `<span class="tag tag-amber" style="font-size:0.65rem;padding:2px 7px">⏰ Advance prep</span>`
     : '';
 
+  const tierKey = r.frequency_tier || 'regular';
+  const tierLabel = TIER_LABELS[tierKey] || tierKey;
+  const isLocked = r.frequency_override === true;
+  const tierBadge = `<button class="tier-badge tier-${tierKey}${isLocked?' tier-locked':''}" title="${isLocked?'Override active — click to change':'Click to override frequency tier'}" onclick="openTierModal('${r.id}','${tierKey}',${isLocked})">${tierLabel}</button>`;
+
   const actionHtml = !isCooked ? cookedBtn(r.id, planMeal.id, false) : '<span class="tag tag-green">Cooked</span>';
   const removeBtn = !isCooked
     ? `<button class="btn-remove-meal" title="Remove from this week" onclick="removeMealFromPlan('${planMeal.id}','${r.name_en}')">✕ Remove</button>`
@@ -949,7 +978,7 @@ function mealRowAdmin(m) {
   const sideHtml = `<div class="meal-side" id="side-row-${r.id}">🍽 With: <span id="side-label-${r.id}">${r.default_side_en || 'No side set'}</span>${r.default_side_es ? ' · <em id="side-label-es-' + r.id + '">' + r.default_side_es + '</em>' : '<em id="side-label-es-' + r.id + '"></em>'} <button class="side-edit-btn" onclick="openSideDropdown(event,'${r.id}','${(r.default_side_en||'').replace(/'/g,"\\'")}')">✏️ change</button><div class="side-dropdown-wrap" id="side-dd-${r.id}" style="display:none"><div class="side-dropdown-panel"><input type="text" id="side-input-${r.id}" placeholder="Or type a new side..." oninput="filterSideOptions('${r.id}',this.value)"><div class="side-options" id="side-opts-${r.id}"></div><div class="side-dropdown-footer"><button class="side-cancel-btn" onclick="closeSideDropdown('${r.id}')">Cancel</button><button class="side-save-btn" onclick="saveSide('${r.id}')">Save</button></div></div></div></div>`;
   return '<div class="meal-item ' + (isCooked ? 'cooked' : '') + '" id="meal-item-' + r.id + '">'
     + '<div style="flex:1">'
-    + '<div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + r.name_en + ' ' + advPrepTag + '</div>'
+    + '<div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + r.name_en + ' ' + advPrepTag + ' ' + tierBadge + '</div>'
     + '<div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">'
     + (r.prep_time_minutes || '—') + ' min prep · ' + (r.cook_time_minutes || '—') + ' min cook' + avgStr
     + ' ' + scheduledLabel
@@ -2723,6 +2752,97 @@ async function applySideSwap(recipeId, newSideEn, newSideEs) {
 
   closeModal();
   showToast(`Side changed to "${newSideEn}" ✓`);
+  await renderDashboard();
+}
+
+// ═══════════════════════════════════════════════════════════
+// FREQUENCY TIER OVERRIDE — CAMERON
+// ═══════════════════════════════════════════════════════════
+
+const TIER_OPTIONS = [
+  { value:'weekly',     label:'Weekly Favourite',  note:'Appears every 1–2 weeks' },
+  { value:'regular',    label:'Regular',           note:'Appears every 3–4 weeks' },
+  { value:'occasional', label:'Occasional',        note:'Appears every 6–8 weeks' },
+  { value:'rare',       label:'Rare',              note:'Appears every 10–12 weeks' },
+  { value:'hibernated', label:'Hibernated',        note:'Removed from rotation' },
+];
+
+function openTierModal(recipeId, currentTier, isLocked) {
+  const meal = currentMeals.find(m => m.recipe_id === recipeId);
+  const mealName = meal?.recipes?.name_en || 'this meal';
+  const avgRating = meal?.recipes?.avg_rating;
+  const autoTier = avgRating ? TIER_LABELS[tierFromRating(avgRating)] : null;
+
+  const el = document.createElement('div');
+  el.id = 'modal-overlay';
+  el.className = 'modal-overlay';
+
+  const optionsHtml = TIER_OPTIONS.map(o =>
+    `<option value="${o.value}" ${o.value === currentTier ? 'selected' : ''}>${o.label} — ${o.note}</option>`
+  ).join('');
+
+  const lockNote = isLocked
+    ? `<div style="font-size:0.8rem;padding:8px 12px;background:rgba(200,103,74,0.07);border-left:3px solid var(--clay);border-radius:0 8px 8px 0;margin-bottom:12px">
+        🔒 Override active — ratings won't auto-change this tier.
+        ${autoTier ? `Auto tier from ratings would be: <strong>${autoTier}</strong>.` : ''}
+        <button class="btn-ghost" style="font-size:0.78rem;padding:4px 10px;margin-left:8px;color:var(--clay)" onclick="unlockTierOverride('${recipeId}')">Remove override</button>
+       </div>`
+    : `<div style="font-size:0.78rem;color:var(--mid);margin-bottom:12px">Setting a tier locks it — ratings won't auto-change it until you remove the override.</div>`;
+
+  el.innerHTML = `
+    <div class="modal" style="max-width:420px">
+      <h3>Frequency tier — ${mealName}</h3>
+      ${lockNote}
+      <label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Set tier</label>
+      <select id="tier-select" class="tier-select">${optionsHtml}</select>
+      <div class="modal-btns">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveTierOverride('${recipeId}')">Save &amp; lock</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+async function saveTierOverride(recipeId) {
+  const val = document.getElementById('tier-select')?.value;
+  if (!val) return;
+
+  const { error } = await sb.from('recipes')
+    .update({ frequency_tier: val, frequency_override: true })
+    .eq('id', recipeId);
+
+  if (error) { showToast('Error saving tier: ' + error.message, 'error'); return; }
+
+  // Update local data
+  const meal = currentMeals.find(m => m.recipe_id === recipeId);
+  if (meal?.recipes) {
+    meal.recipes.frequency_tier = val;
+    meal.recipes.frequency_override = true;
+  }
+
+  closeModal();
+  showToast(`Tier set to ${TIER_LABELS[val]} 🔒`);
+  await renderDashboard();
+}
+
+async function unlockTierOverride(recipeId) {
+  const meal = currentMeals.find(m => m.recipe_id === recipeId);
+  const avgRating = meal?.recipes?.avg_rating;
+  const autoTier = avgRating ? tierFromRating(avgRating) : (meal?.recipes?.frequency_tier || 'regular');
+
+  const { error } = await sb.from('recipes')
+    .update({ frequency_override: false, frequency_tier: autoTier })
+    .eq('id', recipeId);
+
+  if (error) { showToast('Error removing override: ' + error.message, 'error'); return; }
+
+  if (meal?.recipes) {
+    meal.recipes.frequency_override = false;
+    meal.recipes.frequency_tier = autoTier;
+  }
+
+  closeModal();
+  showToast(`Override removed — tier restored to ${TIER_LABELS[autoTier]}`);
   await renderDashboard();
 }
 
