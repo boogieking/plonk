@@ -320,6 +320,24 @@
       text-decoration:line-through;color:var(--mid);opacity:0.6;
     }
 
+    /* ── SIDE SWAP ── */
+    .side-swap-btn{
+      font-size:0.7rem;font-weight:500;
+      color:var(--blue);background:rgba(46,95,138,0.08);
+      border:1.5px solid rgba(46,95,138,0.25);
+      border-radius:999px;padding:2px 9px;cursor:pointer;
+      font-family:'DM Sans',sans-serif;white-space:nowrap;
+      transition:all 0.15s;margin-left:6px;
+    }
+    .side-swap-btn:hover{background:var(--blue);color:white;border-color:var(--blue)}
+    .side-swap-select{
+      width:100%;padding:9px 12px;
+      border:1.5px solid var(--border);border-radius:10px;
+      font-family:'DM Sans',sans-serif;font-size:0.88rem;
+      outline:none;background:white;margin-bottom:12px;
+    }
+    .side-swap-select:focus{border-color:var(--clay)}
+
     /* ── EMPTY STATE ── */
     .empty{
       text-align:center;padding:32px 16px;
@@ -1708,6 +1726,7 @@ const REQUEST_LABELS = {
   hibernate:        '😴 Hibernation request',
   new:              '✨ New meal suggestion',
   frequency_change: '📊 Frequency change request',
+  side_swap:        '🍽 Side dish swap request',
 };
 
 async function loadPendingRequests() {
@@ -1717,10 +1736,9 @@ async function loadPendingRequests() {
   const countEl   = document.getElementById('pending-count');
   if (!container) return;
 
-  // FIX 1: select only columns that exist, no join needed
   const { data, error } = await sb
     .from('requests')
-    .select('id, request_type, reason, requested_by, status, created_at')
+    .select('id, request_type, reason, requested_by, status, created_at, meta')
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
 
@@ -1750,10 +1768,20 @@ async function loadPendingRequests() {
     // FIX 2: use request_type not type
     const label    = REQUEST_LABELS[req.request_type] || req.request_type;
     const date     = new Date(req.created_at).toLocaleDateString('en-AU', { month:'short', day:'numeric' });
+    // Extra detail for side swap requests
+    let sideSwapDetail = '';
+    if (req.request_type === 'side_swap' && req.meta) {
+      const recipe = currentMeals.find(m => m.recipe_id === req.meta.recipe_id)?.recipes;
+      const mealName = recipe?.name_en || 'a meal';
+      sideSwapDetail = `<div style="font-size:0.78rem;color:var(--mid);margin-top:3px">
+        ${mealName}: <em>${req.meta.current_side_en || '?'}</em> → <strong>${req.meta.new_side_en}</strong>${req.meta.new_side_es ? ' · ' + req.meta.new_side_es : ''}
+      </div>`;
+    }
     return `
       <div class="request-item" id="req-${req.id}">
         <div class="request-from">${fromName} · ${date}</div>
         <div class="request-text">${label}</div>
+        ${sideSwapDetail}
         ${req.reason ? `<div class="request-reason">"${req.reason}"</div>` : ''}
         <div class="request-btns">
           <button class="btn-primary" style="font-size:0.78rem;padding:6px 14px"
@@ -1777,6 +1805,16 @@ async function handleRequest(requestId, type, decision) {
     if (currentPlan) {
       await sb.from('weekly_plans').update({ status: 'approved' }).eq('id', currentPlan.id);
       currentPlan.status = 'approved';
+    }
+  }
+
+  if (type === 'side_swap' && decision === 'approved') {
+    // Fetch the meta to get recipe_id and new side details
+    const { data: req } = await sb.from('requests').select('meta').eq('id', requestId).single();
+    if (req?.meta) {
+      const { recipe_id, new_side_en, new_side_es } = req.meta;
+      await applySideSwap(recipe_id, new_side_en, new_side_es || '');
+      return; // applySideSwap handles toast and re-render
     }
   }
 
@@ -1924,7 +1962,7 @@ function mealRowSienna(m) {
     + (r.prep_time_minutes || '—') + ' min prep' + avgStr
     + ' ' + scheduledLabel
     + '</div>'
-    + (r.default_side_en ? '<div class="meal-side">🍽 With: <span>' + r.default_side_en + '</span>' + (r.default_side_es ? ' · <em>' + r.default_side_es + '</em>' : '') + '</div>' : '')
+    + (r.default_side_en ? '<div class="meal-side">🍽 With: <span>' + r.default_side_en + '</span>' + (r.default_side_es ? ' · <em>' + r.default_side_es + '</em>' : '') + (!isCooked ? '<button class="side-swap-btn" onclick="openSideSwapModal(\'' + r.id + '\',\'' + (r.default_side_en||'').replace(/'/g,"\\'") + '\')">⇄ Swap side</button>' : '') + '</div>' : '')
     + ratingHtml + ratedHtml
     + '</div>'
     + '<div class="meal-actions">' + actionHtml + '</div>'
@@ -2100,7 +2138,7 @@ function mealRowKaren(m) {
     + '<div style="flex:1">'
     + '<div class="meal-name">' + r.name_en + '</div>'
     + '<div class="meal-meta">' + (r.prep_time_minutes || '—') + ' min prep' + avgStr + '</div>'
-    + (r.default_side_en ? '<div class="meal-side">🍽 With: <span>' + r.default_side_en + '</span>' + (r.default_side_es ? ' · <em>' + r.default_side_es + '</em>' : '') + '</div>' : '')
+    + (r.default_side_en ? '<div class="meal-side">🍽 With: <span>' + r.default_side_en + '</span>' + (r.default_side_es ? ' · <em>' + r.default_side_es + '</em>' : '') + (!isCooked ? '<button class="side-swap-btn" onclick="openSideSwapModal(\'' + r.id + '\',\'' + (r.default_side_en||'').replace(/'/g,"\\'") + '\')">⇄ Swap side</button>' : '') + '</div>' : '')
     + ratingHtml + ratedHtml
     + '</div>'
     + '<div class="meal-actions">' + actionHtml + '</div>'
@@ -2562,6 +2600,130 @@ function renderPrepReminders() {
       </div>
       ${rows}
     </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// SIDE SWAP REQUESTS
+// ═══════════════════════════════════════════════════════════
+
+function openSideSwapModal(recipeId, currentSideEn) {
+  const isKaren = userProfile.role === 'reviewer';
+  const isSienna = userProfile.role === 'planner';
+  if (!isKaren && !isSienna) return;
+
+  const el = document.createElement('div');
+  el.id = 'modal-overlay';
+  el.className = 'modal-overlay';
+
+  const sideOptions = allSides.map(s =>
+    `<option value="${s.name_en}|${s.name_es||''}" ${s.name_en === currentSideEn ? 'selected' : ''}>${s.name_en}${s.name_es ? ' · ' + s.name_es : ''}</option>`
+  ).join('');
+
+  const actionLabel = isKaren
+    ? 'Change side now'
+    : 'Request side swap';
+  const noteText = isKaren
+    ? `<p style="font-size:0.8rem;color:var(--green);margin-bottom:12px">✓ As reviewer, your side swap applies immediately — no approval needed.</p>`
+    : `<p style="font-size:0.8rem;color:var(--mid);margin-bottom:12px">Your request will go to Cameron for approval.</p>`;
+
+  el.innerHTML = `
+    <div class="modal" style="max-width:420px">
+      <h3>Change side for this meal</h3>
+      <p>Current side: <strong>${currentSideEn || 'None set'}</strong></p>
+      ${noteText}
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">New side</label>
+        <select id="side-swap-select" class="side-swap-select">
+          <option value="">— Pick a side —</option>
+          ${sideOptions}
+        </select>
+      </div>
+      ${!isKaren ? `
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Reason (required)</label>
+        <textarea id="side-swap-reason" placeholder="Why do you want to change the side?" rows="3"
+          style="width:100%;padding:10px 12px;border:1.5px solid var(--light);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;resize:vertical;min-height:70px;outline:none"></textarea>
+      </div>` : ''}
+      <div class="modal-btns">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="submitSideSwap('${recipeId}','${currentSideEn.replace(/'/g,"\\'")}',${isKaren})">${actionLabel}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+async function submitSideSwap(recipeId, currentSideEn, isKaren) {
+  const selectEl = document.getElementById('side-swap-select');
+  const reasonEl = document.getElementById('side-swap-reason');
+  const val = selectEl?.value;
+
+  if (!val) { showToast('Please pick a new side', 'error'); return; }
+  const [newSideEn, newSideEs] = val.split('|');
+  if (newSideEn === currentSideEn) { showToast('That is already the current side', 'error'); return; }
+
+  if (isKaren) {
+    // Karen: apply immediately
+    await applySideSwap(recipeId, newSideEn, newSideEs);
+  } else {
+    // Sienna: submit request for Cameron's approval
+    const reason = reasonEl?.value.trim();
+    if (!reason) { showToast('Please add a reason', 'error'); return; }
+
+    const { error } = await sb.from('requests').insert({
+      request_type: 'side_swap',
+      reason: reason,
+      requested_by: userProfile.id,
+      status: 'pending',
+      plan_id: currentPlan?.id || null,
+      meta: { recipe_id: recipeId, new_side_en: newSideEn, new_side_es: newSideEs || null, current_side_en: currentSideEn },
+      created_at: new Date().toISOString()
+    });
+    if (error) { showToast('Error sending request: ' + error.message, 'error'); return; }
+    closeModal();
+    showToast('Side swap request sent to Cameron ✓');
+  }
+}
+
+async function applySideSwap(recipeId, newSideEn, newSideEs) {
+  // 1. Find or create side in sides table
+  let sideId;
+  const existing = allSides.find(s => s.name_en.toLowerCase() === newSideEn.toLowerCase());
+  if (existing) {
+    sideId = existing.id;
+  } else {
+    const { data: newSide, error: sideErr } = await sb
+      .from('sides').insert({ name_en: newSideEn, name_es: newSideEs || null }).select().single();
+    if (sideErr) { showToast('Could not save side: ' + sideErr.message, 'error'); return; }
+    sideId = newSide.id;
+    allSides.push(newSide);
+  }
+
+  // 2. Set previous current to false
+  await sb.from('recipe_sides').update({ is_current: false })
+    .eq('recipe_id', recipeId).eq('is_current', true);
+
+  // 3. Insert new recipe_sides row
+  await sb.from('recipe_sides').insert({
+    recipe_id: recipeId, side_id: sideId, is_current: true,
+    assigned_by: currentUser?.id || null
+  });
+
+  // 4. Update recipes table permanently
+  const { error } = await sb.from('recipes')
+    .update({ default_side_en: newSideEn, default_side_es: newSideEs || null })
+    .eq('id', recipeId);
+  if (error) { showToast('Error updating side: ' + error.message, 'error'); return; }
+
+  // 5. Update local meal data so UI reflects it without a full reload
+  const meal = currentMeals.find(m => m.recipe_id === recipeId);
+  if (meal?.recipes) {
+    meal.recipes.default_side_en = newSideEn;
+    meal.recipes.default_side_es = newSideEs || null;
+  }
+
+  closeModal();
+  showToast(`Side changed to "${newSideEn}" ✓`);
+  await renderDashboard();
 }
 
 // ── GO ────────────────────────────────────────────────────
