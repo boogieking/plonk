@@ -704,6 +704,25 @@ async function ckFetch(path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+// ── EMAIL NOTIFICATIONS ──────────────────────────────────
+const EMAIL_FN_URL = 'https://znwoiqygmsgabyoslrbt.supabase.co/functions/v1/send-email';
+const EMAIL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpud29pcXlnbXNnYWJ5b3NscmJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyOTAxNTYsImV4cCI6MjA5Mzg2NjE1Nn0.Vpl3ZJHvOU06OGjh-73zeDouu5PkxvO4JIEv9kzOsPk';
+
+async function sendEmail(type, data = {}) {
+  try {
+    await fetch(EMAIL_FN_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${EMAIL_ANON_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ type, data })
+    });
+  } catch(e) {
+    console.warn('Email notification failed (non-fatal):', e.message);
+  }
+}
+
 // ── KAREN ADDITIONS ──────────────────────────────────────
 const KAREN_CATEGORY_RULES = [
   { cat:'Meats & Eggs',         words:['chicken','beef','pork','steak','egg','eggs','lamb','fish','tuna','mince','ham','sausage','bacon','arrachera','milanesa','muslo','huevo'] },
@@ -1489,7 +1508,11 @@ async function submitRequest(type) {
     created_at: new Date().toISOString()
   });
   if (error) showToast('Error sending request: ' + error.message, 'error');
-  else { closeModal(); showToast('Request sent to Cameron ✓'); }
+  else {
+    closeModal();
+    showToast('Request sent to Cameron ✓');
+    await sendEmail('swap_requested', { requestedBy: userProfile.name || userProfile.email });
+  }
 }
 
 // ── POST-RENDER HOOKS ─────────────────────────────────────
@@ -1670,6 +1693,7 @@ async function recalculateRecipeRating(recipeId) {
       `${direction} ${recipe.name_en} moved to ${TIER_LABELS[newTier]} (avg ${newAvg.toFixed(1)})`,
       newTier === 'weekly' || newTier === 'regular' ? 'success' : 'error'
     );
+    await sendEmail('tier_changed', { recipeName: recipe.name_en });
   }
 }
 
@@ -2063,6 +2087,12 @@ async function handleRequest(requestId, type, decision) {
       await sb.from('weekly_plans').update({ status: 'approved' }).eq('id', currentPlan.id);
       currentPlan.status = 'approved';
     }
+    await sendEmail('plan_approved');
+    // Fire weekly prep reminder if any meals need advance prep
+    const advancePrepMeals = currentMeals.filter(m => m.recipes?.advance_prep_required && !m.cooked);
+    if (advancePrepMeals.length > 0) {
+      await sendEmail('prep_reminder_weekly');
+    }
   }
 
   if (type === 'hibernate' && decision === 'approved') {
@@ -2322,6 +2352,7 @@ async function submitPlan(btn) {
     currentPlan.status = 'submitted';
     btn.textContent = '✓ Plan Submitted';
     showToast('Plan submitted to Cameron ✓');
+    await sendEmail('plan_submitted');
   } catch(err) {
     btn.disabled = false;
     btn.textContent = 'Submit plan for approval';
@@ -2646,6 +2677,7 @@ async function generateShoppingList() {
     content.innerHTML = renderShoppingListHTML(mealItems, ckItems, true, karenAdditions);
     btn.textContent = 'Regenerate list';
     btn.disabled = false;
+    await sendEmail('plan_finalised');
 
   } catch(err) {
     content.innerHTML = `<div class="empty" style="color:#c44">Error: ${err.message}</div>`;
@@ -2922,6 +2954,13 @@ function renderDayBeforeReminder() {
 
   if (tomorrowMeals.length === 0) return '';
 
+  // Fire email once per plan+date combo — don't spam on every render
+  const emailFlagKey = `prep_dayof_sent_${currentPlan.id}_${tomorrowStr}`;
+  if (!localStorage.getItem(emailFlagKey)) {
+    localStorage.setItem(emailFlagKey, '1');
+    sendEmail('prep_reminder_dayof');
+  }
+
   const rows = tomorrowMeals.map(m => {
     const r = m.recipes;
     const eatLabel = m.target_eat_time ? ` · eat at ${m.target_eat_time}` : '';
@@ -3055,6 +3094,7 @@ async function submitSideSwap(recipeId, currentSideEn, isKaren) {
     if (error) { showToast('Error sending request: ' + error.message, 'error'); return; }
     closeModal();
     showToast('Side swap request sent to Cameron ✓');
+    await sendEmail('swap_requested', { requestedBy: userProfile.name || userProfile.email });
   }
 }
 
