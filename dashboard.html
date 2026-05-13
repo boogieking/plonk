@@ -771,6 +771,7 @@ async function init() {
   renderNav();
   await loadWeekData();
   await loadMyRatingsThisWeek();
+  if (userProfile.role === 'admin') await checkHibernationWakeUps();
   await renderDashboard();
 
   document.getElementById('loading').style.display = 'none';
@@ -975,6 +976,9 @@ function mealRowAdmin(m) {
   const removeBtn = !isCooked
     ? `<button class="btn-remove-meal" title="Remove from this week" onclick="removeMealFromPlan('${planMeal.id}','${r.name_en}')">✕ Remove</button>`
     : '';
+  const hibernateBtn = !isCooked
+    ? `<button class="btn-remove-meal" title="Hibernate this meal" style="color:#6B5F54;border-color:rgba(107,95,84,0.3)" onclick="openHibernateModal('${r.id}','${r.name_en.replace(/'/g,"\\'")}')">😴 Hibernate</button>`
+    : '';
   const sideHtml = `<div class="meal-side" id="side-row-${r.id}">🍽 With: <span id="side-label-${r.id}">${r.default_side_en || 'No side set'}</span>${r.default_side_es ? ' · <em id="side-label-es-' + r.id + '">' + r.default_side_es + '</em>' : '<em id="side-label-es-' + r.id + '"></em>'} <button class="side-edit-btn" onclick="openSideDropdown(event,'${r.id}','${(r.default_side_en||'').replace(/'/g,"\\'")}')">✏️ change</button><div class="side-dropdown-wrap" id="side-dd-${r.id}" style="display:none"><div class="side-dropdown-panel"><input type="text" id="side-input-${r.id}" placeholder="Or type a new side..." oninput="filterSideOptions('${r.id}',this.value)"><div class="side-options" id="side-opts-${r.id}"></div><div class="side-dropdown-footer"><button class="side-cancel-btn" onclick="closeSideDropdown('${r.id}')">Cancel</button><button class="side-save-btn" onclick="saveSide('${r.id}')">Save</button></div></div></div></div>`;
   return '<div class="meal-item ' + (isCooked ? 'cooked' : '') + '" id="meal-item-' + r.id + '">'
     + '<div style="flex:1">'
@@ -986,7 +990,7 @@ function mealRowAdmin(m) {
     + sideHtml
     + ratingHtml + ratedHtml
     + '</div>'
-    + '<div class="meal-actions" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">' + actionHtml + removeBtn + '</div>'
+    + '<div class="meal-actions" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">' + actionHtml + removeBtn + hibernateBtn + '</div>'
     + '</div>';
 }
 
@@ -1363,7 +1367,7 @@ async function confirmEatingOut() {
 // ── General request modal ─────────────────────────────────
 const modalTitles = {
   swap:      { h:'Request a meal swap',  p:'Tell Cameron which meal and why you want it changed.' },
-  hibernate: { h:'Request hibernation',  p:'Tell Cameron which meal should be rested and for how long.' },
+  hibernate: { h:'Request hibernation',  p:'Which meal should be rested? It will be hibernated for 2 months.' },
   new:       { h:'Suggest a new meal',   p:'What meal would you like to add? Briefly explain why.' },
 };
 
@@ -1372,10 +1376,25 @@ function openModal(type) {
   const el = document.createElement('div');
   el.id = 'modal-overlay';
   el.className = 'modal-overlay';
+
+  // For hibernate: show a meal picker dropdown
+  const mealPickerHtml = type === 'hibernate' && currentMeals.length > 0
+    ? `<div style="margin-bottom:12px">
+        <label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Meal</label>
+        <select id="modal-recipe-select" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white">
+          <option value="">— Pick a meal —</option>
+          ${currentMeals.filter(m => !m.cooked).map(m =>
+            `<option value="${m.recipe_id}">${m.recipes?.name_en || m.recipe_id}</option>`
+          ).join('')}
+        </select>
+       </div>`
+    : '';
+
   el.innerHTML = `
     <div class="modal">
       <h3>${t.h}</h3>
       <p>${t.p}</p>
+      ${mealPickerHtml}
       <textarea id="modal-text" placeholder="Add your reason here..." rows="4"></textarea>
       <div class="modal-btns">
         <button class="btn-ghost" onclick="closeModal()">Cancel</button>
@@ -1394,10 +1413,19 @@ function closeModal() {
 async function submitRequest(type) {
   const text = document.getElementById('modal-text').value.trim();
   if (!text) { showToast('Please add a reason before sending.', 'error'); return; }
+
+  let meta = null;
+  if (type === 'hibernate') {
+    const recipeId = document.getElementById('modal-recipe-select')?.value;
+    if (!recipeId) { showToast('Please pick a meal to hibernate.', 'error'); return; }
+    meta = { recipe_id: recipeId };
+  }
+
   const { error } = await sb.from('requests').insert({
     request_type: type, reason: text,
     requested_by: userProfile.id,
     status: 'pending',
+    meta: meta,
     created_at: new Date().toISOString()
   });
   if (error) showToast('Error sending request: ' + error.message, 'error');
@@ -1834,6 +1862,15 @@ async function handleRequest(requestId, type, decision) {
     if (currentPlan) {
       await sb.from('weekly_plans').update({ status: 'approved' }).eq('id', currentPlan.id);
       currentPlan.status = 'approved';
+    }
+  }
+
+  if (type === 'hibernate' && decision === 'approved') {
+    const { data: req } = await sb.from('requests').select('meta, reason').eq('id', requestId).single();
+    const recipeId = req?.meta?.recipe_id;
+    if (recipeId) {
+      await doHibernate(recipeId, 8);
+      return;
     }
   }
 
@@ -2844,6 +2881,115 @@ async function unlockTierOverride(recipeId) {
   closeModal();
   showToast(`Override removed — tier restored to ${TIER_LABELS[autoTier]}`);
   await renderDashboard();
+}
+
+// ═══════════════════════════════════════════════════════════
+// HIBERNATION ENGINE
+// ═══════════════════════════════════════════════════════════
+
+function weeksFromNow(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n * 7);
+  return d.toISOString().substring(0, 10);
+}
+
+// Cameron directly hibernates a meal — opens timer modal
+function openHibernateModal(recipeId, mealName) {
+  const el = document.createElement('div');
+  el.id = 'modal-overlay';
+  el.className = 'modal-overlay';
+  el.innerHTML = `
+    <div class="modal" style="max-width:400px">
+      <h3>Hibernate "${mealName}"</h3>
+      <p>This meal will be removed from rotation and wake up automatically.</p>
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Wake up after</label>
+        <select id="hibernate-weeks" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white">
+          <option value="2">2 weeks</option>
+          <option value="4">4 weeks</option>
+          <option value="6">6 weeks</option>
+          <option value="8" selected>8 weeks (2 months)</option>
+          <option value="12">12 weeks (3 months)</option>
+          <option value="16">16 weeks (4 months)</option>
+          <option value="26">26 weeks (6 months)</option>
+          <option value="52">1 year</option>
+        </select>
+      </div>
+      <div id="hibernate-wake-preview" style="font-size:0.82rem;color:var(--mid);padding:8px 12px;background:var(--cream);border-radius:8px;margin-bottom:4px">
+        Will wake up: <strong>${weeksFromNow(8)}</strong>
+      </div>
+      <div class="modal-btns">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" style="background:#6B5F54" onclick="confirmHibernate('${recipeId}')">😴 Hibernate</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+
+  document.getElementById('hibernate-weeks').addEventListener('change', function() {
+    const preview = document.getElementById('hibernate-wake-preview');
+    if (preview) preview.innerHTML = `Will wake up: <strong>${weeksFromNow(parseInt(this.value))}</strong>`;
+  });
+}
+
+async function confirmHibernate(recipeId) {
+  const weeks = parseInt(document.getElementById('hibernate-weeks')?.value || '8');
+  await doHibernate(recipeId, weeks);
+}
+
+async function doHibernate(recipeId, weeks) {
+  const wakeDate = weeksFromNow(weeks);
+  const { error } = await sb.from('recipes')
+    .update({ hibernated: true, hibernate_until: wakeDate, frequency_tier: 'hibernated' })
+    .eq('id', recipeId);
+
+  if (error) { showToast('Error hibernating meal: ' + error.message, 'error'); return; }
+
+  // Remove from current week's plan if present and not cooked
+  const planMeal = currentMeals.find(m => m.recipe_id === recipeId && !m.cooked);
+  if (planMeal) {
+    await sb.from('weekly_plan_meals').delete().eq('id', planMeal.id);
+    currentMeals = currentMeals.filter(m => m.id !== planMeal.id);
+  }
+
+  closeModal();
+  showToast(`Meal hibernated 😴 — wakes up ${wakeDate}`);
+
+  // Remove any pending request UI for this
+  const pendingContainer = document.getElementById('requests-container');
+  if (pendingContainer) {
+    // Re-load requests after a brief pause to let DB settle
+    setTimeout(() => loadPendingRequests(), 300);
+  }
+
+  await renderDashboard();
+}
+
+// Runs on load (admin only) — wakes up any meals past their hibernate_until date
+async function checkHibernationWakeUps() {
+  const today = getTodayDate();
+  const { data, error } = await sb
+    .from('recipes')
+    .select('id, name_en, hibernate_until, avg_rating')
+    .eq('hibernated', true)
+    .not('hibernate_until', 'is', null)
+    .lte('hibernate_until', today);
+
+  if (error || !data || data.length === 0) return;
+
+  const wokenUp = [];
+  for (const recipe of data) {
+    const restoredTier = recipe.avg_rating ? tierFromRating(recipe.avg_rating) : 'regular';
+    const { error: upErr } = await sb.from('recipes')
+      .update({ hibernated: false, hibernate_until: null, frequency_tier: restoredTier })
+      .eq('id', recipe.id);
+    if (!upErr) wokenUp.push({ name: recipe.name_en, tier: restoredTier });
+  }
+
+  if (wokenUp.length > 0) {
+    wokenUp.forEach(r => {
+      showToast(`🌅 ${r.name} is back! Restored to ${TIER_LABELS[r.tier]}`, 'success');
+    });
+  }
 }
 
 // ── GO ────────────────────────────────────────────────────
