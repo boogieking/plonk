@@ -807,6 +807,7 @@ async function init() {
   renderNav();
   await loadWeekData();
   await loadMyRatingsThisWeek();
+  await loadPendingIdeaRatings();
   if (userProfile.role === 'admin') await checkHibernationWakeUps();
   await renderDashboard();
 
@@ -933,6 +934,11 @@ function renderCameron(recipes, name) {
         Loading requests...
       </div>
     </div>
+
+    ${pendingIdeaRatings.length > 0 ? `
+    <div class="section-label">Idea ratings needed</div>
+    ${renderPendingIdeaRatingCards()}
+    ` : ''}
 
     <div class="section-label">This plan's meal pool</div>
     ${renderPrepReminders()}
@@ -1427,15 +1433,26 @@ function openModal(type) {
        </div>`
     : '';
 
+  // For new meal: show a meal name input
+  const newMealNameHtml = type === 'new'
+    ? `<div style="margin-bottom:12px">
+        <label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Meal name</label>
+        <input type="text" id="modal-meal-name" placeholder="e.g. Butter Chicken, Fish Tacos..."
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;transition:border-color 0.2s"
+          onfocus="this.style.borderColor='var(--clay)'" onblur="this.style.borderColor='var(--border)'">
+       </div>`
+    : '';
+
   el.innerHTML = `
     <div class="modal">
       <h3>${t.h}</h3>
       <p>${t.p}</p>
       ${mealPickerHtml}
-      <textarea id="modal-text" placeholder="Add your reason here..." rows="4"></textarea>
+      ${newMealNameHtml}
+      <textarea id="modal-text" placeholder="${type === 'new' ? 'Why would this be a good addition?' : 'Add your reason here...'}" rows="4"></textarea>
       <div class="modal-btns">
         <button class="btn-ghost" onclick="closeModal()">Cancel</button>
-        <button class="btn-primary" onclick="submitRequest('${type}')">Send to Cameron</button>
+        <button class="btn-primary" onclick="submitRequest('${type}')">${type === 'new' ? 'Suggest to Cameron' : 'Send to Cameron'}</button>
       </div>
     </div>`;
   document.body.appendChild(el);
@@ -1458,6 +1475,12 @@ async function submitRequest(type) {
     meta = { recipe_id: recipeId };
   }
 
+  if (type === 'new') {
+    const mealName = document.getElementById('modal-meal-name')?.value.trim();
+    if (!mealName) { showToast('Please enter the meal name.', 'error'); return; }
+    meta = { name_en: mealName };
+  }
+
   const { error } = await sb.from('requests').insert({
     request_type: type, reason: text,
     requested_by: userProfile.id,
@@ -1476,6 +1499,7 @@ async function renderDashboard() {
   const content = document.getElementById('dashboard-content');
 
   await loadKarenAdditions();
+  await loadPendingIdeaRatings();
 
   if (userProfile.role === 'admin') {
     content.innerHTML = renderCameron(recipes, userProfile.name);
@@ -1649,8 +1673,141 @@ async function recalculateRecipeRating(recipeId) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════
+// IDEA RATING FLOW — new meal approval
+// ═══════════════════════════════════════════════════════════
+
+let pendingIdeaRatings = [];
+
+async function loadPendingIdeaRatings() {
+  const { data: recipes } = await sb.from('recipes')
+    .select('id, name_en')
+    .is('avg_rating', null)
+    .eq('hibernated', false);
+
+  if (!recipes || recipes.length === 0) { pendingIdeaRatings = []; return; }
+
+  const recipeIds = recipes.map(r => r.id);
+  const { data: myRatings } = await sb.from('ratings')
+    .select('recipe_id')
+    .eq('user_id', userProfile.id)
+    .eq('rating_type', 'idea')
+    .in('recipe_id', recipeIds);
+
+  const alreadyRated = new Set((myRatings || []).map(r => r.recipe_id));
+  pendingIdeaRatings = recipes.filter(r => !alreadyRated.has(r.id));
+}
+
+function openIdeaRatingModal(recipeId, mealName) {
+  const el = document.createElement('div');
+  el.id = 'modal-overlay';
+  el.className = 'modal-overlay';
+  el.innerHTML = `
+    <div class="modal" style="max-width:420px">
+      <h3>⭐ Rate the idea</h3>
+      <p style="margin-bottom:6px">How good does <strong>${mealName}</strong> sound as a meal? Rate the idea — not the cook.</p>
+      <div style="padding:12px 14px;background:rgba(200,103,74,0.06);border:1px solid rgba(200,103,74,0.2);border-radius:10px;margin-bottom:16px">
+        <div style="font-size:0.78rem;color:var(--clay);font-weight:500;margin-bottom:10px">Your idea rating</div>
+        <div class="star-row" id="idea-stars-${recipeId}">
+          ${[1,2,3,4,5].map(n => `<button class="star-btn" data-val="${n}" onclick="selectIdeaStar('${recipeId}',${n})">☆</button>`).join('')}
+        </div>
+        <div style="font-size:0.75rem;color:var(--mid);margin-top:8px">
+          All three family members will rate — combined average sets the starting frequency tier.
+        </div>
+      </div>
+      <div class="modal-btns">
+        <button class="btn-ghost" onclick="closeModal()">Rate later</button>
+        <button class="btn-primary" id="idea-submit-${recipeId}" style="display:none"
+          onclick="submitIdeaRating('${recipeId}')">Submit rating</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+function selectIdeaStar(recipeId, val) {
+  const row = document.getElementById(`idea-stars-${recipeId}`);
+  if (!row) return;
+  row.querySelectorAll('.star-btn').forEach(btn => {
+    const n = parseInt(btn.dataset.val);
+    btn.textContent = n <= val ? '★' : '☆';
+    btn.classList.toggle('active', n <= val);
+  });
+  row.dataset.selected = val;
+  const submitBtn = document.getElementById(`idea-submit-${recipeId}`);
+  if (submitBtn) submitBtn.style.display = 'inline-block';
+}
+
+async function submitIdeaRating(recipeId) {
+  const row = document.getElementById(`idea-stars-${recipeId}`);
+  if (!row) return;
+  const val = parseInt(row.dataset.selected);
+  if (!val) { showToast('Pick a star rating first', 'error'); return; }
+
+  const submitBtn = document.getElementById(`idea-submit-${recipeId}`);
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving...'; }
+
+  const { error: rateError } = await sb.from('ratings').insert({
+    recipe_id: recipeId,
+    user_id: userProfile.id,
+    rating: val,
+    rating_type: 'idea',
+    cook_number: null,
+    created_at: new Date().toISOString()
+  });
+
+  if (rateError) {
+    showToast('Error saving rating: ' + rateError.message, 'error');
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit rating'; }
+    return;
+  }
+
+  await finaliseIdeaRatingIfComplete(recipeId);
+  closeModal();
+  showToast('Idea rating saved ✓');
+  pendingIdeaRatings = pendingIdeaRatings.filter(r => r.id !== recipeId);
+
+  // Re-render so the inline card disappears
+  const inlineCard = document.getElementById(`idea-card-${recipeId}`);
+  if (inlineCard) inlineCard.remove();
+}
+
+async function finaliseIdeaRatingIfComplete(recipeId) {
+  const { data: allIdeaRatings } = await sb.from('ratings')
+    .select('rating, user_id')
+    .eq('recipe_id', recipeId)
+    .eq('rating_type', 'idea');
+
+  if (!allIdeaRatings || allIdeaRatings.length < 3) return;
+
+  const avg = Math.round(
+    (allIdeaRatings.reduce((s, r) => s + r.rating, 0) / allIdeaRatings.length) * 100
+  ) / 100;
+  const tier = tierFromRating(avg);
+
+  await sb.from('recipes')
+    .update({ avg_rating: avg, frequency_tier: tier })
+    .eq('id', recipeId);
+
+  if (userProfile.role === 'admin' || userProfile.role === 'planner') {
+    showToast(`All three rated! ${TIER_LABELS[tier]} tier set (avg ${avg.toFixed(1)}) ✓`);
+  }
+}
+
+function renderPendingIdeaRatingCards() {
+  if (!pendingIdeaRatings || pendingIdeaRatings.length === 0) return '';
+  return pendingIdeaRatings.map(r => `
+    <div id="idea-card-${r.id}" style="padding:14px 16px;background:rgba(200,103,74,0.07);border:1.5px solid rgba(200,103,74,0.25);border-radius:var(--radius);margin-bottom:12px">
+      <div style="font-size:0.78rem;font-weight:500;color:var(--clay);margin-bottom:4px">✨ New meal suggestion — rate the idea</div>
+      <div style="font-weight:500;margin-bottom:10px">${r.name_en}</div>
+      <div class="star-row" id="idea-stars-${r.id}">
+        ${[1,2,3,4,5].map(n => `<button class="star-btn" data-val="${n}" onclick="selectIdeaStar('${r.id}',${n})">☆</button>`).join('')}
+        <button class="rating-submit-btn" id="idea-submit-${r.id}" style="display:none" onclick="submitIdeaRating('${r.id}')">Submit</button>
+      </div>
+    </div>
+  `).join('');
+}
+
 // ── SIDES DROPDOWN ──────────────────────────────────────
-let allSides = [];
 
 async function loadSidesLibrary() {
   const { data, error } = await sb.from('sides').select('*').order('name_en');
@@ -1871,11 +2028,17 @@ async function loadPendingRequests() {
         ${mealName}: <em>${req.meta.current_side_en || '?'}</em> → <strong>${req.meta.new_side_en}</strong>${req.meta.new_side_es ? ' · ' + req.meta.new_side_es : ''}
       </div>`;
     }
+    // Extra detail for new meal suggestions
+    let newMealDetail = '';
+    if (req.request_type === 'new' && req.meta?.name_en) {
+      newMealDetail = `<div style="font-size:0.85rem;font-weight:500;color:var(--dark);margin-top:3px">🍽 "${req.meta.name_en}"</div>`;
+    }
     return `
       <div class="request-item" id="req-${req.id}">
         <div class="request-from">${fromName} · ${date}</div>
         <div class="request-text">${label}</div>
         ${sideSwapDetail}
+        ${newMealDetail}
         ${req.reason ? `<div class="request-reason">"${req.reason}"</div>` : ''}
         <div class="request-btns">
           <button class="btn-primary" style="font-size:0.78rem;padding:6px 14px"
@@ -1919,6 +2082,62 @@ async function handleRequest(requestId, type, decision) {
       await applySideSwap(recipe_id, new_side_en, new_side_es || '');
       return; // applySideSwap handles toast and re-render
     }
+  }
+
+  if (type === 'new' && decision === 'approved') {
+    const { data: req } = await sb.from('requests').select('meta, reason').eq('id', requestId).single();
+    const mealName = req?.meta?.name_en;
+    if (mealName) {
+      // Create the recipe with sensible defaults
+      const { data: newRecipe, error: recipeErr } = await sb.from('recipes').insert({
+        name_en: mealName,
+        name_es: null,
+        frequency_tier: 'regular',
+        frequency_override: false,
+        hibernated: false,
+        hibernate_until: null,
+        avg_rating: null,
+        advance_prep_required: false,
+        same_day_cookable: true,
+        created_at: new Date().toISOString()
+      }).select().single();
+
+      if (recipeErr) { showToast('Error creating recipe: ' + recipeErr.message, 'error'); return; }
+
+      // Remove the request card from UI
+      const el = document.getElementById(`req-${requestId}`);
+      if (el) el.remove();
+
+      // Reload to update pending count
+      const countEl = document.getElementById('pending-count');
+      if (countEl) {
+        const container = document.getElementById('requests-container');
+        const remaining = container ? container.querySelectorAll('.request-item').length : 0;
+        countEl.textContent = remaining;
+      }
+
+      showToast(`"${mealName}" added to recipes ✓ — now collect idea ratings`);
+
+      // Show idea rating modal for Cameron immediately
+      openIdeaRatingModal(newRecipe.id, mealName);
+      return;
+    }
+  }
+
+  if (type === 'new' && decision === 'rejected') {
+    const el = document.getElementById(`req-${requestId}`);
+    if (el) el.remove();
+    const container = document.getElementById('requests-container');
+    const countEl = document.getElementById('pending-count');
+    if (countEl && container) {
+      const remaining = container.querySelectorAll('.request-item').length;
+      countEl.textContent = remaining;
+      if (remaining === 0) {
+        container.innerHTML = `<div class="empty"><span class="empty-icon">📋</span>No pending requests from Sienna or Karen</div>`;
+      }
+    }
+    showToast('Suggestion rejected');
+    return;
   }
 
   const el = document.getElementById(`req-${requestId}`);
@@ -2014,6 +2233,11 @@ function renderSienna(recipes, name) {
         <button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button>
       </div>
     </div>
+
+    ${pendingIdeaRatings.length > 0 ? `
+    <div class="section-label">Idea ratings needed</div>
+    ${renderPendingIdeaRatingCards()}
+    ` : ''}
 
     <div class="section-label">Inventory check</div>
     <div class="card" style="margin-bottom:20px">
@@ -2196,6 +2420,11 @@ function renderKaren(recipes, name) {
         <button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button>
       </div>
     </div>
+
+    ${pendingIdeaRatings.length > 0 ? `
+    <div class="section-label">Idea ratings needed</div>
+    ${renderPendingIdeaRatingCards()}
+    ` : ''}
 
     <div class="section-label">Add to shopping list</div>
     <div class="card" style="margin-bottom:20px">
