@@ -604,6 +604,42 @@
     }
     .karen-rm-btn:hover{color:#c44;background:rgba(200,50,50,0.07)}
 
+    /* ── DAY-BEFORE REMINDER ALERT ── */
+    .day-before-alert{
+      background:linear-gradient(135deg,rgba(184,134,11,0.12) 0%,rgba(184,134,11,0.06) 100%);
+      border:1.5px solid rgba(184,134,11,0.45);
+      border-radius:var(--radius);
+      padding:18px 20px;
+      margin-bottom:24px;
+    }
+    .day-before-alert-header{
+      display:flex;align-items:center;gap:10px;
+      margin-bottom:10px;
+    }
+    .day-before-alert-icon{font-size:1.4rem}
+    .day-before-alert-title{
+      font-family:'Playfair Display',serif;
+      font-size:1rem;font-weight:700;
+      color:var(--amber);
+    }
+    .day-before-alert-subtitle{
+      font-size:0.78rem;color:var(--mid);margin-top:1px;
+    }
+    .day-before-meal-row{
+      display:flex;flex-direction:column;gap:3px;
+      padding:10px 14px;
+      background:rgba(255,255,255,0.55);
+      border:1px solid rgba(184,134,11,0.2);
+      border-radius:10px;
+      margin-top:8px;
+    }
+    .day-before-meal-name{
+      font-weight:500;font-size:0.9rem;color:var(--dark);
+    }
+    .day-before-meal-prep{
+      font-size:0.78rem;color:var(--amber);font-weight:500;
+    }
+
     .prep-reminders-card{
       background:rgba(200,103,74,0.06);
       border:1px solid rgba(200,103,74,0.2);
@@ -856,6 +892,7 @@ function renderCameron(recipes, name) {
 
   return `
   <div class="fade-in">
+    ${renderDayBeforeReminder()}
     <div class="page-header">
       <h1>Good day, ${name} 👋</h1>
       <p>${hasPlan ? 'Plan started ' + planDateLabel(currentPlan) : 'No active plan yet'} · You have full control</p>
@@ -1921,6 +1958,7 @@ function renderSienna(recipes, name) {
 
   return `
   <div class="fade-in">
+    ${renderDayBeforeReminder()}
     <div class="page-header">
       <h1>Hi ${name} 👋</h1>
       <p>${hasPlan ? 'Plan started ' + planDateLabel(currentPlan) : 'No active plan yet'}</p>
@@ -2634,6 +2672,47 @@ async function confirmSchedule(planMealId, recipeId, totalMinutes) {
   closeModal();
   showToast(`Scheduled for ${dayName} · Start prep by ${prepStartTime} ✓`);
   await renderDashboard();
+}
+
+// Render the day-before reminder alert (top of dashboard, Cameron + Sienna only)
+function renderDayBeforeReminder() {
+  if (!currentPlan || currentPlan.status !== 'approved') return '';
+  if (userProfile.role === 'reviewer') return '';
+
+  // Get tomorrow's date string YYYY-MM-DD
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+  // Find meals assigned to tomorrow that need advance prep and aren't cooked
+  const tomorrowMeals = currentMeals.filter(m =>
+    m.assigned_day === tomorrowStr &&
+    m.recipes?.advance_prep_required &&
+    !m.cooked
+  );
+
+  if (tomorrowMeals.length === 0) return '';
+
+  const rows = tomorrowMeals.map(m => {
+    const r = m.recipes;
+    const eatLabel = m.target_eat_time ? ` · eat at ${m.target_eat_time}` : '';
+    return `<div class="day-before-meal-row">
+      <div class="day-before-meal-name">${r.name_en}${eatLabel}</div>
+      <div class="day-before-meal-prep">⏰ ${r.advance_prep_description || 'Advance preparation required'}</div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="day-before-alert">
+      <div class="day-before-alert-header">
+        <div class="day-before-alert-icon">🔔</div>
+        <div>
+          <div class="day-before-alert-title">Prep needed today</div>
+          <div class="day-before-alert-subtitle">You have ${tomorrowMeals.length === 1 ? 'a meal' : 'meals'} scheduled for tomorrow that need advance preparation</div>
+        </div>
+      </div>
+      ${rows}
+    </div>`;
 }
 
 // Render the weekly prep reminders panel (shown to Cameron + Sienna when plan approved)
