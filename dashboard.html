@@ -1102,9 +1102,17 @@ function renderCameron(recipes, name) {
           <div class="status-text">${statusText}</div>
         </div>
       </div>
-      <button class="btn-primary" onclick="openEatingOutModal()">
-        ${hasPlan ? 'Start new plan' : 'Set eating-out days'}
-      </button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${hasPlan && currentPlan.status === 'suggested' ? `
+          <button class="btn-primary" id="approve-plan-btn" onclick="approvePlanAsAdmin(this)">
+            ✓ Approve plan
+          </button>` : ''}
+        ${hasPlan && currentPlan.status === 'approved' ? `
+          <button class="btn-primary" disabled style="opacity:0.6">✓ Approved</button>` : ''}
+        <button class="btn-secondary" onclick="openEatingOutModal()">
+          ${hasPlan ? 'Start new plan' : 'Set eating-out days'}
+        </button>
+      </div>
     </div>
 
     <div class="grid-3">
@@ -1153,16 +1161,12 @@ function renderCameron(recipes, name) {
     <div class="card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">Fridge & freezer</div>
-        ${currentPlan?.status === 'approved'
-          ? `<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`
-          : `<span class="tag tag-gray">Submit plan first</span>`}
+        <span class="tag tag-gray">Submit plan first</span>
       </div>
-      ${currentPlan?.status === 'approved'
-        ? `<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`
-        : `<div class="empty" style="padding:20px 0">
-            <span class="empty-icon">🛒</span>
-            Once the plan is approved, inventory check unlocks here
-           </div>`}
+      <div class="empty" style="padding:20px 0">
+        <span class="empty-icon">🛒</span>
+        Once the plan is approved, inventory check unlocks here
+      </div>
     </div>
 
     <div class="section-label">Shopping list</div>
@@ -1707,7 +1711,6 @@ async function renderDashboard() {
   if (userProfile.role === 'admin') {
     content.innerHTML = renderCameron(recipes, userProfile.name);
     loadPendingRequests();
-    if (currentPlan?.status === 'approved') await loadInventory();
   } else if (userProfile.role === 'planner') {
     content.innerHTML = renderSienna(recipes, userProfile.name);
     await loadInventory();
@@ -2509,6 +2512,33 @@ function mealRowSienna(m) {
 }
 
 // FIX 5: use request_type column
+async function approvePlanAsAdmin(btn) {
+  if (!currentPlan) return;
+  btn.disabled = true;
+  btn.textContent = 'Approving...';
+
+  try {
+    const { error } = await sb
+      .from('weekly_plans')
+      .update({ status: 'approved' })
+      .eq('id', currentPlan.id);
+    if (error) throw error;
+
+    currentPlan.status = 'approved';
+    showToast('Plan approved ✓ Inventory check unlocked');
+
+    const advancePrepMeals = currentMeals.filter(m => m.recipes?.advance_prep_required && !m.cooked);
+    if (advancePrepMeals.length > 0) await sendEmail('prep_reminder_weekly');
+    await sendEmail('plan_approved');
+
+    await renderDashboard();
+  } catch(err) {
+    btn.disabled = false;
+    btn.textContent = '✓ Approve plan';
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
 async function submitPlan(btn) {
   if (!currentPlan) return;
   btn.disabled = true;
