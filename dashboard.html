@@ -3843,7 +3843,7 @@ function consolidateList() {
 
   const content = document.getElementById('shopping-list-content');
 
-  // Build map of meal ingredient rows by name
+  // Build map of meal ingredient rows by name (lowercase)
   const mealMap = {};
   content.querySelectorAll('.shop-row[id^="shop-row-"]').forEach(row => {
     const nameEl = row.querySelector('.shop-name-en');
@@ -3857,13 +3857,14 @@ function consolidateList() {
   // Process each CK item
   for (const ck of ckParsed) {
     if (!ck.text) continue;
-    const key = ck.text.toLowerCase();
+    const key = ck.text.toLowerCase().trim();
     const qtyStr = ck.qty ? `${ck.qty}${ck.unit ? ' '+ck.unit : ''}` : '';
 
-    // Try to match against a meal ingredient
+    // Try to match against a meal ingredient (case-insensitive)
     let matched = false;
     for (const [mKey, mVal] of Object.entries(mealMap)) {
-      if (mKey.includes(key) || key.includes(mKey)) {
+      const mKeyLower = mKey.toLowerCase();
+      if (mKeyLower.includes(key) || key.includes(mKeyLower)) {
         const nameEl = mVal.row.querySelector('.shop-name-en');
         if (nameEl) {
           let existing = nameEl.querySelector('.shop-qty');
