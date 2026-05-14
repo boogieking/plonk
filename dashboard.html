@@ -42,11 +42,9 @@
       padding:0 28px;height:58px;
     }
     .nav-brand{
-  font-family:'Playfair Display',serif;
-  font-size:1.4rem;color:var(--dark);
-  display:flex;align-items:center;gap:0;
-}
-.nav-brand .logo-icon{margin-right:8px}
+      font-family:'Playfair Display',serif;
+      font-size:1.4rem;color:var(--dark);
+      display:flex;align-items:center;gap:8px;
     }
     .nav-brand span{color:var(--clay)}
     .nav-right{display:flex;align-items:center;gap:16px}
@@ -657,6 +655,177 @@
     .prep-reminder-icon{flex-shrink:0;font-size:1rem;margin-top:1px}
     .prep-reminder-meal{font-weight:500;color:var(--dark)}
     .prep-reminder-desc{font-size:0.78rem;color:var(--mid);margin-top:2px}
+
+    /* ── NAV TABS ── */
+    .nav-tabs{
+      display:flex;align-items:center;gap:4px;
+    }
+    .nav-tab{
+      padding:6px 14px;border-radius:8px;border:none;
+      background:none;font-family:'DM Sans',sans-serif;
+      font-size:0.82rem;font-weight:400;color:var(--mid);
+      cursor:pointer;transition:all 0.15s;white-space:nowrap;
+    }
+    .nav-tab:hover{background:var(--light);color:var(--dark)}
+    .nav-tab.active{
+      background:rgba(200,103,74,0.1);
+      color:var(--clay);font-weight:500;
+    }
+
+    @media(max-width:600px){
+      .nav-tabs .nav-tab{padding:6px 10px;font-size:0.78rem}
+      .nav-brand{font-size:1.1rem}
+    }
+    .recipes-toolbar{
+      display:flex;align-items:center;gap:10px;
+      flex-wrap:wrap;margin-bottom:20px;
+    }
+    .search-input{
+      flex:1;min-width:180px;
+      padding:8px 14px;
+      border:1.5px solid var(--border);border-radius:10px;
+      font-family:'DM Sans',sans-serif;font-size:0.88rem;
+      outline:none;color:var(--dark);background:white;
+      transition:border-color 0.2s;
+    }
+    .search-input:focus{border-color:var(--clay)}
+    .filter-pill{
+      padding:6px 13px;border-radius:999px;
+      border:1.5px solid var(--border);
+      background:white;font-family:'DM Sans',sans-serif;
+      font-size:0.78rem;font-weight:400;cursor:pointer;
+      color:var(--mid);transition:all 0.15s;white-space:nowrap;
+    }
+    .filter-pill:hover{border-color:var(--clay);color:var(--clay)}
+    .filter-pill.active{background:var(--clay);border-color:var(--clay);color:white;font-weight:500}
+    .recipe-grid{
+      display:flex;flex-direction:column;gap:10px;
+    }
+    .recipe-row{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:14px 18px;
+      background:rgba(255,255,255,0.75);
+      border:1px solid var(--border);
+      border-radius:12px;
+      gap:12px;cursor:pointer;
+      transition:border-color 0.15s,box-shadow 0.15s,background 0.15s;
+    }
+    .recipe-row:hover{
+      border-color:rgba(200,103,74,0.4);
+      box-shadow:0 3px 14px rgba(200,103,74,0.1);
+      background:rgba(255,255,255,0.9);
+    }
+    .recipe-row.hibernated-row{
+      opacity:0.55;background:rgba(107,95,84,0.05);
+    }
+    .recipe-row.hibernated-row:hover{opacity:0.75}
+    .recipe-main{flex:1;min-width:0}
+    .recipe-title{
+      font-size:0.93rem;font-weight:500;color:var(--dark);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    .recipe-title-es{
+      font-size:0.76rem;color:var(--mid);margin-top:1px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    .recipe-meta-row{
+      display:flex;align-items:center;gap:8px;
+      flex-wrap:wrap;margin-top:5px;
+    }
+    .recipe-meta-item{
+      font-size:0.72rem;color:var(--mid);
+      display:flex;align-items:center;gap:3px;
+    }
+    .recipe-badges{
+      display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;
+    }
+    .stars-display{
+      font-size:0.78rem;font-weight:500;color:var(--amber);
+      display:flex;align-items:center;gap:3px;
+    }
+    .recipe-actions{
+      display:flex;align-items:center;gap:6px;flex-shrink:0;
+    }
+
+    /* ── RECIPE DETAIL MODAL ── */
+    .recipe-modal{
+      background:white;border-radius:var(--radius);
+      padding:0;width:100%;max-width:540px;
+      box-shadow:0 20px 60px rgba(0,0,0,0.2);
+      max-height:90vh;overflow:hidden;
+      display:flex;flex-direction:column;
+    }
+    .recipe-modal-header{
+      padding:24px 28px 20px;
+      border-bottom:1px solid var(--border);
+      flex-shrink:0;
+    }
+    .recipe-modal-title{
+      font-family:'Playfair Display',serif;
+      font-size:1.3rem;font-weight:700;color:var(--dark);
+    }
+    .recipe-modal-title-es{
+      font-size:0.85rem;color:var(--mid);margin-top:2px;
+    }
+    .recipe-modal-meta{
+      display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+      margin-top:10px;
+    }
+    .recipe-modal-body{
+      padding:22px 28px;
+      overflow-y:auto;flex:1;
+    }
+    .recipe-modal-close{
+      position:absolute;top:18px;right:22px;
+      background:none;border:none;cursor:pointer;
+      font-size:1.3rem;color:var(--mid);line-height:1;
+      padding:4px;border-radius:6px;
+      transition:background 0.15s;
+    }
+    .recipe-modal-close:hover{background:var(--light)}
+    .ingredient-list{
+      display:flex;flex-direction:column;gap:0;
+    }
+    .ingredient-row{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:8px 0;
+      border-bottom:1px solid rgba(200,180,160,0.15);
+      gap:10px;
+    }
+    .ingredient-row:last-child{border-bottom:none}
+    .ingredient-info{flex:1;min-width:0}
+    .ingredient-name-en{font-size:0.87rem;color:var(--dark)}
+    .ingredient-name-es{font-size:0.72rem;color:var(--mid);margin-top:1px}
+    .ingredient-qty{
+      font-size:0.78rem;color:var(--mid);white-space:nowrap;flex-shrink:0;
+    }
+    .ingredient-link{
+      display:inline-flex;align-items:center;gap:4px;
+      font-size:0.7rem;font-weight:500;color:var(--clay);
+      text-decoration:none;padding:3px 8px;
+      border:1.5px solid rgba(200,103,74,0.3);
+      border-radius:999px;white-space:nowrap;flex-shrink:0;
+      transition:all 0.15s;background:rgba(200,103,74,0.04);
+    }
+    .ingredient-link:hover{background:var(--clay);color:white;border-color:var(--clay)}
+    .modal-section-label{
+      font-size:0.72rem;font-weight:500;
+      text-transform:uppercase;letter-spacing:0.07em;
+      color:var(--mid);margin:18px 0 10px;
+    }
+    .modal-section-label:first-child{margin-top:0}
+    .prep-flag{
+      padding:8px 12px;border-radius:8px;
+      background:rgba(184,134,11,0.08);
+      border:1px solid rgba(184,134,11,0.25);
+      font-size:0.82rem;color:var(--amber);
+      display:flex;gap:8px;align-items:flex-start;
+    }
+    .prep-flag-icon{font-size:1rem;flex-shrink:0;margin-top:1px}
+    .recipe-modal-footer{
+      padding:16px 28px;border-top:1px solid var(--border);
+      display:flex;gap:10px;justify-content:flex-end;flex-shrink:0;
+    }
   </style>
 </head>
 <body>
@@ -666,6 +835,10 @@
 <div id="app">
   <nav>
     <div class="nav-brand">🍴 Fork<span>n</span>ight</div>
+    <div class="nav-tabs" id="nav-tabs">
+      <button class="nav-tab active" data-view="dashboard" onclick="switchView('dashboard')">This Week</button>
+      <button class="nav-tab" data-view="recipes" onclick="switchView('recipes')">Recipes</button>
+    </div>
     <div class="nav-right">
       <div class="user-chip">
         <div class="avatar" id="nav-avatar">?</div>
@@ -3209,7 +3382,8 @@ async function saveTierOverride(recipeId) {
 
   closeModal();
   showToast(`Tier set to ${TIER_LABELS[val]} 🔒`);
-  await renderDashboard();
+  allRecipesCache = null; // invalidate cache
+  if (currentView === 'recipes') { await renderRecipeListView(); } else { await renderDashboard(); }
 }
 
 async function unlockTierOverride(recipeId) {
@@ -3230,7 +3404,8 @@ async function unlockTierOverride(recipeId) {
 
   closeModal();
   showToast(`Override removed — tier restored to ${TIER_LABELS[autoTier]}`);
-  await renderDashboard();
+  allRecipesCache = null;
+  if (currentView === 'recipes') { await renderRecipeListView(); } else { await renderDashboard(); }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3311,7 +3486,8 @@ async function doHibernate(recipeId, weeks) {
     setTimeout(() => loadPendingRequests(), 300);
   }
 
-  await renderDashboard();
+  allRecipesCache = null;
+  if (currentView === 'recipes') { await renderRecipeListView(); } else { await renderDashboard(); }
 }
 
 // Runs on load (admin only) — wakes up any meals past their hibernate_until date
@@ -3340,6 +3516,249 @@ async function checkHibernationWakeUps() {
       showToast(`🌅 ${r.name} is back! Restored to ${TIER_LABELS[r.tier]}`, 'success');
     });
   }
+}
+
+// ── VIEW SWITCHING ────────────────────────────────────────
+let currentView = 'dashboard';
+
+function switchView(view) {
+  currentView = view;
+  document.querySelectorAll('.nav-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.view === view);
+  });
+  if (view === 'dashboard') {
+    renderDashboard();
+  } else if (view === 'recipes') {
+    renderRecipeListView();
+  }
+}
+
+// ── RECIPE LIST VIEW ──────────────────────────────────────
+let recipeFilterTier = 'all';
+let recipeFilterSearch = '';
+let recipeShowHibernated = false;
+let allRecipesCache = null;
+
+async function renderRecipeListView() {
+  const content = document.getElementById('dashboard-content');
+  content.innerHTML = `<div class="fade-in" id="recipe-list-root">
+    <div class="page-header">
+      <h1>Recipes</h1>
+      <p>Browse and manage the full meal library</p>
+    </div>
+    <div class="recipes-toolbar">
+      <input class="search-input" id="recipe-search" placeholder="Search recipes…" oninput="filterRecipes()" value="${recipeFilterSearch}">
+      <button class="filter-pill ${recipeFilterTier==='all'?'active':''}" onclick="setTierFilter('all')">All</button>
+      <button class="filter-pill ${recipeFilterTier==='weekly'?'active':''}" onclick="setTierFilter('weekly')">Weekly</button>
+      <button class="filter-pill ${recipeFilterTier==='regular'?'active':''}" onclick="setTierFilter('regular')">Regular</button>
+      <button class="filter-pill ${recipeFilterTier==='occasional'?'active':''}" onclick="setTierFilter('occasional')">Occasional</button>
+      <button class="filter-pill ${recipeFilterTier==='rare'?'active':''}" onclick="setTierFilter('rare')">Rare</button>
+      <button class="filter-pill ${recipeShowHibernated?'active':''}" onclick="toggleHibernated()">💤 Hibernated</button>
+    </div>
+    <div id="recipe-grid-container">
+      <div class="empty"><span class="empty-icon">🍳</span>Loading recipes…</div>
+    </div>
+  </div>`;
+
+  // Load if not cached
+  if (!allRecipesCache) {
+    const { data, error } = await sb.from('recipes')
+      .select('*, ingredients(id, name_en, name_es, lacomer_category, lacomer_url, quantity, unit)')
+      .order('name_en');
+    if (error) {
+      document.getElementById('recipe-grid-container').innerHTML =
+        `<div class="empty" style="color:#c44">Could not load recipes: ${error.message}</div>`;
+      return;
+    }
+    allRecipesCache = data;
+  }
+
+  renderFilteredRecipes();
+}
+
+function renderFilteredRecipes() {
+  const container = document.getElementById('recipe-grid-container');
+  if (!container || !allRecipesCache) return;
+
+  const search = (document.getElementById('recipe-search')?.value || recipeFilterSearch).toLowerCase().trim();
+  recipeFilterSearch = search;
+
+  let list = allRecipesCache.filter(r => {
+    if (r.hibernated && !recipeShowHibernated) return false;
+    if (!r.hibernated && recipeShowHibernated) return false; // if filter active, show only hibernated
+    if (recipeFilterTier !== 'all' && r.frequency_tier !== recipeFilterTier) return false;
+    if (search && !r.name_en.toLowerCase().includes(search) && !(r.name_es||'').toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  // If showing hibernated toggle off the tier filter message
+  if (recipeShowHibernated) {
+    list = allRecipesCache.filter(r => {
+      if (!r.hibernated) return false;
+      if (search && !r.name_en.toLowerCase().includes(search) && !(r.name_es||'').toLowerCase().includes(search)) return false;
+      return true;
+    });
+  }
+
+  if (list.length === 0) {
+    container.innerHTML = `<div class="empty"><span class="empty-icon">🔍</span>No recipes match</div>`;
+    return;
+  }
+
+  const isAdmin = userProfile?.role === 'admin';
+
+  container.innerHTML = `<div class="recipe-grid">${list.map(r => recipeRowHtml(r, isAdmin)).join('')}</div>`;
+}
+
+function recipeRowHtml(r, isAdmin) {
+  const tier = r.hibernated ? 'hibernated' : (r.frequency_tier || 'regular');
+  const tierLabel = TIER_LABELS[tier] || tier;
+  const tierClass = `tier-${tier}`;
+  const stars = r.avg_rating ? `⭐ ${parseFloat(r.avg_rating).toFixed(1)}` : '—';
+  const time = (r.prep_time_minutes||0) + (r.cook_time_minutes||0);
+  const timeLabel = time > 0 ? `⏱ ${time} min` : '';
+  const advPrep = r.advance_prep_required ? `<span class="tag tag-amber">prep ahead</span>` : '';
+  const hibernateUntil = r.hibernated && r.hibernate_until
+    ? `<span class="recipe-meta-item">🌙 until ${new Date(r.hibernate_until).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}</span>` : '';
+
+  const adminActions = isAdmin ? `
+    <button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;" onclick="event.stopPropagation();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Tier</button>
+    <button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;" onclick="event.stopPropagation();openHibernateModal('${r.id}','${r.name_en.replace(/'/g,"\\'")}')">
+      ${r.hibernated ? 'Wake' : 'Sleep'}
+    </button>
+  ` : '';
+
+  return `<div class="recipe-row${r.hibernated?' hibernated-row':''}" onclick="openRecipeDetail('${r.id}')">
+    <div class="recipe-main">
+      <div class="recipe-title">${r.name_en}</div>
+      ${r.name_es ? `<div class="recipe-title-es">${r.name_es}</div>` : ''}
+      <div class="recipe-meta-row">
+        ${timeLabel ? `<span class="recipe-meta-item">${timeLabel}</span>` : ''}
+        ${advPrep}
+        ${hibernateUntil}
+      </div>
+    </div>
+    <div class="recipe-badges">
+      <span class="stars-display">${stars}</span>
+      <span class="tier-badge ${tierClass}${r.frequency_override?' tier-locked':''}">${tierLabel}</span>
+    </div>
+    ${isAdmin ? `<div class="recipe-actions">${adminActions}</div>` : ''}
+  </div>`;
+}
+
+function filterRecipes() {
+  renderFilteredRecipes();
+}
+
+function setTierFilter(tier) {
+  recipeFilterTier = tier;
+  recipeShowHibernated = false;
+  renderRecipeListView();
+}
+
+function toggleHibernated() {
+  recipeShowHibernated = !recipeShowHibernated;
+  recipeFilterTier = 'all';
+  renderRecipeListView();
+}
+
+async function openRecipeDetail(recipeId) {
+  const r = allRecipesCache?.find(x => x.id === recipeId || x.id === parseInt(recipeId));
+  if (!r) return;
+
+  const isAdmin = userProfile?.role === 'admin';
+  const tier = r.hibernated ? 'hibernated' : (r.frequency_tier || 'regular');
+  const stars = r.avg_rating ? `⭐ ${parseFloat(r.avg_rating).toFixed(1)}` : 'Not yet rated';
+  const time = (r.prep_time_minutes||0) + (r.cook_time_minutes||0);
+
+  // Group ingredients by La Comer category
+  const ingredients = r.ingredients || [];
+  const grouped = {};
+  ingredients.forEach(ing => {
+    const cat = ing.lacomer_category || 'Other';
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(ing);
+  });
+
+  const ingredientHtml = Object.entries(grouped).map(([cat, ings]) => `
+    <div class="modal-section-label">${cat}</div>
+    <div class="ingredient-list">
+      ${ings.map(ing => {
+        const qty = ing.quantity ? `${ing.quantity}${ing.unit ? ' '+ing.unit : ''}` : '';
+        const link = ing.lacomer_url
+          ? `<a class="ingredient-link" href="${ing.lacomer_url}" target="_blank">🛒 La Comer</a>`
+          : '';
+        return `<div class="ingredient-row">
+          <div class="ingredient-info">
+            <div class="ingredient-name-en">${ing.name_en}</div>
+            ${ing.name_es ? `<div class="ingredient-name-es">${ing.name_es}</div>` : ''}
+          </div>
+          ${qty ? `<div class="ingredient-qty">${qty}</div>` : ''}
+          ${link}
+        </div>`;
+      }).join('')}
+    </div>
+  `).join('');
+
+  const prepSection = r.advance_prep_required ? `
+    <div class="modal-section-label">Prep notes</div>
+    <div class="prep-flag">
+      <span class="prep-flag-icon">⏰</span>
+      <div>
+        <strong>Advance prep required</strong>
+        ${r.advance_prep_description ? `<div style="margin-top:3px">${r.advance_prep_description}</div>` : ''}
+        ${!r.same_day_cookable ? `<div style="margin-top:3px;font-size:0.78rem;color:var(--mid)">Cannot be cooked same day without prep</div>` : ''}
+      </div>
+    </div>
+  ` : '';
+
+  const sideSection = r.default_side_en ? `
+    <div class="modal-section-label">Default side</div>
+    <div style="font-size:0.87rem;color:var(--dark)">${r.default_side_en}${r.default_side_es ? ` · <em style="color:var(--mid)">${r.default_side_es}</em>` : ''}</div>
+  ` : '';
+
+  const adminFooterBtns = isAdmin ? `
+    <button class="btn-secondary" onclick="closeRecipeDetail();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Change tier</button>
+    <button class="btn-secondary" onclick="closeRecipeDetail();openHibernateModal('${r.id}','${r.name_en.replace(/'/g,"\\'")}')">😴 ${r.hibernated?'Wake up':'Hibernate'}</button>
+  ` : '';
+
+  const modalHtml = `
+  <div class="modal-overlay" id="recipe-detail-overlay" onclick="if(event.target===this)closeRecipeDetail()">
+    <div class="recipe-modal" style="position:relative">
+      <button class="recipe-modal-close" onclick="closeRecipeDetail()">✕</button>
+      <div class="recipe-modal-header">
+        <div class="recipe-modal-title">${r.name_en}</div>
+        ${r.name_es ? `<div class="recipe-modal-title-es">${r.name_es}</div>` : ''}
+        <div class="recipe-modal-meta">
+          <span class="tier-badge tier-${tier}${r.frequency_override?' tier-locked':''}">${TIER_LABELS[tier]||tier}</span>
+          <span class="stars-display">${stars}</span>
+          ${time > 0 ? `<span class="tag tag-gray">⏱ ${time} min total</span>` : ''}
+          ${r.same_day_cookable ? `<span class="tag tag-green">Same-day ✓</span>` : `<span class="tag tag-amber">Prep ahead</span>`}
+        </div>
+      </div>
+      <div class="recipe-modal-body">
+        ${prepSection}
+        ${sideSection}
+        ${ingredients.length > 0 ? `<div class="modal-section-label">Ingredients</div>${ingredientHtml}` : '<div style="font-size:0.85rem;color:var(--mid)">No ingredients loaded yet</div>'}
+      </div>
+      <div class="recipe-modal-footer">
+        ${adminFooterBtns}
+        <button class="btn-primary" onclick="closeRecipeDetail()">Done</button>
+      </div>
+    </div>
+  </div>`;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function closeRecipeDetail() {
+  const el = document.getElementById('recipe-detail-overlay');
+  if (el) el.remove();
+}
+
+function openTierOverrideFromList(recipeId, currentTier) {
+  const isLocked = allRecipesCache?.find(r => r.id === recipeId || r.id === parseInt(recipeId))?.frequency_override || false;
+  openTierModal(recipeId, currentTier, isLocked);
 }
 
 // ── GO ────────────────────────────────────────────────────
