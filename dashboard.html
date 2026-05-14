@@ -2510,25 +2510,41 @@ async function submitPlan(btn) {
   btn.textContent = 'Submitting...';
 
   try {
+    // Admin (Cameron) skips straight to approved — no Sienna/Karen step needed
+    const isAdmin = userProfile?.role === 'admin';
+    const newStatus = isAdmin ? 'approved' : 'submitted';
+
     const { error: planErr } = await sb
       .from('weekly_plans')
-      .update({ status: 'submitted' })
+      .update({ status: newStatus })
       .eq('id', currentPlan.id);
     if (planErr) throw planErr;
 
-    const { error: reqErr } = await sb.from('requests').insert({
-      request_type: 'plan_submitted',
-      reason: 'Sienna has submitted the meal plan for approval.',
-      requested_by: userProfile.id,
-      status: 'pending',
-      created_at: new Date().toISOString()
-    });
-    if (reqErr) throw reqErr;
+    currentPlan.status = newStatus;
 
-    currentPlan.status = 'submitted';
-    btn.textContent = '✓ Plan Submitted';
-    showToast('Plan submitted to Cameron ✓');
-    await sendEmail('plan_submitted');
+    if (isAdmin) {
+      // Admin approve — fire prep reminder if any meals need advance prep
+      btn.textContent = '✓ Approved';
+      showToast('Plan approved ✓ Inventory check unlocked');
+      const advancePrepMeals = currentMeals.filter(m => m.recipes?.advance_prep_required && !m.cooked);
+      if (advancePrepMeals.length > 0) {
+        await sendEmail('prep_reminder_weekly');
+      }
+      await sendEmail('plan_approved');
+    } else {
+      // Sienna — create pending request for Cameron to review
+      const { error: reqErr } = await sb.from('requests').insert({
+        request_type: 'plan_submitted',
+        reason: 'Sienna has submitted the meal plan for approval.',
+        requested_by: userProfile.id,
+        status: 'pending',
+        created_at: new Date().toISOString()
+      });
+      if (reqErr) throw reqErr;
+      btn.textContent = '✓ Plan Submitted';
+      showToast('Plan submitted to Cameron ✓');
+      await sendEmail('plan_submitted');
+    }
   } catch(err) {
     btn.disabled = false;
     btn.textContent = 'Submit plan for approval';
