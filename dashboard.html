@@ -827,6 +827,7 @@
       padding:16px 28px;border-top:1px solid var(--border);
       display:flex;gap:10px;justify-content:flex-end;flex-shrink:0;
     }
+    .shop-qty { color: var(--clay); font-size: 0.82rem; font-weight: 400; }
   </style>
 </head>
 <body>
@@ -1161,16 +1162,12 @@ function renderCameron(recipes, name) {
     <div class="card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">Fridge & freezer</div>
-        ${currentPlan?.status === 'approved'
-          ? `<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`
-          : `<span class="tag tag-gray">Submit plan first</span>`}
+        <span class="tag tag-gray">Submit plan first</span>
       </div>
-      ${currentPlan?.status === 'approved'
-        ? `<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`
-        : `<div class="empty" style="padding:20px 0">
-            <span class="empty-icon">🛒</span>
-            Once the plan is approved, inventory check unlocks here
-           </div>`}
+      <div class="empty" style="padding:20px 0">
+        <span class="empty-icon">🛒</span>
+        Once the plan is approved, inventory check unlocks here
+      </div>
     </div>
 
     <div class="section-label">Shopping list</div>
@@ -1715,7 +1712,6 @@ async function renderDashboard() {
   if (userProfile.role === 'admin') {
     content.innerHTML = renderCameron(recipes, userProfile.name);
     loadPendingRequests();
-    if (currentPlan?.status === 'approved') await loadInventory();
   } else if (userProfile.role === 'planner') {
     content.innerHTML = renderSienna(recipes, userProfile.name);
     await loadInventory();
@@ -2596,7 +2592,7 @@ async function loadSiennaShoppingPreview() {
   try {
     const { data: ingredients, error } = await sb
       .from('ingredients')
-      .select('id, name_en, name_es, lacomer_category, lacomer_url')
+      .select('id, name_en, name_es, lacomer_category, lacomer_url, quantity, unit')
       .in('id', needIds);
     if (error) throw error;
 
@@ -2745,7 +2741,7 @@ async function loadKarenShoppingPreview() {
   try {
     const { data: ingredients, error } = await sb
       .from('ingredients')
-      .select('id, name_en, name_es, lacomer_category, lacomer_url')
+      .select('id, name_en, name_es, lacomer_category, lacomer_url, quantity, unit')
       .in('id', needIds);
     if (error) throw error;
 
@@ -2772,28 +2768,34 @@ async function loadKarenShoppingPreview() {
 // ═══════════════════════════════════════════════════════════
 
 function renderShoppingListHTML(mealItems, ckItems, isAdmin, karenItems) {
-  let html = '';
+  const UNITS = ['g','kg','ml','L','units','pcs','tbsp','tsp'];
 
+  // Build groups from meal ingredients
   const groups = {};
   for (const ing of mealItems) {
     const cat = ing.lacomer_category || 'Other';
     if (!groups[cat]) groups[cat] = [];
-    groups[cat].push({ ...ing, _type: 'ingredient' });
+    const qty = ing.quantity ? `${ing.quantity}${ing.unit ? ' '+ing.unit : ''}` : '';
+    groups[cat].push({ ...ing, _type: 'ingredient', _qtyStr: qty });
   }
 
-  // Merge Karen additions into groups (skip if name already in that category)
+  // Merge Karen additions
   if (karenItems && karenItems.length > 0) {
     const existingNames = new Set(mealItems.map(i => i.name_en.toLowerCase()));
     for (const ka of karenItems) {
       if (!existingNames.has(ka.name_en.toLowerCase())) {
         const cat = ka.lacomer_category || 'Other';
         if (!groups[cat]) groups[cat] = [];
-        groups[cat].push({ ...ka, _type: 'karen' });
+        groups[cat].push({ ...ka, _type: 'karen', _qtyStr: '' });
       }
     }
   }
 
-  for (const [cat, items] of Object.entries(groups)) {
+  // Render meal ingredient sections sorted alphabetically by category
+  let html = '';
+  const sortedCats = Object.keys(groups).sort();
+  for (const cat of sortedCats) {
+    const items = groups[cat];
     html += `<div class="shop-category-label">${cat}</div>`;
     for (const ing of items) {
       if (ing._type === 'karen') {
@@ -2814,7 +2816,7 @@ function renderShoppingListHTML(mealItems, ckItems, isAdmin, karenItems) {
         html += `
           <div class="shop-row" id="shop-row-${ing.id}">
             <div class="shop-names">
-              <div class="shop-name-en">${ing.name_en}</div>
+              <div class="shop-name-en">${ing.name_en}${ing._qtyStr ? `<span class="shop-qty"> · ${ing._qtyStr}</span>` : ''}</div>
               <div class="shop-name-es">${ing.name_es || ''}</div>
             </div>
             ${linkHtml}
@@ -2823,17 +2825,28 @@ function renderShoppingListHTML(mealItems, ckItems, isAdmin, karenItems) {
     }
   }
 
+  // Casa King section with inline qty inputs (admin only, pre-consolidation)
   if (isAdmin && ckItems.length > 0) {
+    const unitOpts = UNITS.map(u => `<option value="${u}">${u}</option>`).join('');
     html += `
-      <div class="casa-king-section">
+      <div class="casa-king-section" id="ck-pre-consolidate">
         <div class="casa-king-header">
           <div class="card-title">Household items</div>
           <span class="casa-king-badge">Casa King</span>
-        </div>`;
+        </div>
+        <div style="font-size:0.78rem;color:var(--mid);margin-bottom:12px">Add quantities then hit Consolidate ↑</div>`;
     for (const item of ckItems) {
       html += `
         <div class="ck-item-row" id="ck-row-${item.id}">
-          <div class="ck-item-text">${item.text}</div>
+          <div class="ck-item-text" style="flex:1">${item.text}</div>
+          <input type="number" min="0" step="any"
+            id="ck-qty-${item.id}"
+            placeholder="qty"
+            style="width:60px;border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:0.82rem;margin-right:4px">
+          <select id="ck-unit-${item.id}"
+            style="border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:0.82rem;margin-right:8px">
+            ${unitOpts}
+          </select>
           <button class="ck-done-btn ${item.done?'done':''}"
             onclick="tickCKItem('${item.id}',this)">
             ${item.done ? 'Done ✓' : 'Got it'}
@@ -2867,7 +2880,7 @@ async function generateShoppingList() {
 
     const { data: ingredients, error } = await sb
       .from('ingredients')
-      .select('id, name_en, name_es, lacomer_category, lacomer_url')
+      .select('id, name_en, name_es, lacomer_category, lacomer_url, quantity, unit')
       .in('id', needIds);
     if (error) throw error;
 
@@ -2890,7 +2903,10 @@ async function generateShoppingList() {
       console.warn('Casa King fetch failed:', e.message);
     }
 
-    content.innerHTML = renderShoppingListHTML(mealItems, ckItems, true, karenAdditions);
+    content.innerHTML = `
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+        <button class="btn-primary" onclick="consolidateList()" id="consolidate-btn">🔀 Consolidate list</button>
+      </div>` + renderShoppingListHTML(mealItems, ckItems, true, karenAdditions);
     btn.textContent = 'Regenerate list';
     btn.disabled = false;
     await sendEmail('plan_finalised');
@@ -3800,6 +3816,144 @@ function closeRecipeDetail() {
 function openTierOverrideFromList(recipeId, currentTier) {
   const isLocked = allRecipesCache?.find(r => r.id === recipeId || r.id === parseInt(recipeId))?.frequency_override || false;
   openTierModal(recipeId, currentTier, isLocked);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONSOLIDATE SHOPPING LIST
+// ═══════════════════════════════════════════════════════════
+
+function consolidateList() {
+  const ckSection = document.getElementById('ck-pre-consolidate');
+  if (!ckSection) return;
+
+  // Read qty inputs from Casa King rows
+  const ckRows = ckSection.querySelectorAll('.ck-item-row');
+  const ckParsed = [];
+  ckRows.forEach(row => {
+    const id   = row.id.replace('ck-row-','');
+    const text = row.querySelector('.ck-item-text')?.textContent?.trim() || '';
+    const qty  = parseFloat(document.getElementById(`ck-qty-${id}`)?.value) || 0;
+    const unit = document.getElementById(`ck-unit-${id}`)?.value || '';
+    ckParsed.push({ text, qty, unit, id });
+  });
+
+  const content = document.getElementById('shopping-list-content');
+
+  // Build map of meal ingredient rows by name
+  const mealMap = {};
+  content.querySelectorAll('.shop-row[id^="shop-row-"]').forEach(row => {
+    const nameEl = row.querySelector('.shop-name-en');
+    if (!nameEl) return;
+    const qtySpan = nameEl.querySelector('.shop-qty');
+    const qtyText = qtySpan ? qtySpan.textContent.replace(' · ','').trim() : '';
+    const name = nameEl.textContent.replace(qtySpan?.textContent||'','').trim();
+    mealMap[name.toLowerCase()] = { name, qtyText, row };
+  });
+
+  // Process each CK item
+  for (const ck of ckParsed) {
+    if (!ck.text) continue;
+    const key = ck.text.toLowerCase();
+    const qtyStr = ck.qty ? `${ck.qty}${ck.unit ? ' '+ck.unit : ''}` : '';
+
+    // Try to match against a meal ingredient
+    let matched = false;
+    for (const [mKey, mVal] of Object.entries(mealMap)) {
+      if (mKey.includes(key) || key.includes(mKey)) {
+        const nameEl = mVal.row.querySelector('.shop-name-en');
+        if (nameEl) {
+          let existing = nameEl.querySelector('.shop-qty');
+          if (!existing) {
+            const span = document.createElement('span');
+            span.className = 'shop-qty';
+            nameEl.appendChild(span);
+            existing = span;
+          }
+          const combined = mVal.qtyText && qtyStr
+            ? `${mVal.qtyText} + ${qtyStr} (meal+household)`
+            : qtyStr ? `${qtyStr} (household)` : mVal.qtyText;
+          existing.textContent = combined ? ` · ${combined}` : '';
+        }
+        matched = true;
+        break;
+      }
+    }
+
+    if (!matched) {
+      // Add to a General section with + Add link button
+      let generalSection = document.getElementById('consolidated-general');
+      if (!generalSection) {
+        generalSection = document.createElement('div');
+        generalSection.id = 'consolidated-general';
+        generalSection.innerHTML = `<div class="shop-category-label">General</div>`;
+        content.appendChild(generalSection);
+      }
+      const tempId = 'ck-new-' + ck.id;
+      const div = document.createElement('div');
+      div.className = 'shop-row';
+      div.id = `shop-row-${tempId}`;
+      div.innerHTML = `
+        <div class="shop-names">
+          <div class="shop-name-en">${ck.text}${qtyStr ? `<span class="shop-qty"> · ${qtyStr}</span>` : ''}</div>
+          <div class="shop-name-es" style="color:var(--blue);font-size:0.7rem">Household item</div>
+        </div>
+        <button class="add-link-btn" onclick="showCKLinkForm('${tempId}','${ck.text.replace(/'/g,"\\'")}',this)">+ Add link</button>`;
+      generalSection.appendChild(div);
+    }
+  }
+
+  // Remove Casa King section and consolidate button
+  ckSection.remove();
+  document.getElementById('consolidate-btn')?.closest('div')?.remove();
+}
+
+function showCKLinkForm(tempId, itemName, btn) {
+  const row = document.getElementById(`shop-row-${tempId}`);
+  if (!row) return;
+  btn.style.display = 'none';
+  const formDiv = document.createElement('div');
+  formDiv.className = 'add-link-form';
+  formDiv.id = `link-form-${tempId}`;
+  formDiv.innerHTML = `
+    <input class="add-link-input" id="link-input-${tempId}"
+      placeholder="Paste La Comer URL..." type="url">
+    <button class="save-link-btn" onclick="saveCKLink('${tempId}','${itemName.replace(/'/g,"\\'")}')">Save</button>
+    <button class="cancel-link-btn" onclick="cancelLink('${tempId}')">Cancel</button>`;
+  row.appendChild(formDiv);
+}
+
+async function saveCKLink(tempId, itemName) {
+  const input = document.getElementById(`link-input-${tempId}`);
+  const url   = input?.value?.trim();
+  if (!url) { showToast('Please paste a URL first', 'error'); return; }
+
+  const cat = guessKarenCategory(itemName);
+
+  // Insert as a new ingredient in Supabase so the link persists
+  const { data, error } = await sb
+    .from('ingredients')
+    .insert({
+      name_en: itemName,
+      name_es: itemName,
+      lacomer_category: cat,
+      lacomer_url: url
+    })
+    .select()
+    .single();
+
+  if (error) { showToast('Error saving: ' + error.message, 'error'); return; }
+
+  // Update the row in the UI
+  const row = document.getElementById(`shop-row-${tempId}`);
+  if (row) {
+    const form = document.getElementById(`link-form-${tempId}`);
+    if (form) form.remove();
+    const addBtn = row.querySelector('.add-link-btn');
+    if (addBtn) addBtn.replaceWith(Object.assign(document.createElement('a'), {
+      href: url, target: '_blank', className: 'shop-link', textContent: '🛒 La Comer'
+    }));
+  }
+  showToast(`"${itemName}" saved to ingredients ✓`);
 }
 
 // ── GO ────────────────────────────────────────────────────
