@@ -1715,6 +1715,7 @@ async function renderDashboard() {
   if (userProfile.role === 'admin') {
     content.innerHTML = renderCameron(recipes, userProfile.name);
     loadPendingRequests();
+    if (currentPlan?.status === 'approved') await loadInventory();
   } else if (userProfile.role === 'planner') {
     content.innerHTML = renderSienna(recipes, userProfile.name);
     await loadInventory();
