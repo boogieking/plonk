@@ -1153,12 +1153,16 @@ function renderCameron(recipes, name) {
     <div class="card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">Fridge & freezer</div>
-        <span class="tag tag-gray">Submit plan first</span>
+        ${currentPlan?.status === 'approved'
+          ? `<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`
+          : `<span class="tag tag-gray">Submit plan first</span>`}
       </div>
-      <div class="empty" style="padding:20px 0">
-        <span class="empty-icon">🛒</span>
-        Once the plan is approved, inventory check unlocks here
-      </div>
+      ${currentPlan?.status === 'approved'
+        ? `<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`
+        : `<div class="empty" style="padding:20px 0">
+            <span class="empty-icon">🛒</span>
+            Once the plan is approved, inventory check unlocks here
+           </div>`}
     </div>
 
     <div class="section-label">Shopping list</div>
@@ -1703,6 +1707,7 @@ async function renderDashboard() {
   if (userProfile.role === 'admin') {
     content.innerHTML = renderCameron(recipes, userProfile.name);
     loadPendingRequests();
+    if (currentPlan?.status === 'approved') await loadInventory();
   } else if (userProfile.role === 'planner') {
     content.innerHTML = renderSienna(recipes, userProfile.name);
     await loadInventory();
@@ -2510,41 +2515,25 @@ async function submitPlan(btn) {
   btn.textContent = 'Submitting...';
 
   try {
-    // Admin (Cameron) skips straight to approved — no Sienna/Karen step needed
-    const isAdmin = userProfile?.role === 'admin';
-    const newStatus = isAdmin ? 'approved' : 'submitted';
-
     const { error: planErr } = await sb
       .from('weekly_plans')
-      .update({ status: newStatus })
+      .update({ status: 'submitted' })
       .eq('id', currentPlan.id);
     if (planErr) throw planErr;
 
-    currentPlan.status = newStatus;
+    const { error: reqErr } = await sb.from('requests').insert({
+      request_type: 'plan_submitted',
+      reason: 'Sienna has submitted the meal plan for approval.',
+      requested_by: userProfile.id,
+      status: 'pending',
+      created_at: new Date().toISOString()
+    });
+    if (reqErr) throw reqErr;
 
-    if (isAdmin) {
-      // Admin approve — fire prep reminder if any meals need advance prep
-      btn.textContent = '✓ Approved';
-      showToast('Plan approved ✓ Inventory check unlocked');
-      const advancePrepMeals = currentMeals.filter(m => m.recipes?.advance_prep_required && !m.cooked);
-      if (advancePrepMeals.length > 0) {
-        await sendEmail('prep_reminder_weekly');
-      }
-      await sendEmail('plan_approved');
-    } else {
-      // Sienna — create pending request for Cameron to review
-      const { error: reqErr } = await sb.from('requests').insert({
-        request_type: 'plan_submitted',
-        reason: 'Sienna has submitted the meal plan for approval.',
-        requested_by: userProfile.id,
-        status: 'pending',
-        created_at: new Date().toISOString()
-      });
-      if (reqErr) throw reqErr;
-      btn.textContent = '✓ Plan Submitted';
-      showToast('Plan submitted to Cameron ✓');
-      await sendEmail('plan_submitted');
-    }
+    currentPlan.status = 'submitted';
+    btn.textContent = '✓ Plan Submitted';
+    showToast('Plan submitted to Cameron ✓');
+    await sendEmail('plan_submitted');
   } catch(err) {
     btn.disabled = false;
     btn.textContent = 'Submit plan for approval';
