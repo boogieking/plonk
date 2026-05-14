@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Forknight — Sign in</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --cream:#F5F0E8;
+      --clay:#C8674A;
+      --clay-dark:#a85238;
+      --dark:#1A1612;
+      --mid:#6B5F54;
+      --light:#E8DDD0;
+      --border:rgba(200,180,160,0.4);
+      --surface:rgba(255,255,255,0.82);
+      --radius:14px;
+    }
+
+    body{
+      font-family:'DM Sans',sans-serif;
+      background:var(--cream);
+      color:var(--dark);
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+    }
+
+    /* Background texture */
+    body::before{
+      content:'';
+      position:fixed;inset:0;
+      background:
+        radial-gradient(ellipse 70% 60% at 90% 5%, rgba(200,103,74,0.12) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 70% at 5% 95%, rgba(200,103,74,0.08) 0%, transparent 50%),
+        radial-gradient(ellipse 40% 40% at 50% 50%, rgba(232,221,208,0.6) 0%, transparent 70%);
+      pointer-events:none;z-index:0;
+    }
+
+    /* Subtle grain */
+    body::after{
+      content:'';
+      position:fixed;inset:0;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events:none;z-index:0;opacity:0.4;
+    }
+
+    .login-wrap{
+      position:relative;z-index:1;
+      width:100%;max-width:400px;
+      animation:rise 0.5s ease both;
+    }
+
+    @keyframes rise{
+      from{opacity:0;transform:translateY(18px)}
+      to{opacity:1;transform:translateY(0)}
+    }
+
+    /* Brand mark */
+    .brand{
+      text-align:center;
+      margin-bottom:32px;
+    }
+    .brand-icon{
+      font-size:2.4rem;
+      display:block;
+      margin-bottom:8px;
+      animation:rock 3s ease-in-out infinite;
+    }
+    @keyframes rock{
+      0%,100%{transform:rotate(-5deg)}
+      50%{transform:rotate(5deg)}
+    }
+    .brand-name{
+      font-family:'Playfair Display',serif;
+      font-size:2rem;
+      color:var(--dark);
+      letter-spacing:-0.01em;
+    }
+    .brand-name span{color:var(--clay)}
+    .brand-tagline{
+      font-size:0.82rem;
+      color:var(--mid);
+      font-weight:300;
+      margin-top:4px;
+      letter-spacing:0.04em;
+    }
+
+    /* Card */
+    .card{
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding:32px;
+      box-shadow:
+        0 2px 12px rgba(0,0,0,0.06),
+        0 20px 60px rgba(0,0,0,0.08);
+      backdrop-filter:blur(12px);
+      -webkit-backdrop-filter:blur(12px);
+    }
+
+    .card h2{
+      font-family:'Playfair Display',serif;
+      font-size:1.2rem;
+      font-weight:700;
+      color:var(--dark);
+      margin-bottom:6px;
+    }
+    .card p{
+      font-size:0.83rem;
+      color:var(--mid);
+      font-weight:300;
+      margin-bottom:24px;
+    }
+
+    /* Form fields */
+    .field{
+      margin-bottom:16px;
+    }
+    .field label{
+      display:block;
+      font-size:0.74rem;
+      font-weight:500;
+      text-transform:uppercase;
+      letter-spacing:0.07em;
+      color:var(--mid);
+      margin-bottom:6px;
+    }
+    .field input{
+      width:100%;
+      padding:11px 14px;
+      border:1.5px solid var(--border);
+      border-radius:10px;
+      font-family:'DM Sans',sans-serif;
+      font-size:0.92rem;
+      color:var(--dark);
+      background:white;
+      outline:none;
+      transition:border-color 0.2s, box-shadow 0.2s;
+    }
+    .field input:focus{
+      border-color:var(--clay);
+      box-shadow:0 0 0 3px rgba(200,103,74,0.1);
+    }
+    .field input::placeholder{color:#bbb}
+
+    /* Error message */
+    .error-msg{
+      display:none;
+      font-size:0.8rem;
+      color:#c03030;
+      background:rgba(200,50,50,0.07);
+      border:1px solid rgba(200,50,50,0.2);
+      border-radius:8px;
+      padding:9px 12px;
+      margin-bottom:14px;
+    }
+    .error-msg.show{display:block}
+
+    /* Submit button */
+    .btn-signin{
+      width:100%;
+      padding:12px;
+      background:var(--clay);
+      color:white;
+      border:none;
+      border-radius:10px;
+      font-family:'DM Sans',sans-serif;
+      font-size:0.92rem;
+      font-weight:500;
+      cursor:pointer;
+      transition:background 0.18s, transform 0.12s, box-shadow 0.18s;
+      box-shadow:0 3px 12px rgba(200,103,74,0.35);
+      margin-top:4px;
+      position:relative;
+      overflow:hidden;
+    }
+    .btn-signin:hover:not(:disabled){
+      background:var(--clay-dark);
+      transform:translateY(-1px);
+      box-shadow:0 5px 18px rgba(200,103,74,0.4);
+    }
+    .btn-signin:active:not(:disabled){transform:translateY(0)}
+    .btn-signin:disabled{
+      opacity:0.6;cursor:not-allowed;
+      transform:none;box-shadow:none;
+    }
+
+    /* Loading spinner inside button */
+    .btn-signin .spinner{
+      display:none;
+      width:16px;height:16px;
+      border:2px solid rgba(255,255,255,0.4);
+      border-top-color:white;
+      border-radius:50%;
+      animation:spin 0.7s linear infinite;
+      margin:0 auto;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .btn-signin.loading .btn-text{display:none}
+    .btn-signin.loading .spinner{display:block}
+
+    /* Footer note */
+    .footer-note{
+      text-align:center;
+      font-size:0.74rem;
+      color:var(--mid);
+      margin-top:20px;
+      font-weight:300;
+    }
+    .footer-note strong{font-weight:500;color:var(--dark)}
+  </style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="brand">
+    <span class="brand-icon">🍴</span>
+    <div class="brand-name">Fork<span>n</span>ight</div>
+    <div class="brand-tagline">What's for lunch?</div>
+  </div>
+
+  <div class="card">
+    <h2>Welcome back</h2>
+    <p>Sign in to your family account</p>
+
+    <div class="error-msg" id="error-msg"></div>
+
+    <div class="field">
+      <label for="email">Email</label>
+      <input type="email" id="email" placeholder="your@email.com" autocomplete="email" autocapitalize="none"/>
+    </div>
+
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="••••••••" autocomplete="current-password"/>
+    </div>
+
+    <button class="btn-signin" id="signin-btn" onclick="signIn()">
+      <span class="btn-text">Sign in</span>
+      <div class="spinner"></div>
+    </button>
+  </div>
+
+  <div class="footer-note">
+    <strong>Forknight</strong> · King family · Celaya
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = 'https://znwoiqygmsgabyoslrbt.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_SGLBIKifgg4nGL0pPtQssQ_Ng3dMgDK';
+  const { createClient } = supabase;
+  const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // If already signed in, go straight to dashboard
+  sb.auth.getSession().then(({ data: { session } }) => {
+    if (session) window.location.href = 'dashboard.html';
+  });
+
+  // Allow Enter key to submit
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') signIn();
+  });
+
+  async function signIn() {
+    const email    = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const btn      = document.getElementById('signin-btn');
+    const errEl    = document.getElementById('error-msg');
+
+    errEl.classList.remove('show');
+
+    if (!email || !password) {
+      showError('Please enter your email and password.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.classList.add('loading');
+
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      btn.disabled = false;
+      btn.classList.remove('loading');
+      showError(friendlyError(error.message));
+      document.getElementById('password').value = '';
+      document.getElementById('password').focus();
+      return;
+    }
+
+    // Success — redirect
+    window.location.href = 'dashboard.html';
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+
+  function friendlyError(msg) {
+    if (msg.toLowerCase().includes('invalid login')) return 'Incorrect email or password. Try again.';
+    if (msg.toLowerCase().includes('email not confirmed')) return 'Please confirm your email before signing in.';
+    if (msg.toLowerCase().includes('too many')) return 'Too many attempts — please wait a moment and try again.';
+    return 'Something went wrong. Please try again.';
+  }
+</script>
+</body>
+</html>
