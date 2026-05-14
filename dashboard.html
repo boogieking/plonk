@@ -46,7 +46,8 @@
       font-size:1.4rem;color:var(--dark);
       display:flex;align-items:center;gap:8px;
     }
-    .nav-brand span{color:var(--clay)}
+    .nav-brand .brand-text{display:inline;letter-spacing:normal}
+    .nav-brand span{color:var(--clay);display:inline}
     .nav-right{display:flex;align-items:center;gap:16px}
     .user-chip{
       display:flex;align-items:center;gap:8px;
@@ -834,7 +835,7 @@
 
 <div id="app">
   <nav>
-    <div class="nav-brand">🍴 Fork<span>n</span>ight</div>
+    <div class="nav-brand">🍴 <span class="brand-text">Fork<span>n</span>ight</span></div>
     <div class="nav-tabs" id="nav-tabs">
       <button class="nav-tab active" data-view="dashboard" onclick="switchView('dashboard')">This Week</button>
       <button class="nav-tab" data-view="recipes" onclick="switchView('recipes')">Recipes</button>
