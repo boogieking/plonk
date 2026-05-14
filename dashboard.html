@@ -1162,12 +1162,16 @@ function renderCameron(recipes, name) {
     <div class="card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">Fridge & freezer</div>
-        <span class="tag tag-gray">Submit plan first</span>
+        ${currentPlan?.status === 'approved'
+          ? `<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`
+          : `<span class="tag tag-gray">Submit plan first</span>`}
       </div>
-      <div class="empty" style="padding:20px 0">
-        <span class="empty-icon">🛒</span>
-        Once the plan is approved, inventory check unlocks here
-      </div>
+      ${currentPlan?.status === 'approved'
+        ? `<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`
+        : `<div class="empty" style="padding:20px 0">
+            <span class="empty-icon">🛒</span>
+            Once the plan is approved, inventory check unlocks here
+           </div>`}
     </div>
 
     <div class="section-label">Shopping list</div>
