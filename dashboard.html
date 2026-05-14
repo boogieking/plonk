@@ -44,10 +44,10 @@
     .nav-brand{
       font-family:'Playfair Display',serif;
       font-size:1.4rem;color:var(--dark);
-      display:flex;align-items:center;gap:8px;
+      display:flex;align-items:center;
     }
-    .nav-brand .brand-text{display:inline;letter-spacing:normal}
-    .nav-brand span{color:var(--clay);display:inline}
+    .nav-brand-word{display:inline;font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dark);margin-left:8px}
+    .nav-brand-word .n{color:var(--clay)}
     .nav-right{display:flex;align-items:center;gap:16px}
     .user-chip{
       display:flex;align-items:center;gap:8px;
@@ -835,7 +835,7 @@
 
 <div id="app">
   <nav>
-    <div class="nav-brand">🍴 <span class="brand-text">Fork<span>n</span>ight</span></div>
+    <div class="nav-brand">🍴 <span class="nav-brand-word">Fork<span class="n">n</span>ight</span></div>
     <div class="nav-tabs" id="nav-tabs">
       <button class="nav-tab active" data-view="dashboard" onclick="switchView('dashboard')">This Week</button>
       <button class="nav-tab" data-view="recipes" onclick="switchView('recipes')">Recipes</button>
