@@ -1344,29 +1344,27 @@ function renderInventoryList() {
 }
 
 function setInv(id, status, btn) {
-  // Find the display name for this ingredient and sync all IDs with the same name
-  const ing = inventoryItems.find(i => i.id === id);
-  if (ing) {
-    const nameKey = ing.name_en.toLowerCase();
-    // Update all ingredient IDs that share this display name (cross-recipe duplicates)
-    for (const [sid] of Object.entries(inventoryState)) {
-      // We need to look up from the raw data — use a data attribute approach
-      // For now, just update the clicked id and any with data-name matching
-      const matchingEls = document.querySelectorAll();
-      matchingEls.forEach(el => {
-        const haveBtn = el.querySelector('.have-btn');
-        const needBtn = el.querySelector('.need-btn');
-        const rowId = el.dataset.id;
-        if (rowId) inventoryState[rowId] = status;
-        if (haveBtn) haveBtn.classList.toggle('active', status === 'have');
-        if (needBtn) needBtn.classList.toggle('active', status === 'need');
-      });
-    }
-  }
+  // Update the clicked ingredient
   inventoryState[id] = status;
   const row = btn.closest('.inv-toggle');
   row.querySelectorAll('button').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+
+  // Also sync any other rows with the same ingredient name (cross-recipe duplicates)
+  const ing = inventoryItems.find(i => i.id === id);
+  if (ing) {
+    const nameKey = ing.name_en.toLowerCase();
+    document.querySelectorAll(`.inv-row[data-name="${nameKey}"]`).forEach(el => {
+      const rowId = el.dataset.id;
+      if (rowId && rowId !== id) {
+        inventoryState[rowId] = status;
+        const haveBtn = el.querySelector('.have-btn');
+        const needBtn = el.querySelector('.need-btn');
+        if (haveBtn) haveBtn.classList.toggle('active', status === 'have');
+        if (needBtn) needBtn.classList.toggle('active', status === 'need');
+      }
+    });
+  }
 }
 
 async function submitInventory() {
@@ -1632,6 +1630,8 @@ async function confirmEatingOut() {
 
     closeModal();
     await loadWeekData();
+    myRatingsThisWeek = {};
+    await loadMyRatingsThisWeek();
     await renderDashboard();
 
   } catch(err) {
@@ -1747,7 +1747,7 @@ async function renderDashboard() {
 
   if (userProfile.role === 'admin') {
     content.innerHTML = renderCameron(recipes, userProfile.name);
-    loadPendingRequests();
+    await loadPendingRequests();
     if (currentPlan?.status === 'approved') await loadInventory();
   } else if (userProfile.role === 'planner') {
     content.innerHTML = renderSienna(recipes, userProfile.name);
