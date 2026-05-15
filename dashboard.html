@@ -1149,9 +1149,12 @@ function renderCameron(recipes, name) {
     <div class="card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">Suggested meals</div>
-        ${hasPlan
-          ? `<span class="tag tag-green">${mealCount} meals · ${eatingOutCount} day${eatingOutCount!==1?'s':''} out</span>`
-          : `<span class="tag tag-amber">No active plan</span>`}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          ${hasPlan
+            ? `<span class="tag tag-green">${mealCount} meals · ${eatingOutCount} day${eatingOutCount!==1?'s':''} out</span>`
+            : `<span class="tag tag-amber">No active plan</span>`}
+          ${currentPlan?.reshuffle_used ? `<span class="tag" style="background:rgba(180,120,40,0.12);color:#8a5c10;border:1px solid rgba(180,120,40,0.25)">🔀 Sienna reshuffled</span>` : ''}
+        </div>
       </div>
       ${hasPlan && currentMeals.length > 0
         ? `<div class="meal-list">${currentMeals.map(m => mealRowAdmin(m)).join('')}</div>`
@@ -2533,6 +2536,15 @@ async function approvePlanAsAdmin(btn) {
     currentPlan.status = 'approved';
     showToast('Plan approved ✓ Inventory check unlocked');
 
+    // Notify Karen in-app
+    await sb.from('requests').insert({
+      request_type: 'week_finalised',
+      reason: 'This week\'s meal plan has been finalised by Cameron.',
+      requested_by: userProfile.id,
+      status: 'info',
+      created_at: new Date().toISOString()
+    });
+
     const advancePrepMeals = currentMeals.filter(m => m.recipes?.advance_prep_required && !m.cooked);
     if (advancePrepMeals.length > 0) await sendEmail('prep_reminder_weekly');
     await sendEmail('plan_approved');
@@ -2625,9 +2637,18 @@ async function loadSiennaShoppingPreview() {
 function renderKaren(recipes, name) {
   const hasPlan   = currentPlan !== null;
   const mealCount = currentMeals.length;
+  const justFinalised = currentPlan?.status === 'approved';
 
   return `
   <div class="fade-in">
+    ${justFinalised ? `
+    <div style="background:rgba(74,124,89,0.1);border:1px solid rgba(74,124,89,0.3);border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:12px">
+      <span style="font-size:1.3rem">✅</span>
+      <div>
+        <div style="font-weight:600;color:#2d5a3d;font-size:0.92rem">This week's plan is finalised!</div>
+        <div style="font-size:0.82rem;color:#4A7C59;margin-top:2px">Cameron has approved the meal plan. See your meals below.</div>
+      </div>
+    </div>` : ''}
     <div class="page-header">
       <h1>Hi ${name} 👋</h1>
       <p>${hasPlan ? 'Plan started ' + planDateLabel(currentPlan) : 'No active plan yet'}</p>
