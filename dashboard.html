@@ -2055,6 +2055,8 @@ function renderPendingIdeaRatingCards() {
 
 // ── SIDES DROPDOWN ──────────────────────────────────────
 
+let allSides = [];
+
 async function loadSidesLibrary() {
   const { data, error } = await sb.from('sides').select('*').order('name_en');
   if (!error && data) allSides = data;
@@ -2118,7 +2120,7 @@ async function saveSide(recipeId) {
   const input = document.getElementById('side-input-' + recipeId);
   if (!input) return;
   const nameEn = input.value.trim();
-  if (!nameEn) { showToast('Please enter a side dish name', true); return; }
+  if (!nameEn) { showToast('Please enter a side dish name', 'error'); return; }
   const nameEs = input.dataset.nameEs || '';
 
   // 1. Upsert into sides table
@@ -2129,7 +2131,7 @@ async function saveSide(recipeId) {
   } else {
     const { data: newSide, error: sideErr } = await sb
       .from('sides').insert({ name_en: nameEn, name_es: nameEs || null }).select().single();
-    if (sideErr) { showToast('Could not save side: ' + sideErr.message, true); return; }
+    if (sideErr) { showToast('Could not save side: ' + sideErr.message, 'error'); return; }
     sideId = newSide.id;
     allSides.push(newSide);
   }
@@ -2172,7 +2174,7 @@ document.addEventListener('click', (e) => {
 async function removeMealFromPlan(planMealId, mealName) {
   if (!confirm(`Remove "${mealName}" from this week's plan?`)) return;
   const { error } = await sb.from('weekly_plan_meals').delete().eq('id', planMealId);
-  if (error) { showToast('Could not remove meal: ' + error.message, true); return; }
+  if (error) { showToast('Could not remove meal: ' + error.message, 'error'); return; }
   showToast(`${mealName} removed from this week ✓`);
   await loadWeekData();
   await renderDashboard();
