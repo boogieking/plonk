@@ -1344,21 +1344,23 @@ function renderInventoryList() {
 }
 
 function setInv(id, status, btn) {
-  // Update the clicked ingredient
   id = String(id);
   inventoryState[id] = status;
-  const row = btn.closest('.inv-toggle');
-  row.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+
+  // Update button styles
+  const toggle = btn.parentElement;
+  if (toggle) {
+    toggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  }
   btn.classList.add('active');
 
-  // Also sync any other rows with the same ingredient name (cross-recipe duplicates)
-  const ing = inventoryItems.find(i => String(i.id) === String(id));
+  // Sync duplicate-name rows
+  const ing = inventoryItems.find(i => String(i.id) === id);
   if (ing) {
     const nameKey = ing.name_en.toLowerCase();
-    document.querySelectorAll(`.inv-row[data-name="${nameKey}"]`).forEach(el => {
-      const rowId = el.dataset.id;
-      if (rowId && String(rowId) !== String(id)) {
-        inventoryState[String(rowId)] = status;
+    document.querySelectorAll('.inv-row').forEach(el => {
+      if (el.dataset.name === nameKey && String(el.dataset.id) !== id) {
+        inventoryState[String(el.dataset.id)] = status;
         const haveBtn = el.querySelector('.have-btn');
         const needBtn = el.querySelector('.need-btn');
         if (haveBtn) haveBtn.classList.toggle('active', status === 'have');
