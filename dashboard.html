@@ -2174,8 +2174,8 @@ async function removeMealFromPlan(planMealId, mealName) {
   const { error } = await sb.from('weekly_plan_meals').delete().eq('id', planMealId);
   if (error) { showToast('Could not remove meal: ' + error.message, true); return; }
   showToast(`${mealName} removed from this week ✓`);
-  await loadCurrentPlan();
-  renderDashboard();
+  await loadWeekData();
+  await renderDashboard();
 }
 
 async function markCooked(recipeId, planMealId) {
@@ -2986,7 +2986,10 @@ async function generateShoppingList() {
       </div>` + renderShoppingListHTML(mealItems, ckItems, true, karenAdditions);
     btn.textContent = 'Regenerate list';
     btn.disabled = false;
-    await sendEmail('plan_finalised');
+    if (!currentPlan._shoppingListSent) {
+      currentPlan._shoppingListSent = true;
+      await sendEmail('plan_finalised');
+    }
 
   } catch(err) {
     content.innerHTML = `<div class="empty" style="color:#c44">Error: ${err.message}</div>`;
@@ -3090,7 +3093,16 @@ function checkPrepBeforeCook(recipeId, planMealId, onConfirm) {
   onConfirm();
 }
 
+let _prepWarningCallback = null;
+
+function proceedAnywayFromWarning() {
+  closeModal();
+  if (_prepWarningCallback) { _prepWarningCallback(); _prepWarningCallback = null; }
+}
+
 function showPrepWarningModal(mealName, reason, alternatives, onProceedAnyway) {
+  _prepWarningCallback = onProceedAnyway;
+
   const altHtml = alternatives.length > 0
     ? `<div class="alt-label">Same-day alternatives from this week</div>
        ${alternatives.slice(0,3).map(r =>
@@ -3110,7 +3122,7 @@ function showPrepWarningModal(mealName, reason, alternatives, onProceedAnyway) {
       <div class="modal-btns" style="margin-top:18px">
         <button class="btn-ghost" onclick="closeModal()">Cancel</button>
         <button class="btn-secondary" style="color:#c44;border-color:#c44"
-          onclick="closeModal();(${onProceedAnyway.toString()})()">
+          onclick="proceedAnywayFromWarning()">
           Cook it anyway
         </button>
       </div>
