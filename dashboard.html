@@ -1292,7 +1292,7 @@ async function loadInventory() {
       inventoryItems.push(ing);
     }
     // Always initialise inventoryState for every id (including duplicates)
-    if (!inventoryState[ing.id]) inventoryState[ing.id] = 'need';
+    if (!inventoryState[String(ing.id)]) inventoryState[String(ing.id)] = 'need';
   }
 
   inventoryItems.sort((a,b) =>
@@ -1323,7 +1323,7 @@ function renderInventoryList() {
     html += `<div style="font-size:0.7rem;font-weight:500;text-transform:uppercase;
       letter-spacing:0.07em;color:var(--mid);margin:12px 0 6px">${cat}</div>`;
     for (const item of items) {
-      const status = inventoryState[item.id] || 'need';
+      const status = inventoryState[String(item.id)] || 'need';
       html += `
       <div class="inv-row" data-id="${item.id}" data-name="${item.name_en.toLowerCase()}">
         <div>
@@ -1345,19 +1345,20 @@ function renderInventoryList() {
 
 function setInv(id, status, btn) {
   // Update the clicked ingredient
+  id = String(id);
   inventoryState[id] = status;
   const row = btn.closest('.inv-toggle');
   row.querySelectorAll('button').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 
   // Also sync any other rows with the same ingredient name (cross-recipe duplicates)
-  const ing = inventoryItems.find(i => i.id === id);
+  const ing = inventoryItems.find(i => String(i.id) === String(id));
   if (ing) {
     const nameKey = ing.name_en.toLowerCase();
     document.querySelectorAll(`.inv-row[data-name="${nameKey}"]`).forEach(el => {
       const rowId = el.dataset.id;
-      if (rowId && rowId !== id) {
-        inventoryState[rowId] = status;
+      if (rowId && String(rowId) !== String(id)) {
+        inventoryState[String(rowId)] = status;
         const haveBtn = el.querySelector('.have-btn');
         const needBtn = el.querySelector('.need-btn');
         if (haveBtn) haveBtn.classList.toggle('active', status === 'have');
