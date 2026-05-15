@@ -1281,14 +1281,18 @@ async function loadInventory() {
     return;
   }
 
-  const seen = new Set();
+  // Deduplicate by name — but track ALL matching IDs so every ingredient row
+  // gets a Have/Need status, ensuring generateShoppingList catches them all.
+  const seenByName = {};
   inventoryItems = [];
   for (const ing of data) {
-    if (!seen.has(ing.name_en)) {
-      seen.add(ing.name_en);
+    const key = ing.name_en.toLowerCase();
+    if (!seenByName[key]) {
+      seenByName[key] = ing;
       inventoryItems.push(ing);
-      if (!inventoryState[ing.id]) inventoryState[ing.id] = 'need';
     }
+    // Always initialise inventoryState for every id (including duplicates)
+    if (!inventoryState[ing.id]) inventoryState[ing.id] = 'need';
   }
 
   inventoryItems.sort((a,b) =>
@@ -1321,7 +1325,7 @@ function renderInventoryList() {
     for (const item of items) {
       const status = inventoryState[item.id] || 'need';
       html += `
-      <div class="inv-row">
+      <div class="inv-row" data-id="${item.id}" data-name="${item.name_en.toLowerCase()}">
         <div>
           <div class="inv-name">${item.name_en}</div>
           <div style="font-size:0.72rem;color:var(--mid)">${item.name_es}</div>
@@ -1340,6 +1344,25 @@ function renderInventoryList() {
 }
 
 function setInv(id, status, btn) {
+  // Find the display name for this ingredient and sync all IDs with the same name
+  const ing = inventoryItems.find(i => i.id === id);
+  if (ing) {
+    const nameKey = ing.name_en.toLowerCase();
+    // Update all ingredient IDs that share this display name (cross-recipe duplicates)
+    for (const [sid] of Object.entries(inventoryState)) {
+      // We need to look up from the raw data — use a data attribute approach
+      // For now, just update the clicked id and any with data-name matching
+      const matchingEls = document.querySelectorAll();
+      matchingEls.forEach(el => {
+        const haveBtn = el.querySelector('.have-btn');
+        const needBtn = el.querySelector('.need-btn');
+        const rowId = el.dataset.id;
+        if (rowId) inventoryState[rowId] = status;
+        if (haveBtn) haveBtn.classList.toggle('active', status === 'have');
+        if (needBtn) needBtn.classList.toggle('active', status === 'need');
+      });
+    }
+  }
   inventoryState[id] = status;
   const row = btn.closest('.inv-toggle');
   row.querySelectorAll('button').forEach(b => b.classList.remove('active'));
@@ -2280,12 +2303,21 @@ async function handleRequest(requestId, type, decision) {
       await sb.from('weekly_plans').update({ status: 'approved' }).eq('id', currentPlan.id);
       currentPlan.status = 'approved';
     }
+    await sb.from('requests').insert({
+      request_type: 'week_finalised',
+      reason: "This week's meal plan has been finalised by Cameron.",
+      requested_by: userProfile.id,
+      status: 'info',
+      created_at: new Date().toISOString()
+    });
     await sendEmail('plan_approved');
-    // Fire weekly prep reminder if any meals need advance prep
     const advancePrepMeals = currentMeals.filter(m => m.recipes?.advance_prep_required && !m.cooked);
     if (advancePrepMeals.length > 0) {
       await sendEmail('prep_reminder_weekly');
     }
+    showToast('Plan approved ✓ Inventory check unlocked');
+    await renderDashboard();
+    return;
   }
 
   if (type === 'hibernate' && decision === 'approved') {
