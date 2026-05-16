@@ -828,6 +828,21 @@
       display:flex;gap:10px;justify-content:flex-end;flex-shrink:0;
     }
     .shop-qty { color: var(--clay); font-size: 0.82rem; font-weight: 400; }
+
+    /* ── RECIPE STEPS ── */
+    .recipe-steps-list{display:flex;flex-direction:column;gap:10px;margin-top:2px}
+    .recipe-step{display:flex;gap:12px;align-items:flex-start}
+    .recipe-step-num{
+      font-family:'Playfair Display',serif;font-size:1rem;
+      color:var(--clay);font-weight:700;flex-shrink:0;min-width:24px;
+      line-height:1.4;
+    }
+    .recipe-step-text{font-size:0.87rem;color:var(--dark);line-height:1.55}
+    .recipe-step-note{
+      font-size:0.83rem;color:var(--mid);font-style:italic;
+      padding:6px 10px;background:rgba(107,95,84,0.06);
+      border-radius:6px;margin-top:4px;
+    }
   </style>
 </head>
 <body>
@@ -937,7 +952,6 @@ async function addKarenItem() {
   if (!name) { showToast('Type an item first', 'error'); return; }
   if (!currentPlan) { showToast('No active plan', 'error'); return; }
 
-  // Duplicate check
   if (karenAdditions.some(a => a.name_en.toLowerCase() === name.toLowerCase())) {
     showToast('That item is already on the list', 'error'); return;
   }
@@ -1070,7 +1084,28 @@ async function loadRecipes() {
 }
 
 // ── RENDER DASHBOARD ─────────────────────────────────────
-// (defined fully in POST-RENDER HOOKS section below)
+async function renderDashboard() {
+  await loadSidesLibrary();
+  const recipes = await loadRecipes();
+  const content = document.getElementById('dashboard-content');
+
+  await loadKarenAdditions();
+  await loadPendingIdeaRatings();
+
+  if (userProfile.role === 'admin') {
+    content.innerHTML = renderCameron(recipes, userProfile.name);
+    await loadPendingRequests();
+    if (currentPlan?.status === 'approved') await loadInventory();
+  } else if (userProfile.role === 'planner') {
+    content.innerHTML = renderSienna(recipes, userProfile.name);
+    await loadInventory();
+  } else {
+    content.innerHTML = renderKaren(recipes, userProfile.name);
+    renderKarenAdditionsList();
+    await loadInventory();
+    loadKarenShoppingPreview();
+  }
+}
 
 // ═══════════════════════════════════════════════════════════
 // CAMERON — ADMIN
@@ -1281,8 +1316,6 @@ async function loadInventory() {
     return;
   }
 
-  // Deduplicate by name — but track ALL matching IDs so every ingredient row
-  // gets a Have/Need status, ensuring generateShoppingList catches them all.
   const seenByName = {};
   inventoryItems = [];
   for (const ing of data) {
@@ -1291,7 +1324,6 @@ async function loadInventory() {
       seenByName[key] = ing;
       inventoryItems.push(ing);
     }
-    // Always initialise inventoryState for every id (including duplicates)
     if (!inventoryState[String(ing.id)]) inventoryState[String(ing.id)] = 'need';
   }
 
@@ -1302,7 +1334,6 @@ async function loadInventory() {
 
   renderInventoryList();
 
-  // Load shopping preview after inventory is ready
   if (userProfile.role === 'planner') loadSiennaShoppingPreview();
   if (userProfile.role === 'reviewer') loadKarenShoppingPreview();
 }
@@ -1347,14 +1378,12 @@ function setInv(id, status, btn) {
   id = String(id);
   inventoryState[id] = status;
 
-  // Update button styles
   const toggle = btn.parentElement;
   if (toggle) {
     toggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
   }
   btn.classList.add('active');
 
-  // Sync duplicate-name rows
   const ing = inventoryItems.find(i => String(i.id) === id);
   if (ing) {
     const nameKey = ing.name_en.toLowerCase();
@@ -1657,7 +1686,6 @@ function openModal(type) {
   el.id = 'modal-overlay';
   el.className = 'modal-overlay';
 
-  // For hibernate and swap: show a meal picker dropdown
   const mealPickerHtml = (type === 'hibernate' || type === 'swap') && currentMeals.length > 0
     ? `<div style="margin-bottom:12px">
         <label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Meal</label>
@@ -1670,7 +1698,6 @@ function openModal(type) {
        </div>`
     : '';
 
-  // For new meal: show a meal name input
   const newMealNameHtml = type === 'new'
     ? `<div style="margin-bottom:12px">
         <label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Meal name</label>
@@ -1700,7 +1727,6 @@ function closeModal() {
   if (el) el.remove();
 }
 
-// ── FIX 4: use request_type column ───────────────────────
 async function submitRequest(type) {
   const text = document.getElementById('modal-text').value.trim();
   if (!text) { showToast('Please add a reason before sending.', 'error'); return; }
@@ -1736,30 +1762,6 @@ async function submitRequest(type) {
     closeModal();
     showToast('Request sent to Cameron ✓');
     await sendEmail('swap_requested', { requestedBy: userProfile.name || userProfile.email });
-  }
-}
-
-// ── POST-RENDER HOOKS ─────────────────────────────────────
-async function renderDashboard() {
-  await loadSidesLibrary();
-  const recipes = await loadRecipes();
-  const content = document.getElementById('dashboard-content');
-
-  await loadKarenAdditions();
-  await loadPendingIdeaRatings();
-
-  if (userProfile.role === 'admin') {
-    content.innerHTML = renderCameron(recipes, userProfile.name);
-    await loadPendingRequests();
-    if (currentPlan?.status === 'approved') await loadInventory();
-  } else if (userProfile.role === 'planner') {
-    content.innerHTML = renderSienna(recipes, userProfile.name);
-    await loadInventory();
-  } else {
-    content.innerHTML = renderKaren(recipes, userProfile.name);
-    renderKarenAdditionsList();
-    await loadInventory();
-    loadKarenShoppingPreview();
   }
 }
 
@@ -2015,7 +2017,6 @@ async function submitIdeaRating(recipeId) {
   showToast('Idea rating saved ✓');
   pendingIdeaRatings = pendingIdeaRatings.filter(r => r.id !== recipeId);
 
-  // Re-render so the inline card disappears
   const inlineCard = document.getElementById(`idea-card-${recipeId}`);
   if (inlineCard) inlineCard.remove();
 }
@@ -2067,7 +2068,6 @@ async function loadSidesLibrary() {
 
 function openSideDropdown(event, recipeId, currentSide) {
   event.stopPropagation();
-  // Close any other open dropdowns
   document.querySelectorAll('.side-dropdown-wrap').forEach(el => {
     if (el.id !== 'side-dd-' + recipeId) el.style.display = 'none';
   });
@@ -2113,7 +2113,6 @@ function selectSideOption(recipeId, nameEn, nameEs) {
   const input = document.getElementById('side-input-' + recipeId);
   if (input) input.value = nameEn;
   input.dataset.nameEs = nameEs;
-  // Highlight selected
   document.querySelectorAll(`#side-opts-${recipeId} .side-option`).forEach(el => {
     el.classList.toggle('current', el.textContent.trim().startsWith(nameEn));
   });
@@ -2126,7 +2125,6 @@ async function saveSide(recipeId) {
   if (!nameEn) { showToast('Please enter a side dish name', 'error'); return; }
   const nameEs = input.dataset.nameEs || '';
 
-  // 1. Upsert into sides table
   let sideId;
   const existing = allSides.find(s => s.name_en.toLowerCase() === nameEn.toLowerCase());
   if (existing) {
@@ -2139,20 +2137,16 @@ async function saveSide(recipeId) {
     allSides.push(newSide);
   }
 
-  // 2. Set previous current to false
   await sb.from('recipe_sides').update({ is_current: false })
     .eq('recipe_id', recipeId).eq('is_current', true);
 
-  // 3. Insert new recipe_sides row
   await sb.from('recipe_sides').insert({
     recipe_id: recipeId, side_id: sideId, is_current: true,
     assigned_by: currentUser?.id || null
   });
 
-  // 4. Update recipes table
   await sb.from('recipes').update({ default_side_en: nameEn, default_side_es: nameEs || null }).eq('id', recipeId);
 
-  // 5. Update UI
   const label = document.getElementById('side-label-' + recipeId);
   const labelEs = document.getElementById('side-label-es-' + recipeId);
   if (label) label.textContent = nameEn;
@@ -2167,7 +2161,6 @@ function closeSideDropdown(recipeId) {
   if (dd) dd.style.display = 'none';
 }
 
-// Close dropdowns when clicking outside
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.side-dropdown-wrap') && !e.target.closest('.side-edit-btn')) {
     document.querySelectorAll('.side-dropdown-wrap').forEach(el => el.style.display = 'none');
@@ -2189,14 +2182,11 @@ async function markCooked(recipeId, planMealId) {
     if (pm) planMealId = pm.id;
   }
   if (!planMealId) { showToast('Cannot find meal record', 'error'); return; }
-
-  // Check prep time warning — if warning fires, it handles the flow via callback
   checkPrepBeforeCook(recipeId, planMealId, () => doMarkCooked(recipeId, planMealId));
-  return; // doMarkCooked called by callback (or directly if no warning)
+  return;
 }
 
 async function doMarkCooked(recipeId, planMealId) {
-
   const cookedAt = new Date().toISOString();
   const { error } = await sb
     .from('weekly_plan_meals')
@@ -2267,10 +2257,8 @@ async function loadPendingRequests() {
       : req.requested_by === 'ca779de4-2052-4bb4-89c6-59b67a5ad788' ? 'Sienna'
       : req.requested_by === '60688390-f010-4e19-b7e9-bfbe2c35b04c' ? 'Karen'
       : 'Unknown';
-    // FIX 2: use request_type not type
     const label    = REQUEST_LABELS[req.request_type] || req.request_type;
     const date     = new Date(req.created_at).toLocaleDateString('en-AU', { month:'short', day:'numeric' });
-    // Extra detail for side swap requests
     let sideSwapDetail = '';
     if (req.request_type === 'side_swap' && req.meta) {
       const recipe = currentMeals.find(m => m.recipe_id === req.meta.recipe_id)?.recipes;
@@ -2279,13 +2267,10 @@ async function loadPendingRequests() {
         ${mealName}: <em>${req.meta.current_side_en || '?'}</em> → <strong>${req.meta.new_side_en}</strong>${req.meta.new_side_es ? ' · ' + req.meta.new_side_es : ''}
       </div>`;
     }
-    // Extra detail for swap requests
     let swapDetail = '';
     if (req.request_type === 'swap' && req.meta?.meal_name) {
       swapDetail = `<div style="font-size:0.78rem;color:var(--mid);margin-top:3px">Meal: <strong>${req.meta.meal_name}</strong></div>`;
     }
-
-    // Extra detail for new meal suggestions
     let newMealDetail = '';
     if (req.request_type === 'new' && req.meta?.name_en) {
       newMealDetail = `<div style="font-size:0.85rem;font-weight:500;color:var(--dark);margin-top:3px">🍽 "${req.meta.name_en}"</div>`;
@@ -2330,9 +2315,7 @@ async function handleRequest(requestId, type, decision) {
     });
     await sendEmail('plan_approved');
     const advancePrepMeals = currentMeals.filter(m => m.recipes?.advance_prep_required && !m.cooked);
-    if (advancePrepMeals.length > 0) {
-      await sendEmail('prep_reminder_weekly');
-    }
+    if (advancePrepMeals.length > 0) await sendEmail('prep_reminder_weekly');
     showToast('Plan approved ✓ Inventory check unlocked');
     await renderDashboard();
     return;
@@ -2341,19 +2324,15 @@ async function handleRequest(requestId, type, decision) {
   if (type === 'hibernate' && decision === 'approved') {
     const { data: req } = await sb.from('requests').select('meta, reason').eq('id', requestId).single();
     const recipeId = req?.meta?.recipe_id;
-    if (recipeId) {
-      await doHibernate(recipeId, 8);
-      return;
-    }
+    if (recipeId) { await doHibernate(recipeId, 8); return; }
   }
 
   if (type === 'side_swap' && decision === 'approved') {
-    // Fetch the meta to get recipe_id and new side details
     const { data: req } = await sb.from('requests').select('meta').eq('id', requestId).single();
     if (req?.meta) {
       const { recipe_id, new_side_en, new_side_es } = req.meta;
       await applySideSwap(recipe_id, new_side_en, new_side_es || '');
-      return; // applySideSwap handles toast and re-render
+      return;
     }
   }
 
@@ -2361,7 +2340,6 @@ async function handleRequest(requestId, type, decision) {
     const { data: req } = await sb.from('requests').select('meta, reason').eq('id', requestId).single();
     const mealName = req?.meta?.name_en;
     if (mealName) {
-      // Create the recipe with sensible defaults
       const { data: newRecipe, error: recipeErr } = await sb.from('recipes').insert({
         name_en: mealName,
         name_es: null,
@@ -2377,11 +2355,9 @@ async function handleRequest(requestId, type, decision) {
 
       if (recipeErr) { showToast('Error creating recipe: ' + recipeErr.message, 'error'); return; }
 
-      // Remove the request card from UI
       const el = document.getElementById(`req-${requestId}`);
       if (el) el.remove();
 
-      // Reload to update pending count
       const countEl = document.getElementById('pending-count');
       if (countEl) {
         const container = document.getElementById('requests-container');
@@ -2390,8 +2366,6 @@ async function handleRequest(requestId, type, decision) {
       }
 
       showToast(`"${mealName}" added to recipes ✓ — now collect idea ratings`);
-
-      // Show idea rating modal for Cameron immediately
       openIdeaRatingModal(newRecipe.id, mealName);
       return;
     }
@@ -2441,9 +2415,7 @@ function renderSienna(recipes, name) {
   const mealCount     = currentMeals.length;
   const planStatus    = currentPlan?.status || 'none';
   const reshuffleUsed = currentPlan?.reshuffle_used || false;
-
   const alreadySubmitted = planStatus === 'submitted' || planStatus === 'approved';
-
   const submitLabel = planStatus === 'submitted' ? '✓ Plan Submitted'
     : planStatus === 'approved' ? '✓ Approved'
     : 'Submit plan for approval';
@@ -2570,7 +2542,6 @@ function mealRowSienna(m) {
     + '</div>';
 }
 
-// FIX 5: use request_type column
 async function approvePlanAsAdmin(btn) {
   if (!currentPlan) return;
   btn.disabled = true;
@@ -2586,7 +2557,6 @@ async function approvePlanAsAdmin(btn) {
     currentPlan.status = 'approved';
     showToast('Plan approved ✓ Inventory check unlocked');
 
-    // Notify Karen in-app
     await sb.from('requests').insert({
       request_type: 'week_finalised',
       reason: 'This week\'s meal plan has been finalised by Cameron.',
@@ -2852,7 +2822,6 @@ async function loadKarenShoppingPreview() {
 function renderShoppingListHTML(mealItems, ckItems, isAdmin, karenItems) {
   const UNITS = ['g','kg','ml','L','units','pcs','tbsp','tsp'];
 
-  // Build groups from meal ingredients
   const groups = {};
   for (const ing of mealItems) {
     const cat = ing.lacomer_category || 'Other';
@@ -2861,7 +2830,6 @@ function renderShoppingListHTML(mealItems, ckItems, isAdmin, karenItems) {
     groups[cat].push({ ...ing, _type: 'ingredient', _qtyStr: qty });
   }
 
-  // Merge Karen additions
   if (karenItems && karenItems.length > 0) {
     const existingNames = new Set(mealItems.map(i => i.name_en.toLowerCase()));
     for (const ka of karenItems) {
@@ -2873,7 +2841,6 @@ function renderShoppingListHTML(mealItems, ckItems, isAdmin, karenItems) {
     }
   }
 
-  // Render meal ingredient sections sorted alphabetically by category
   let html = '';
   const sortedCats = Object.keys(groups).sort();
   for (const cat of sortedCats) {
@@ -2907,7 +2874,6 @@ function renderShoppingListHTML(mealItems, ckItems, isAdmin, karenItems) {
     }
   }
 
-  // Casa King section with inline qty inputs (admin only, pre-consolidation)
   if (isAdmin && ckItems.length > 0) {
     const unitOpts = UNITS.map(u => `<option value="${u}">${u}</option>`).join('');
     html += `
@@ -3075,18 +3041,15 @@ async function tickCKItem(itemId, btn) {
 // PREP TIME WARNINGS
 // ═══════════════════════════════════════════════════════════
 
-// Called when "Cook today" is tapped — checks if advance prep needed and not same-day cookable
 function checkPrepBeforeCook(recipeId, planMealId, onConfirm) {
   const meal = currentMeals.find(m => m.recipe_id === recipeId);
   const recipe = meal?.recipes;
   if (!recipe) { onConfirm(); return; }
 
-  // Only warn Cameron and Sienna
   if (userProfile.role === 'reviewer') { onConfirm(); return; }
 
   if (recipe.advance_prep_required && recipe.same_day_cookable === false) {
     const desc = recipe.advance_prep_description || 'Advance preparation is required for this meal.';
-    // Find alternatives from this week's pool that ARE same-day cookable
     const alternatives = currentMeals
       .filter(m => m.recipe_id !== recipeId && !m.cooked)
       .map(m => m.recipes)
@@ -3135,7 +3098,6 @@ function showPrepWarningModal(mealName, reason, alternatives, onProceedAnyway) {
   document.body.appendChild(el);
 }
 
-// Schedule a meal to a specific day with a target eat time
 function openScheduleModal(recipeId) {
   const meal = currentMeals.find(m => m.recipe_id === recipeId);
   const recipe = meal?.recipes;
@@ -3175,7 +3137,6 @@ function openScheduleModal(recipeId) {
     </div>`;
   document.body.appendChild(el);
 
-  // Live calculation as user changes time
   document.getElementById('sched-time').addEventListener('input', () => updateSchedCalc(totalPrepCook));
   document.getElementById('sched-day').addEventListener('change', () => updateSchedCalc(totalPrepCook));
 }
@@ -3198,7 +3159,6 @@ function updateSchedCalc(totalMinutes) {
 
   calcEl.innerHTML = `Total prep + cook: <strong>${totalMinutes} min</strong>. Start by <strong>${startLabel}</strong>.`;
 
-  // Warn if the scheduled day is today and start time has already passed
   const now = new Date();
   const today = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][now.getDay()];
   const nowMins = now.getHours() * 60 + now.getMinutes();
@@ -3261,17 +3221,14 @@ async function confirmSchedule(planMealId, recipeId, totalMinutes) {
   await renderDashboard();
 }
 
-// Render the day-before reminder alert (top of dashboard, Cameron + Sienna only)
 function renderDayBeforeReminder() {
   if (!currentPlan || currentPlan.status !== 'approved') return '';
   if (userProfile.role === 'reviewer') return '';
 
-  // Get tomorrow's date string YYYY-MM-DD
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-  // Find meals assigned to tomorrow that need advance prep and aren't cooked
   const tomorrowMeals = currentMeals.filter(m =>
     m.assigned_day === tomorrowStr &&
     m.recipes?.advance_prep_required &&
@@ -3280,7 +3237,6 @@ function renderDayBeforeReminder() {
 
   if (tomorrowMeals.length === 0) return '';
 
-  // Fire email once per plan+date combo — don't spam on every render
   const emailFlagKey = `prep_dayof_sent_${currentPlan.id}_${tomorrowStr}`;
   if (!localStorage.getItem(emailFlagKey)) {
     localStorage.setItem(emailFlagKey, '1');
@@ -3309,7 +3265,6 @@ function renderDayBeforeReminder() {
     </div>`;
 }
 
-// Render the weekly prep reminders panel (shown to Cameron + Sienna when plan approved)
 function renderPrepReminders() {
   if (!currentPlan || currentPlan.status !== 'approved') return '';
   if (userProfile.role === 'reviewer') return '';
@@ -3358,9 +3313,7 @@ function openSideSwapModal(recipeId, currentSideEn) {
     `<option value="${s.name_en}|${s.name_es||''}" ${s.name_en === currentSideEn ? 'selected' : ''}>${s.name_en}${s.name_es ? ' · ' + s.name_es : ''}</option>`
   ).join('');
 
-  const actionLabel = isKaren
-    ? 'Change side now'
-    : 'Request side swap';
+  const actionLabel = isKaren ? 'Change side now' : 'Request side swap';
   const noteText = isKaren
     ? `<p style="font-size:0.8rem;color:var(--green);margin-bottom:12px">✓ As reviewer, your side swap applies immediately — no approval needed.</p>`
     : `<p style="font-size:0.8rem;color:var(--mid);margin-bottom:12px">Your request will go to Cameron for approval.</p>`;
@@ -3401,10 +3354,8 @@ async function submitSideSwap(recipeId, currentSideEn, isKaren) {
   if (newSideEn === currentSideEn) { showToast('That is already the current side', 'error'); return; }
 
   if (isKaren) {
-    // Karen: apply immediately
     await applySideSwap(recipeId, newSideEn, newSideEs);
   } else {
-    // Sienna: submit request for Cameron's approval
     const reason = reasonEl?.value.trim();
     if (!reason) { showToast('Please add a reason', 'error'); return; }
 
@@ -3425,7 +3376,6 @@ async function submitSideSwap(recipeId, currentSideEn, isKaren) {
 }
 
 async function applySideSwap(recipeId, newSideEn, newSideEs) {
-  // 1. Find or create side in sides table
   let sideId;
   const existing = allSides.find(s => s.name_en.toLowerCase() === newSideEn.toLowerCase());
   if (existing) {
@@ -3438,23 +3388,19 @@ async function applySideSwap(recipeId, newSideEn, newSideEs) {
     allSides.push(newSide);
   }
 
-  // 2. Set previous current to false
   await sb.from('recipe_sides').update({ is_current: false })
     .eq('recipe_id', recipeId).eq('is_current', true);
 
-  // 3. Insert new recipe_sides row
   await sb.from('recipe_sides').insert({
     recipe_id: recipeId, side_id: sideId, is_current: true,
     assigned_by: currentUser?.id || null
   });
 
-  // 4. Update recipes table permanently
   const { error } = await sb.from('recipes')
     .update({ default_side_en: newSideEn, default_side_es: newSideEs || null })
     .eq('id', recipeId);
   if (error) { showToast('Error updating side: ' + error.message, 'error'); return; }
 
-  // 5. Update local meal data so UI reflects it without a full reload
   const meal = currentMeals.find(m => m.recipe_id === recipeId);
   if (meal?.recipes) {
     meal.recipes.default_side_en = newSideEn;
@@ -3524,7 +3470,6 @@ async function saveTierOverride(recipeId) {
 
   if (error) { showToast('Error saving tier: ' + error.message, 'error'); return; }
 
-  // Update local data
   const meal = currentMeals.find(m => m.recipe_id === recipeId);
   if (meal?.recipes) {
     meal.recipes.frequency_tier = val;
@@ -3533,7 +3478,7 @@ async function saveTierOverride(recipeId) {
 
   closeModal();
   showToast(`Tier set to ${TIER_LABELS[val]} 🔒`);
-  allRecipesCache = null; // invalidate cache
+  allRecipesCache = null;
   if (currentView === 'recipes') { await renderRecipeListView(); } else { await renderDashboard(); }
 }
 
@@ -3569,7 +3514,6 @@ function weeksFromNow(n) {
   return d.toISOString().substring(0, 10);
 }
 
-// Cameron directly hibernates a meal — opens timer modal
 function openHibernateModal(recipeId, mealName) {
   const el = document.createElement('div');
   el.id = 'modal-overlay';
@@ -3620,7 +3564,6 @@ async function doHibernate(recipeId, weeks) {
 
   if (error) { showToast('Error hibernating meal: ' + error.message, 'error'); return; }
 
-  // Remove from current week's plan if present and not cooked
   const planMeal = currentMeals.find(m => m.recipe_id === recipeId && !m.cooked);
   if (planMeal) {
     await sb.from('weekly_plan_meals').delete().eq('id', planMeal.id);
@@ -3630,10 +3573,8 @@ async function doHibernate(recipeId, weeks) {
   closeModal();
   showToast(`Meal hibernated 😴 — wakes up ${wakeDate}`);
 
-  // Remove any pending request UI for this
   const pendingContainer = document.getElementById('requests-container');
   if (pendingContainer) {
-    // Re-load requests after a brief pause to let DB settle
     setTimeout(() => loadPendingRequests(), 300);
   }
 
@@ -3641,7 +3582,6 @@ async function doHibernate(recipeId, weeks) {
   if (currentView === 'recipes') { await renderRecipeListView(); } else { await renderDashboard(); }
 }
 
-// Runs on load (admin only) — wakes up any meals past their hibernate_until date
 async function checkHibernationWakeUps() {
   const today = getTodayDate();
   const { data, error } = await sb
@@ -3711,7 +3651,6 @@ async function renderRecipeListView() {
     </div>
   </div>`;
 
-  // Load if not cached
   if (!allRecipesCache) {
     const { data, error } = await sb.from('recipes')
       .select('*, ingredients(id, name_en, name_es, lacomer_category, lacomer_url, quantity, unit)')
@@ -3736,13 +3675,12 @@ function renderFilteredRecipes() {
 
   let list = allRecipesCache.filter(r => {
     if (r.hibernated && !recipeShowHibernated) return false;
-    if (!r.hibernated && recipeShowHibernated) return false; // if filter active, show only hibernated
+    if (!r.hibernated && recipeShowHibernated) return false;
     if (recipeFilterTier !== 'all' && r.frequency_tier !== recipeFilterTier) return false;
     if (search && !r.name_en.toLowerCase().includes(search) && !(r.name_es||'').toLowerCase().includes(search)) return false;
     return true;
   });
 
-  // If showing hibernated toggle off the tier filter message
   if (recipeShowHibernated) {
     list = allRecipesCache.filter(r => {
       if (!r.hibernated) return false;
@@ -3757,7 +3695,6 @@ function renderFilteredRecipes() {
   }
 
   const isAdmin = userProfile?.role === 'admin';
-
   container.innerHTML = `<div class="recipe-grid">${list.map(r => recipeRowHtml(r, isAdmin)).join('')}</div>`;
 }
 
@@ -3822,7 +3759,6 @@ async function openRecipeDetail(recipeId) {
   const stars = r.avg_rating ? `⭐ ${parseFloat(r.avg_rating).toFixed(1)}` : 'Not yet rated';
   const time = (r.prep_time_minutes||0) + (r.cook_time_minutes||0);
 
-  // Group ingredients by La Comer category
   const ingredients = r.ingredients || [];
   const grouped = {};
   ingredients.forEach(ing => {
@@ -3891,9 +3827,11 @@ async function openRecipeDetail(recipeId) {
         ${prepSection}
         ${sideSection}
         ${ingredients.length > 0 ? `<div class="modal-section-label">Ingredients</div>${ingredientHtml}` : '<div style="font-size:0.85rem;color:var(--mid)">No ingredients loaded yet</div>'}
+        <div id="steps-container-${r.id}" style="display:none"></div>
       </div>
       <div class="recipe-modal-footer">
         ${adminFooterBtns}
+        <button id="steps-btn-${r.id}" class="btn-secondary" onclick="generateRecipeSteps('${r.id}')">📋 View steps</button>
         <button class="btn-primary" onclick="closeRecipeDetail()">Done</button>
       </div>
     </div>
@@ -3920,7 +3858,6 @@ function consolidateList() {
   const ckSection = document.getElementById('ck-pre-consolidate');
   if (!ckSection) return;
 
-  // Read qty inputs from Casa King rows
   const ckRows = ckSection.querySelectorAll('.ck-item-row');
   const ckParsed = [];
   ckRows.forEach(row => {
@@ -3933,7 +3870,6 @@ function consolidateList() {
 
   const content = document.getElementById('shopping-list-content');
 
-  // Build map of meal ingredient rows by name (lowercase)
   const mealMap = {};
   content.querySelectorAll('.shop-row[id^="shop-row-"]').forEach(row => {
     const nameEl = row.querySelector('.shop-name-en');
@@ -3944,13 +3880,11 @@ function consolidateList() {
     mealMap[name.toLowerCase()] = { name, qtyText, row };
   });
 
-  // Process each CK item
   for (const ck of ckParsed) {
     if (!ck.text) continue;
     const key = ck.text.toLowerCase().trim();
     const qtyStr = ck.qty ? `${ck.qty}${ck.unit ? ' '+ck.unit : ''}` : '';
 
-    // Try to match against a meal ingredient (case-insensitive)
     let matched = false;
     for (const [mKey, mVal] of Object.entries(mealMap)) {
       const mKeyLower = mKey.toLowerCase();
@@ -3975,7 +3909,6 @@ function consolidateList() {
     }
 
     if (!matched) {
-      // Add to a General section with + Add link button
       let generalSection = document.getElementById('consolidated-general');
       if (!generalSection) {
         generalSection = document.createElement('div');
@@ -3997,7 +3930,6 @@ function consolidateList() {
     }
   }
 
-  // Remove Casa King section and consolidate button
   ckSection.remove();
   document.getElementById('consolidate-btn')?.closest('div')?.remove();
 }
@@ -4024,7 +3956,6 @@ async function saveCKLink(tempId, itemName) {
 
   const cat = guessKarenCategory(itemName);
 
-  // Insert as a new ingredient in Supabase so the link persists
   const { data, error } = await sb
     .from('ingredients')
     .insert({
@@ -4038,7 +3969,6 @@ async function saveCKLink(tempId, itemName) {
 
   if (error) { showToast('Error saving: ' + error.message, 'error'); return; }
 
-  // Update the row in the UI
   const row = document.getElementById(`shop-row-${tempId}`);
   if (row) {
     const form = document.getElementById(`link-form-${tempId}`);
@@ -4049,6 +3979,94 @@ async function saveCKLink(tempId, itemName) {
     }));
   }
   showToast(`"${itemName}" saved to ingredients ✓`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// AI RECIPE STEPS GENERATOR
+// ═══════════════════════════════════════════════════════════
+
+async function generateRecipeSteps(recipeId) {
+  const r = allRecipesCache?.find(x => x.id === recipeId || x.id === parseInt(recipeId));
+  if (!r) return;
+
+  const stepsContainer = document.getElementById(`steps-container-${recipeId}`);
+  const stepsBtn = document.getElementById(`steps-btn-${recipeId}`);
+  if (!stepsContainer || !stepsBtn) return;
+
+  // Toggle if already loaded
+  if (stepsContainer.dataset.loaded === 'true') {
+    const isHidden = stepsContainer.style.display === 'none';
+    stepsContainer.style.display = isHidden ? 'block' : 'none';
+    stepsBtn.textContent = isHidden ? '▲ Hide steps' : '📋 View steps';
+    return;
+  }
+
+  stepsBtn.disabled = true;
+  stepsBtn.textContent = '⏳ Generating...';
+
+  const ingredients = (r.ingredients || []).map(ing => {
+    const qty = ing.quantity ? `${ing.quantity}${ing.unit ? ' ' + ing.unit : ''}` : '';
+    return qty ? `${ing.name_en} (${qty})` : ing.name_en;
+  }).join(', ');
+
+  const totalTime = (r.prep_time_minutes || 0) + (r.cook_time_minutes || 0);
+  const prepNote = r.advance_prep_required && r.advance_prep_description
+    ? `Note: ${r.advance_prep_description}.` : '';
+  const sideNote = r.default_side_en ? `Typically served with ${r.default_side_en}.` : '';
+
+  const prompt = `You are a home cook assistant. Write clear, numbered cooking steps for "${r.name_en}"${r.name_es ? ' (' + r.name_es + ')' : ''}.
+
+Ingredients: ${ingredients || 'standard ingredients for this dish'}
+Total time: approximately ${totalTime > 0 ? totalTime + ' minutes' : 'varies'}
+${prepNote}
+${sideNote}
+
+Write 6-10 practical numbered steps. Be specific about heat levels, timing, and technique. Keep each step to 1-2 sentences. Australian home-style cooking — straightforward, no fancy techniques. End with a serving suggestion. Do not include any intro or outro text — just the numbered steps.`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await response.json();
+    const text = data.content?.find(b => b.type === 'text')?.text || '';
+    if (!text) throw new Error('No steps returned');
+
+    const lines = text.split('\n').filter(l => l.trim());
+    const stepsHtml = lines.map(line => {
+      const match = line.match(/^(\d+[\.\)])\s*(.*)/);
+      if (match) {
+        return `<div class="recipe-step">
+          <div class="recipe-step-num">${match[1]}</div>
+          <div class="recipe-step-text">${match[2]}</div>
+        </div>`;
+      }
+      return line.trim() ? `<div class="recipe-step-note">${line}</div>` : '';
+    }).join('');
+
+    stepsContainer.innerHTML = `
+      <div class="modal-section-label" style="margin-top:18px">Cooking steps</div>
+      <div class="recipe-steps-list">${stepsHtml}</div>
+      <div style="font-size:0.72rem;color:var(--mid);margin-top:10px;padding:8px 10px;background:rgba(107,95,84,0.06);border-radius:6px">
+        ✨ AI-generated steps — adjust to taste
+      </div>`;
+    stepsContainer.dataset.loaded = 'true';
+    stepsContainer.style.display = 'block';
+    stepsBtn.disabled = false;
+    stepsBtn.textContent = '▲ Hide steps';
+
+  } catch (err) {
+    stepsContainer.innerHTML = `<div style="font-size:0.85rem;color:#c44;padding:10px 0">Could not generate steps: ${err.message}</div>`;
+    stepsContainer.style.display = 'block';
+    stepsBtn.disabled = false;
+    stepsBtn.textContent = '📋 View steps';
+  }
 }
 
 // ── GO ────────────────────────────────────────────────────
