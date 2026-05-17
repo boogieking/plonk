@@ -4035,7 +4035,7 @@ Write 6-10 practical numbered steps. Be specific about heat levels, timing, and 
 
     const data = await response.json();
     const text = data.content?.find(b => b.type === 'text')?.text || '';
-    if (!text) throw new Error('No steps returned');
+   if (!text) throw new Error('No steps returned. Raw: ' + JSON.stringify(data));
 
     const lines = text.split('\n').filter(l => l.trim());
     const stepsHtml = lines.map(line => {
