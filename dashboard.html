@@ -826,6 +826,7 @@
     .recipe-modal-footer{
       padding:16px 28px;border-top:1px solid var(--border);
       display:flex;gap:10px;justify-content:flex-end;flex-shrink:0;
+      flex-wrap:wrap;
     }
     .shop-qty { color: var(--clay); font-size: 0.82rem; font-weight: 400; }
 
@@ -842,6 +843,51 @@
       font-size:0.83rem;color:var(--mid);font-style:italic;
       padding:6px 10px;background:rgba(107,95,84,0.06);
       border-radius:6px;margin-top:4px;
+    }
+
+    /* ── STEPS EDIT AREA ── */
+    .steps-edit-area{
+      width:100%;padding:12px 14px;
+      border:1.5px solid var(--clay);border-radius:10px;
+      font-family:'DM Sans',sans-serif;font-size:0.85rem;
+      line-height:1.6;resize:vertical;min-height:200px;outline:none;
+      color:var(--dark);margin-top:10px;
+      transition:border-color 0.2s;
+    }
+    .steps-edit-area:focus{border-color:var(--clay-dark)}
+    .steps-save-bar{
+      display:flex;align-items:center;gap:10px;
+      margin-top:10px;flex-wrap:wrap;
+    }
+    .steps-saved-badge{
+      display:inline-flex;align-items:center;gap:5px;
+      font-size:0.72rem;font-weight:500;color:var(--green);
+      padding:3px 10px;background:rgba(74,124,89,0.1);
+      border-radius:999px;border:1px solid rgba(74,124,89,0.25);
+    }
+
+    /* ── STEPS PROGRESS BAR ── */
+    .steps-progress-bar{
+      background:rgba(200,103,74,0.08);
+      border:1px solid rgba(200,103,74,0.2);
+      border-radius:10px;
+      padding:12px 16px;
+      margin-bottom:16px;
+      display:flex;align-items:center;gap:14px;
+    }
+    .steps-progress-track{
+      flex:1;height:6px;background:rgba(200,180,160,0.3);
+      border-radius:999px;overflow:hidden;
+    }
+    .steps-progress-fill{
+      height:100%;background:var(--clay);
+      border-radius:999px;transition:width 0.4s ease;
+    }
+    .steps-progress-label{
+      font-size:0.78rem;color:var(--mid);white-space:nowrap;flex-shrink:0;
+    }
+    .steps-progress-count{
+      font-size:0.78rem;font-weight:500;color:var(--clay);white-space:nowrap;flex-shrink:0;
     }
   </style>
 </head>
@@ -3632,11 +3678,39 @@ let allRecipesCache = null;
 
 async function renderRecipeListView() {
   const content = document.getElementById('dashboard-content');
+
+  // Load recipes first so we can compute progress
+  if (!allRecipesCache) {
+    const { data, error } = await sb.from('recipes')
+      .select('*, ingredients(id, name_en, name_es, lacomer_category, lacomer_url, quantity, unit)')
+      .order('name_en');
+    if (error) {
+      content.innerHTML = `<div class="fade-in"><div class="empty" style="color:#c44">Could not load recipes: ${error.message}</div></div>`;
+      return;
+    }
+    allRecipesCache = data;
+  }
+
+  // Steps progress
+  const total = allRecipesCache.length;
+  const withSteps = allRecipesCache.filter(r => r.steps && r.steps.trim()).length;
+  const pct = total > 0 ? Math.round((withSteps / total) * 100) : 0;
+  const progressHtml = `
+    <div class="steps-progress-bar">
+      <span style="font-size:0.9rem">📋</span>
+      <div class="steps-progress-track">
+        <div class="steps-progress-fill" style="width:${pct}%"></div>
+      </div>
+      <span class="steps-progress-count">${withSteps} of ${total}</span>
+      <span class="steps-progress-label">recipes have saved steps</span>
+    </div>`;
+
   content.innerHTML = `<div class="fade-in" id="recipe-list-root">
     <div class="page-header">
       <h1>Recipes</h1>
       <p>Browse and manage the full meal library</p>
     </div>
+    ${progressHtml}
     <div class="recipes-toolbar">
       <input class="search-input" id="recipe-search" placeholder="Search recipes…" oninput="filterRecipes()" value="${recipeFilterSearch}">
       <button class="filter-pill ${recipeFilterTier==='all'?'active':''}" onclick="setTierFilter('all')">All</button>
@@ -3650,18 +3724,6 @@ async function renderRecipeListView() {
       <div class="empty"><span class="empty-icon">🍳</span>Loading recipes…</div>
     </div>
   </div>`;
-
-  if (!allRecipesCache) {
-    const { data, error } = await sb.from('recipes')
-      .select('*, ingredients(id, name_en, name_es, lacomer_category, lacomer_url, quantity, unit)')
-      .order('name_en');
-    if (error) {
-      document.getElementById('recipe-grid-container').innerHTML =
-        `<div class="empty" style="color:#c44">Could not load recipes: ${error.message}</div>`;
-      return;
-    }
-    allRecipesCache = data;
-  }
 
   renderFilteredRecipes();
 }
@@ -3708,6 +3770,9 @@ function recipeRowHtml(r, isAdmin) {
   const advPrep = r.advance_prep_required ? `<span class="tag tag-amber">prep ahead</span>` : '';
   const hibernateUntil = r.hibernated && r.hibernate_until
     ? `<span class="recipe-meta-item">🌙 until ${new Date(r.hibernate_until).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}</span>` : '';
+  const stepsTag = r.steps && r.steps.trim()
+    ? `<span class="tag tag-green" style="font-size:0.65rem;padding:2px 7px">📋 steps saved</span>`
+    : '';
 
   const adminActions = isAdmin ? `
     <button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;" onclick="event.stopPropagation();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Tier</button>
@@ -3724,6 +3789,7 @@ function recipeRowHtml(r, isAdmin) {
         ${timeLabel ? `<span class="recipe-meta-item">${timeLabel}</span>` : ''}
         ${advPrep}
         ${hibernateUntil}
+        ${stepsTag}
       </div>
     </div>
     <div class="recipe-badges">
@@ -3755,6 +3821,8 @@ async function openRecipeDetail(recipeId) {
   if (!r) return;
 
   const isAdmin = userProfile?.role === 'admin';
+  const isPlanner = userProfile?.role === 'planner';
+  const canEdit = isAdmin || isPlanner; // Cameron and Sienna can edit/save steps
   const tier = r.hibernated ? 'hibernated' : (r.frequency_tier || 'regular');
   const stars = r.avg_rating ? `⭐ ${parseFloat(r.avg_rating).toFixed(1)}` : 'Not yet rated';
   const time = (r.prep_time_minutes||0) + (r.cook_time_minutes||0);
@@ -3809,6 +3877,10 @@ async function openRecipeDetail(recipeId) {
     <button class="btn-secondary" onclick="closeRecipeDetail();openHibernateModal('${r.id}','${r.name_en.replace(/'/g,"\\'")}')">😴 ${r.hibernated?'Wake up':'Hibernate'}</button>
   ` : '';
 
+  // Steps button label depends on whether saved steps exist
+  const hasSavedSteps = r.steps && r.steps.trim();
+  const stepsBtnLabel = hasSavedSteps ? '📋 View steps' : '📋 Generate steps';
+
   const modalHtml = `
   <div class="modal-overlay" id="recipe-detail-overlay" onclick="if(event.target===this)closeRecipeDetail()">
     <div class="recipe-modal" style="position:relative">
@@ -3821,6 +3893,7 @@ async function openRecipeDetail(recipeId) {
           <span class="stars-display">${stars}</span>
           ${time > 0 ? `<span class="tag tag-gray">⏱ ${time} min total</span>` : ''}
           ${r.same_day_cookable ? `<span class="tag tag-green">Same-day ✓</span>` : `<span class="tag tag-amber">Prep ahead</span>`}
+          ${hasSavedSteps ? `<span class="steps-saved-badge">📋 Steps saved</span>` : ''}
         </div>
       </div>
       <div class="recipe-modal-body">
@@ -3831,7 +3904,7 @@ async function openRecipeDetail(recipeId) {
       </div>
       <div class="recipe-modal-footer">
         ${adminFooterBtns}
-        <button id="steps-btn-${r.id}" class="btn-secondary" onclick="generateRecipeSteps('${r.id}')">📋 View steps</button>
+        <button id="steps-btn-${r.id}" class="btn-secondary" onclick="handleStepsBtn('${r.id}')">${stepsBtnLabel}</button>
         <button class="btn-primary" onclick="closeRecipeDetail()">Done</button>
       </div>
     </div>
@@ -3982,9 +4055,81 @@ async function saveCKLink(tempId, itemName) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// AI RECIPE STEPS GENERATOR
+// AI RECIPE STEPS — GENERATE, EDIT, SAVE
 // ═══════════════════════════════════════════════════════════
 
+// Entry point: called when "View steps" / "Generate steps" button is clicked
+async function handleStepsBtn(recipeId) {
+  const r = allRecipesCache?.find(x => x.id === recipeId || x.id === parseInt(recipeId));
+  if (!r) return;
+
+  const stepsContainer = document.getElementById(`steps-container-${recipeId}`);
+  const stepsBtn = document.getElementById(`steps-btn-${recipeId}`);
+  if (!stepsContainer || !stepsBtn) return;
+
+  // If already rendered in this session — just toggle show/hide
+  if (stepsContainer.dataset.loaded === 'true') {
+    const isHidden = stepsContainer.style.display === 'none';
+    stepsContainer.style.display = isHidden ? 'block' : 'none';
+    stepsBtn.textContent = isHidden ? '▲ Hide steps' : (r.steps ? '📋 View steps' : '📋 Generate steps');
+    return;
+  }
+
+  // If saved steps exist — show them immediately, no API call
+  if (r.steps && r.steps.trim()) {
+    renderSavedSteps(recipeId, r.steps);
+    return;
+  }
+
+  // Otherwise generate via AI (Cameron and Sienna only — Karen shouldn't see generate button but guard anyway)
+  if (userProfile.role === 'reviewer') {
+    stepsContainer.innerHTML = `<div style="font-size:0.85rem;color:var(--mid);padding:12px 0">No saved steps yet for this recipe.</div>`;
+    stepsContainer.dataset.loaded = 'true';
+    stepsContainer.style.display = 'block';
+    stepsBtn.textContent = '▲ Hide';
+    return;
+  }
+
+  await generateRecipeSteps(recipeId);
+}
+
+// Renders saved steps (from DB) — with edit controls for Cameron/Sienna
+function renderSavedSteps(recipeId, stepsText) {
+  const stepsContainer = document.getElementById(`steps-container-${recipeId}`);
+  const stepsBtn = document.getElementById(`steps-btn-${recipeId}`);
+  if (!stepsContainer) return;
+
+  const canEdit = userProfile.role === 'admin' || userProfile.role === 'planner';
+  const lines = stepsText.split('\n').filter(l => l.trim());
+  const stepsHtml = lines.map(line => {
+    const match = line.match(/^(\d+[\.\)])\s*(.*)/);
+    if (match) {
+      return `<div class="recipe-step">
+        <div class="recipe-step-num">${match[1]}</div>
+        <div class="recipe-step-text">${match[2]}</div>
+      </div>`;
+    }
+    return line.trim() ? `<div class="recipe-step-note">${line}</div>` : '';
+  }).join('');
+
+  const editControls = canEdit ? `
+    <div class="steps-save-bar" style="margin-top:14px">
+      <button class="btn-secondary" style="font-size:0.78rem;padding:5px 12px"
+        onclick="openStepsEditor('${recipeId}')">✏️ Edit steps</button>
+      <span class="steps-saved-badge">✓ Saved</span>
+    </div>` : '';
+
+  stepsContainer.innerHTML = `
+    <div class="modal-section-label" style="margin-top:18px">Cooking steps</div>
+    <div class="recipe-steps-list">${stepsHtml}</div>
+    ${editControls}`;
+
+  stepsContainer.dataset.loaded = 'true';
+  stepsContainer.style.display = 'block';
+  if (stepsBtn) stepsBtn.textContent = '▲ Hide steps';
+}
+
+// Generates steps via AI and then shows edit/save UI
 async function generateRecipeSteps(recipeId) {
   const r = allRecipesCache?.find(x => x.id === recipeId || x.id === parseInt(recipeId));
   if (!r) return;
@@ -3993,16 +4138,11 @@ async function generateRecipeSteps(recipeId) {
   const stepsBtn = document.getElementById(`steps-btn-${recipeId}`);
   if (!stepsContainer || !stepsBtn) return;
 
-  // Toggle if already loaded
-  if (stepsContainer.dataset.loaded === 'true') {
-    const isHidden = stepsContainer.style.display === 'none';
-    stepsContainer.style.display = isHidden ? 'block' : 'none';
-    stepsBtn.textContent = isHidden ? '▲ Hide steps' : '📋 View steps';
-    return;
-  }
-
   stepsBtn.disabled = true;
   stepsBtn.textContent = '⏳ Generating...';
+  stepsContainer.innerHTML = `<div class="modal-section-label" style="margin-top:18px">Cooking steps</div>
+    <div class="empty" style="padding:16px 0"><div class="spin" style="width:22px;height:22px;border-width:2px;margin:0 auto 8px"></div>Generating steps…</div>`;
+  stepsContainer.style.display = 'block';
 
   const ingredients = (r.ingredients || []).map(ing => {
     const qty = ing.quantity ? `${ing.quantity}${ing.unit ? ' ' + ing.unit : ''}` : '';
@@ -4024,10 +4164,10 @@ ${sideNote}
 Write 6-10 practical numbered steps. Be specific about heat levels, timing, and technique. Keep each step to 1-2 sentences. Australian home-style cooking — straightforward, no fancy techniques. End with a serving suggestion. Do not include any intro or outro text — just the numbered steps.`;
 
   try {
-   const response = await fetch('/.netlify/functions/claude', {
+    const response = await fetch('/.netlify/functions/claude', {
       method: 'POST',
       body: JSON.stringify({
-       model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-5',
         max_tokens: 1000,
         messages: [{ role: 'user', content: prompt }]
       })
@@ -4035,36 +4175,151 @@ Write 6-10 practical numbered steps. Be specific about heat levels, timing, and 
 
     const data = await response.json();
     const text = data.content?.find(b => b.type === 'text')?.text || '';
-   if (!text) throw new Error('No steps returned. Raw: ' + JSON.stringify(data));
+    if (!text) throw new Error('No steps returned. Raw: ' + JSON.stringify(data));
 
-    const lines = text.split('\n').filter(l => l.trim());
-    const stepsHtml = lines.map(line => {
-      const match = line.match(/^(\d+[\.\)])\s*(.*)/);
-      if (match) {
-        return `<div class="recipe-step">
-          <div class="recipe-step-num">${match[1]}</div>
-          <div class="recipe-step-text">${match[2]}</div>
-        </div>`;
-      }
-      return line.trim() ? `<div class="recipe-step-note">${line}</div>` : '';
-    }).join('');
-
-    stepsContainer.innerHTML = `
-      <div class="modal-section-label" style="margin-top:18px">Cooking steps</div>
-      <div class="recipe-steps-list">${stepsHtml}</div>
-      <div style="font-size:0.72rem;color:var(--mid);margin-top:10px;padding:8px 10px;background:rgba(107,95,84,0.06);border-radius:6px">
-        ✨ AI-generated steps — adjust to taste
-      </div>`;
-    stepsContainer.dataset.loaded = 'true';
-    stepsContainer.style.display = 'block';
+    // Show generated steps with edit/save controls (Cameron and Sienna only)
+    renderGeneratedSteps(recipeId, text);
     stepsBtn.disabled = false;
     stepsBtn.textContent = '▲ Hide steps';
 
   } catch (err) {
     stepsContainer.innerHTML = `<div style="font-size:0.85rem;color:#c44;padding:10px 0">Could not generate steps: ${err.message}</div>`;
+    stepsContainer.dataset.loaded = 'true';
     stepsContainer.style.display = 'block';
     stepsBtn.disabled = false;
-    stepsBtn.textContent = '📋 View steps';
+    stepsBtn.textContent = '📋 Generate steps';
+  }
+}
+
+// Renders AI-generated steps with an editable textarea and save button
+function renderGeneratedSteps(recipeId, rawText) {
+  const stepsContainer = document.getElementById(`steps-container-${recipeId}`);
+  if (!stepsContainer) return;
+
+  const canEdit = userProfile.role === 'admin' || userProfile.role === 'planner';
+
+  const lines = rawText.split('\n').filter(l => l.trim());
+  const stepsHtml = lines.map(line => {
+    const match = line.match(/^(\d+[\.\)])\s*(.*)/);
+    if (match) {
+      return `<div class="recipe-step">
+        <div class="recipe-step-num">${match[1]}</div>
+        <div class="recipe-step-text">${match[2]}</div>
+      </div>`;
+    }
+    return line.trim() ? `<div class="recipe-step-note">${line}</div>` : '';
+  }).join('');
+
+  const disclaimer = `<div style="font-size:0.72rem;color:var(--mid);margin-top:10px;padding:8px 10px;background:rgba(107,95,84,0.06);border-radius:6px">
+    ✨ AI-generated steps — adjust to taste
+  </div>`;
+
+  const editSection = canEdit ? `
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:6px">Edit before saving</div>
+      <textarea class="steps-edit-area" id="steps-edit-${recipeId}" placeholder="Edit the steps above, then click Save…">${rawText.trim()}</textarea>
+      <div class="steps-save-bar">
+        <button class="btn-primary" style="font-size:0.82rem;padding:7px 16px"
+          onclick="saveRecipeSteps('${recipeId}')">💾 Save these steps</button>
+        <span style="font-size:0.78rem;color:var(--mid)">Saved steps load instantly — no AI needed</span>
+      </div>
+    </div>` : '';
+
+  stepsContainer.innerHTML = `
+    <div class="modal-section-label" style="margin-top:18px">Cooking steps</div>
+    <div class="recipe-steps-list">${stepsHtml}</div>
+    ${disclaimer}
+    ${editSection}`;
+
+  stepsContainer.dataset.loaded = 'true';
+  stepsContainer.style.display = 'block';
+}
+
+// Opens an inline editor on top of already-saved steps
+function openStepsEditor(recipeId) {
+  const r = allRecipesCache?.find(x => x.id === recipeId || x.id === parseInt(recipeId));
+  if (!r || !r.steps) return;
+
+  const stepsContainer = document.getElementById(`steps-container-${recipeId}`);
+  if (!stepsContainer) return;
+
+  // Check if editor is already open
+  if (document.getElementById(`steps-edit-${recipeId}`)) return;
+
+  const editorHtml = `
+    <div id="steps-editor-wrap-${recipeId}" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:6px">Edit steps</div>
+      <textarea class="steps-edit-area" id="steps-edit-${recipeId}">${r.steps.trim()}</textarea>
+      <div class="steps-save-bar">
+        <button class="btn-primary" style="font-size:0.82rem;padding:7px 16px"
+          onclick="saveRecipeSteps('${recipeId}')">💾 Save changes</button>
+        <button class="btn-ghost" style="font-size:0.82rem"
+          onclick="document.getElementById('steps-editor-wrap-${recipeId}').remove()">Cancel</button>
+      </div>
+    </div>`;
+
+  stepsContainer.insertAdjacentHTML('beforeend', editorHtml);
+}
+
+// Saves edited steps to Supabase
+async function saveRecipeSteps(recipeId) {
+  const textarea = document.getElementById(`steps-edit-${recipeId}`);
+  if (!textarea) return;
+
+  const stepsText = textarea.value.trim();
+  if (!stepsText) { showToast('Steps cannot be empty', 'error'); return; }
+
+  const saveBtn = textarea.parentElement?.querySelector('.btn-primary');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+
+  const { error } = await sb.from('recipes')
+    .update({ steps: stepsText })
+    .eq('id', recipeId);
+
+  if (error) {
+    showToast('Error saving steps: ' + error.message, 'error');
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 Save these steps'; }
+    return;
+  }
+
+  // Update local cache
+  const cached = allRecipesCache?.find(x => x.id === recipeId || x.id === parseInt(recipeId));
+  if (cached) cached.steps = stepsText;
+
+  showToast('Steps saved ✓');
+
+  // Re-render the steps section as saved (with edit button, no textarea)
+  const stepsContainer = document.getElementById(`steps-container-${recipeId}`);
+  if (stepsContainer) {
+    stepsContainer.dataset.loaded = 'false'; // force re-render
+    renderSavedSteps(recipeId, stepsText);
+  }
+
+  // Update the modal header badge if present
+  const badge = document.querySelector('#recipe-detail-overlay .steps-saved-badge');
+  if (!badge) {
+    const meta = document.querySelector('.recipe-modal-meta');
+    if (meta) {
+      const b = document.createElement('span');
+      b.className = 'steps-saved-badge';
+      b.textContent = '📋 Steps saved';
+      meta.appendChild(b);
+    }
+  }
+
+  // Update the "View steps" button label
+  const stepsBtn = document.getElementById(`steps-btn-${recipeId}`);
+  if (stepsBtn) stepsBtn.textContent = '▲ Hide steps';
+
+  // Refresh progress bar if on recipes view
+  if (currentView === 'recipes') {
+    const total = allRecipesCache?.length || 0;
+    const withSteps = allRecipesCache?.filter(r => r.steps && r.steps.trim()).length || 0;
+    const pct = total > 0 ? Math.round((withSteps / total) * 100) : 0;
+    const fill = document.querySelector('.steps-progress-fill');
+    const count = document.querySelector('.steps-progress-count');
+    if (fill) fill.style.width = pct + '%';
+    if (count) count.textContent = `${withSteps} of ${total}`;
   }
 }
 
