@@ -901,13 +901,7 @@ function updateSchedCalc(totalMinutes){
   else if(startMins<0){warnEl.style.display='block';warnEl.textContent='⚠️ Prep needs to start the evening before — plan ahead!';}
   else{warnEl.style.display='none';}
 }
-  calcEl.innerHTML=`Total prep + cook: <strong>${totalMinutes} min</strong>. Start by <strong>${startLabel}</strong>.`;
-  const now=new Date();const today=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][now.getDay()];const nowMins=now.getHours()*60+now.getMinutes();
-  if(day===today&&startMins<nowMins&&startMins>=0){warnEl.style.display='block';warnEl.textContent=`⚠️ Start time ${startLabel} has already passed today — you may not have enough time.`;}
-  else if(startMins<0){warnEl.style.display='block';warnEl.textContent=`⚠️ Prep needs to start the evening before — plan ahead!`;}
-  else{warnEl.style.display='none';}
-}
-function dayNameToDate(dayName){const dayIndex=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].indexOf(dayName);if(dayIndex===-1)return null;const now=new Date();const diff=((dayIndex-now.getDay())+7)%7;const target=new Date(now);target.setDate(now.getDate()+diff);return target.toISOString().substring(0,10);}
+  function dayNameToDate(dayName){const dayIndex=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].indexOf(dayName);if(dayIndex===-1)return null;const now=new Date();const diff=((dayIndex-now.getDay())+7)%7;const target=new Date(now);target.setDate(now.getDate()+diff);return target.toISOString().substring(0,10);}
 function dateToDayName(dateStr){if(!dateStr)return'';return new Date(dateStr.substring(0,10)+'T12:00:00').toLocaleDateString('en-AU',{weekday:'long'});}
 async function confirmSchedule(planMealId,recipeId,totalMinutes){
   const dayName=document.getElementById('sched-day').value;const eatTime=document.getElementById('sched-time').value;
