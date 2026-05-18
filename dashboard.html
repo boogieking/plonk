@@ -326,7 +326,7 @@ async function init(){
   userProfile=(error||!data)?{id:currentUser.id,email:currentUser.email,name:currentUser.email.split('@')[0],role:'reviewer'}:data;
   renderNav();
   await loadWeekData();await loadMyRatingsThisWeek();await loadPendingIdeaRatings();
-  if(userProfile.role==='admin')await checkHibernationWakeUps();
+  await checkHibernationWakeUps();
   await renderDashboard();
   document.getElementById('loading').style.display='none';
   document.getElementById('app').classList.add('ready');
