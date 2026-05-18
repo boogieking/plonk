@@ -947,7 +947,7 @@ async function doHibernate(recipeId,weeks){
   const planMeal=currentMeals.find(m=>m.recipe_id===recipeId&&!m.cooked);if(planMeal){await sb.from('weekly_plan_meals').delete().eq('id',planMeal.id);currentMeals=currentMeals.filter(m=>m.id!==planMeal.id);}
   closeModal();showToast(`Meal hibernated 😴 — wakes up ${wakeDate}`);
   if(document.getElementById('requests-container'))setTimeout(()=>loadPendingRequests(),300);
-  allRecipesCache=null;if(currentView==='recipes'){await renderRecipeListView();}else{await renderDashboard();}
+  allRecipesCache=null;await loadWeekData();if(currentView==='recipes'){await renderRecipeListView();}else{await renderDashboard();}
 }
 async function checkHibernationWakeUps(){
   const today=getTodayDate();const{data,error}=await sb.from('recipes').select('id,name_en,hibernate_until,avg_rating').eq('hibernated',true).not('hibernate_until','is',null).lte('hibernate_until',today);if(error||!data||data.length===0)return;
