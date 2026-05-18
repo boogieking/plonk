@@ -256,7 +256,6 @@
     .steps-progress-fill{height:100%;background:var(--clay);border-radius:999px;transition:width 0.4s ease;}
     .steps-progress-label{font-size:0.78rem;color:var(--mid);white-space:nowrap;flex-shrink:0;}
     .steps-progress-count{font-size:0.78rem;font-weight:500;color:var(--clay);white-space:nowrap;flex-shrink:0;}
-    /* ── RESHUFFLE LOG ── */
     .reshuffle-log{margin-top:14px;padding:12px 14px;background:rgba(180,120,40,0.06);border:1px solid rgba(180,120,40,0.2);border-radius:10px;font-size:0.82rem;}
     .reshuffle-log-title{font-weight:500;color:#8a5c10;margin-bottom:8px;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.06em;}
     .reshuffle-diff-row{display:flex;align-items:center;gap:8px;padding:3px 0;color:var(--dark);}
@@ -349,10 +348,6 @@ async function renderDashboard(){
   else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);await loadInventory();}
   else{content.innerHTML=renderKaren(recipes,userProfile.name);renderKarenAdditionsList();await loadInventory();loadKarenShoppingPreview();}
 }
-
-// ═══════════════════════════════════════════════════════════
-// CAMERON
-// ═══════════════════════════════════════════════════════════
 function renderCameron(recipes,name){
   const hasPlan=currentPlan!==null;
   const mealCount=currentMeals.length;
@@ -361,8 +356,6 @@ function renderCameron(recipes,name){
   const statusColor=hasPlan?'#4A7C59':'#C8674A';
   const statusText=hasPlan?`Current plan: <strong>${mealCount} home meal${mealCount!==1?'s':''}</strong>, ${eatingOutCount} day${eatingOutCount!==1?'s':''} eating out`:"Set eating-out days to generate this week's meal suggestions";
   const hasInventory=currentPlan?.inventory&&Object.keys(currentPlan.inventory).length>0;
-
-  // Reshuffle log
   const reshuffleLog=currentPlan?.reshuffle_log;
   let reshuffleLogHtml='';
   if(reshuffleLog&&Array.isArray(reshuffleLog.removed)&&reshuffleLog.removed.length>0){
@@ -375,7 +368,6 @@ function renderCameron(recipes,name){
     }
     reshuffleLogHtml=`<div class="reshuffle-log"><div class="reshuffle-log-title">🔀 Sienna's reshuffle — what changed</div>${rows}</div>`;
   }
-
   return`<div class="fade-in">
     ${renderDayBeforeReminder()}
     <div class="page-header"><h1>Good day, ${name} 👋</h1><p>${hasPlan?'Plan started '+planDateLabel(currentPlan):'No active plan yet'} · You have full control</p></div>
@@ -420,7 +412,6 @@ function renderCameron(recipes,name){
     </div>
   </div>`;
 }
-
 function cookedBtn(recipeId,planMealId,small){const sz=small?'font-size:0.75rem;padding:4px 10px':'font-size:0.78rem;padding:5px 10px';return`<button class="btn-secondary" style="${sz}" onclick="markCooked('${recipeId}','${planMealId}')">✓ Cooked</button>`;}
 function mealRowAdmin(m){
   if(!m)return'';const r=m.recipes||m;
@@ -441,8 +432,6 @@ function mealRowAdmin(m){
   const sideHtml=`<div class="meal-side" id="side-row-${r.id}">🍽 With: <span id="side-label-${r.id}">${r.default_side_en||'No side set'}</span>${r.default_side_es?` · <em id="side-label-es-${r.id}">${r.default_side_es}</em>`:`<em id="side-label-es-${r.id}"></em>`} <button class="side-edit-btn" onclick="openSideDropdown(event,'${r.id}','${(r.default_side_en||'').replace(/'/g,"\\'")}')">✏️ change</button><div class="side-dropdown-wrap" id="side-dd-${r.id}" style="display:none"><div class="side-dropdown-panel"><input type="text" id="side-input-${r.id}" placeholder="Or type a new side..." oninput="filterSideOptions('${r.id}',this.value)"><div class="side-options" id="side-opts-${r.id}"></div><div class="side-dropdown-footer"><button class="side-cancel-btn" onclick="closeSideDropdown('${r.id}')">Cancel</button><button class="side-save-btn" onclick="saveSide('${r.id}')">Save</button></div></div></div></div>`;
   return`<div class="meal-item ${isCooked?'cooked':''}" id="meal-item-${r.id}"><div style="flex:1"><div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${r.name_en} ${advPrepTag} ${tierBadge}</div><div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${r.prep_time_minutes||'—'} min prep · ${r.cook_time_minutes||'—'} min cook${avgStr} ${scheduledLabel}</div>${sideHtml}${ratingHtml}${ratedHtml}</div><div class="meal-actions" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${actionHtml}${removeBtn}${hibernateBtn}</div></div>`;
 }
-
-// ── INVENTORY ──────────────────────────────────────────────
 let inventoryItems=[],inventoryState={};
 async function loadInventory(){
   if(!currentPlan)return;inventoryState=currentPlan.inventory||{};
@@ -480,10 +469,6 @@ async function submitInventory(){
   if(error){showToast('Error saving inventory: '+error.message,'error');return;}
   currentPlan.inventory={...inventoryState};await renderDashboard();showToast('Inventory saved ✓');
 }
-
-// ═══════════════════════════════════════════════════════════
-// FREQUENCY TIER ENGINE
-// ═══════════════════════════════════════════════════════════
 const TIER_INTERVALS={weekly:2,regular:4,occasional:8,rare:12,hibernated:Infinity};
 const TIER_ORDER=['weekly','regular','occasional','rare'];
 const TIER_THRESHOLDS=[{min:4.5,tier:'weekly'},{min:3.5,tier:'regular'},{min:2.5,tier:'occasional'},{min:1.5,tier:'rare'},{min:0,tier:'hibernated'}];
@@ -503,15 +488,7 @@ async function selectMealsForWeek(allRecipes,homeMealsNeeded){
   if(eligible.length<homeMealsNeeded){const alreadyIn=new Set(eligible.map(r=>r.id));eligible=[...eligible,...allRecipes.filter(r=>r.frequency_tier!=='hibernated'&&!alreadyIn.has(r.id))];}
   return eligible.sort(()=>Math.random()-0.5).slice(0,homeMealsNeeded);
 }
-
-// ═══════════════════════════════════════════════════════════
-// TOAST
-// ═══════════════════════════════════════════════════════════
 function showToast(msg,type='success'){const t=document.createElement('div');t.style.cssText=`position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:${type==='error'?'#c44':'#4A7C59'};color:white;padding:11px 22px;border-radius:999px;font-size:0.88rem;font-family:'DM Sans',sans-serif;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,0.18);z-index:9999;animation:fadeIn 0.3s ease;white-space:nowrap;`;t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
-
-// ═══════════════════════════════════════════════════════════
-// RESHUFFLE — stores before/after log
-// ═══════════════════════════════════════════════════════════
 async function doReshuffle(btn){
   if(!currentPlan||currentPlan.reshuffle_used)return;
   btn.disabled=true;btn.textContent='🔀 Reshuffling...';
@@ -530,10 +507,6 @@ async function doReshuffle(btn){
     showToast('Meals reshuffled ✓ — reshuffle used for this week');
   }catch(err){btn.disabled=false;btn.textContent='🔀 Reshuffle (1 remaining)';showToast('Something went wrong — '+err.message,'error');}
 }
-
-// ═══════════════════════════════════════════════════════════
-// EATING-OUT MODAL
-// ═══════════════════════════════════════════════════════════
 const DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 let selectedEatingOutDays=[];
 function openEatingOutModal(){
@@ -548,8 +521,8 @@ async function confirmEatingOut(){
   const btn=document.getElementById('confirm-eating-out');btn.textContent='Saving...';btn.disabled=true;
   const homeMeals=Math.max(0,7-selectedEatingOutDays.length);const allRecipes=await loadRecipes();const picked=await selectMealsForWeek(allRecipes,homeMeals);
   try{
-await sb.from('weekly_plans').update({status:'archived'}).not('status','eq','archived');
-const{data:newPlan,error:planError}=await sb.from('weekly_plans').insert({week_start:getTodayDate(),eating_out_days:selectedEatingOutDays,status:'suggested',reshuffle_used:false}).select().single();if(planError)throw planError;
+    await sb.from('weekly_plans').update({status:'archived'}).not('status','eq','archived');
+    const{data:newPlan,error:planError}=await sb.from('weekly_plans').insert({week_start:getTodayDate(),eating_out_days:selectedEatingOutDays,status:'suggested',reshuffle_used:false}).select().single();if(planError)throw planError;
     currentPlan=newPlan;
     if(picked.length>0){const{error:mealsError}=await sb.from('weekly_plan_meals').insert(picked.map(r=>({plan_id:currentPlan.id,recipe_id:r.id,cooked:false})));if(mealsError)throw mealsError;}
     closeModal();await loadWeekData();myRatingsThisWeek={};await loadMyRatingsThisWeek();await renderDashboard();
@@ -574,10 +547,6 @@ async function submitRequest(type){
   if(error)showToast('Error sending request: '+error.message,'error');
   else{closeModal();showToast('Request sent to Cameron ✓');await sendEmail('swap_requested',{requestedBy:userProfile.name||userProfile.email});}
 }
-
-// ═══════════════════════════════════════════════════════════
-// RATINGS
-// ═══════════════════════════════════════════════════════════
 let myRatingsThisWeek={};
 async function loadMyRatingsThisWeek(){if(!currentPlan)return;const recipeIds=currentMeals.map(m=>m.recipe_id);if(recipeIds.length===0)return;const{data}=await sb.from('ratings').select('recipe_id,rating').eq('user_id',userProfile.id).eq('rating_type','cook').in('recipe_id',recipeIds);if(data){for(const row of data)myRatingsThisWeek[row.recipe_id]=row.rating;}}
 function isWithin24Hours(cookedAt){if(!cookedAt)return false;return(new Date()-new Date(cookedAt))<24*60*60*1000;}
@@ -587,8 +556,8 @@ async function submitRating(recipeId){
   const row=document.getElementById(`stars-${recipeId}`);if(!row)return;const val=parseInt(row.dataset.selected);if(!val){showToast('Pick a star rating first','error');return;}
   const submitBtn=document.getElementById(`rate-submit-${recipeId}`);if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Saving...';}
   try{
-const{count}=await sb.from('ratings').select('id',{count:'exact',head:true}).eq('recipe_id',recipeId).eq('rating_type','cook').eq('user_id',userProfile.id);
-const{error:rateError}=await sb.from('ratings').insert({recipe_id:recipeId,user_id:userProfile.id,rating:val,rating_type:'cook',cook_number:(count||0)+1,created_at:new Date().toISOString()});if(rateError)throw rateError;
+    const{count}=await sb.from('ratings').select('id',{count:'exact',head:true}).eq('recipe_id',recipeId).eq('rating_type','cook').eq('user_id',userProfile.id);
+    const{error:rateError}=await sb.from('ratings').insert({recipe_id:recipeId,user_id:userProfile.id,rating:val,rating_type:'cook',cook_number:(count||0)+1,created_at:new Date().toISOString()});if(rateError)throw rateError;
     myRatingsThisWeek[recipeId]=val;await recalculateRecipeRating(recipeId);
     const prompt=document.getElementById(`rating-prompt-${recipeId}`);if(prompt)prompt.outerHTML=`<div class="rating-submitted">Your rating: ${'★'.repeat(val)}${'☆'.repeat(5-val)} — saved ✓</div>`;
     showToast('Rating saved ✓');
@@ -608,10 +577,6 @@ async function recalculateRecipeRating(recipeId){
   await sb.from('recipes').update(updateData).eq('id',recipeId);
   if(tierChanged&&(userProfile.role==='admin'||userProfile.role==='planner')){const direction=TIER_THRESHOLDS.findIndex(t=>t.tier===newTier)<TIER_THRESHOLDS.findIndex(t=>t.tier===oldTier)?'⬆️':'⬇️';showToast(`${direction} ${recipe.name_en} moved to ${TIER_LABELS[newTier]} (avg ${newAvg.toFixed(1)})`,newTier==='weekly'||newTier==='regular'?'success':'error');await sendEmail('tier_changed',{recipeName:recipe.name_en});}
 }
-
-// ═══════════════════════════════════════════════════════════
-// IDEA RATINGS
-// ═══════════════════════════════════════════════════════════
 let pendingIdeaRatings=[];
 async function loadPendingIdeaRatings(){
   const{data:recipes}=await sb.from('recipes').select('id,name_en').is('avg_rating',null).eq('hibernated',false);
@@ -648,8 +613,6 @@ function renderPendingIdeaRatingCards(){
   if(!pendingIdeaRatings||pendingIdeaRatings.length===0)return'';
   return pendingIdeaRatings.map(r=>`<div id="idea-card-${r.id}" style="padding:14px 16px;background:rgba(200,103,74,0.07);border:1.5px solid rgba(200,103,74,0.25);border-radius:var(--radius);margin-bottom:12px"><div style="font-size:0.78rem;font-weight:500;color:var(--clay);margin-bottom:4px">✨ New meal suggestion — rate the idea</div><div style="font-weight:500;margin-bottom:10px">${r.name_en}</div><div class="star-row" id="idea-stars-${r.id}">${[1,2,3,4,5].map(n=>`<button class="star-btn" data-val="${n}" onclick="selectIdeaStar('${r.id}',${n})">☆</button>`).join('')}<button class="rating-submit-btn" id="idea-submit-${r.id}" style="display:none" onclick="submitIdeaRating('${r.id}')">Submit</button></div></div>`).join('');
 }
-
-// ── SIDES ─────────────────────────────────────────────────
 let allSides=[];
 async function loadSidesLibrary(){const{data,error}=await sb.from('sides').select('*').order('name_en');if(!error&&data)allSides=data;}
 function openSideDropdown(event,recipeId,currentSide){
@@ -690,10 +653,6 @@ async function doMarkCooked(recipeId,planMealId){
   const pm=currentMeals.find(m=>m.id===planMealId||m.recipe_id===recipeId);if(pm){pm.cooked=true;pm.cooked_at=cookedAt;}
   showToast('Marked as cooked ✓ — rate it below!');await renderDashboard();
 }
-
-// ═══════════════════════════════════════════════════════════
-// PENDING REQUESTS
-// ═══════════════════════════════════════════════════════════
 const REQUEST_LABELS={plan_submitted:'📋 Plan submitted for approval',swap:'🔄 Meal swap request',hibernate:'😴 Hibernation request',new:'✨ New meal suggestion',frequency_change:'📊 Frequency change request',side_swap:'🍽 Side dish swap request'};
 async function loadPendingRequests(){
   if(userProfile.role!=='admin')return;
@@ -713,7 +672,21 @@ async function loadPendingRequests(){
 }
 async function handleRequest(requestId,type,decision){
   const{error}=await sb.from('requests').update({status:decision}).eq('id',requestId);if(error){showToast('Error: '+error.message,'error');return;}
-&&decision==='approved'){const{data:req}=await sb.from('requests').select('meta,reason').eq('id',requestId).single();const recipeId=req?.meta?.recipe_id;if(recipeId){await doHibernate(recipeId,8);return;}}
+  if(type==='plan_submitted'&&decision==='approved'){
+    if(currentPlan){
+      if(currentPlan.status==='approved'){showToast('Plan is already approved');await renderDashboard();return;}
+      await sb.from('weekly_plans').update({status:'approved'}).eq('id',currentPlan.id);
+      currentPlan.status='approved';
+    }
+    await sb.from('requests').insert({request_type:'week_finalised',reason:"This week's meal plan has been finalised by Cameron.",requested_by:userProfile.id,status:'info',created_at:new Date().toISOString()});
+    await sendEmail('plan_approved');
+    const advancePrepMeals=currentMeals.filter(m=>m.recipes?.advance_prep_required&&!m.cooked);
+    if(advancePrepMeals.length>0)await sendEmail('prep_reminder_weekly');
+    showToast('Plan approved ✓ Inventory check unlocked');
+    await renderDashboard();
+    return;
+  }
+  if(type==='hibernate'&&decision==='approved'){const{data:req}=await sb.from('requests').select('meta,reason').eq('id',requestId).single();const recipeId=req?.meta?.recipe_id;if(recipeId){await doHibernate(recipeId,8);return;}}
   if(type==='side_swap'&&decision==='approved'){const{data:req}=await sb.from('requests').select('meta').eq('id',requestId).single();if(req?.meta){const{recipe_id,new_side_en,new_side_es}=req.meta;await applySideSwap(recipe_id,new_side_en,new_side_es||'');return;}}
   if(type==='new'&&decision==='approved'){
     const{data:req}=await sb.from('requests').select('meta,reason').eq('id',requestId).single();const mealName=req?.meta?.name_en;
@@ -725,10 +698,6 @@ async function handleRequest(requestId,type,decision){
   if(countEl&&container){const remaining=container.querySelectorAll('.request-item').length;countEl.textContent=remaining;if(remaining===0)container.innerHTML=`<div class="empty"><span class="empty-icon">📋</span>No pending requests from Sienna or Karen</div>`;}
   showToast(decision==='approved'?'Request approved ✓':'Request rejected');
 }
-
-// ═══════════════════════════════════════════════════════════
-// SIENNA
-// ═══════════════════════════════════════════════════════════
 function renderSienna(recipes,name){
   const hasPlan=currentPlan!==null;const mealCount=currentMeals.length;const planStatus=currentPlan?.status||'none';
   const reshuffleUsed=currentPlan?.reshuffle_used||false;const alreadySubmitted=planStatus==='submitted'||planStatus==='approved';
@@ -787,10 +756,6 @@ async function loadSiennaShoppingPreview(){
   try{const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();if(!deduped[key]||(!deduped[key].lacomer_url&&ing.lacomer_url))deduped[key]=ing;}const items=Object.values(deduped).sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load preview: ${err.message}</div>`;}
 }
-
-// ═══════════════════════════════════════════════════════════
-// KAREN
-// ═══════════════════════════════════════════════════════════
 function renderKaren(recipes,name){
   const hasPlan=currentPlan!==null;const mealCount=currentMeals.length;const isApproved=currentPlan?.status==='approved';
   const bannerKey=`plonk_finalised_seen_${currentPlan?.id||'none'}`;
@@ -828,10 +793,6 @@ async function loadKarenShoppingPreview(){
   try{const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();if(!deduped[key]||(!deduped[key].lacomer_url&&ing.lacomer_url))deduped[key]=ing;}const items=Object.values(deduped).sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load list: ${err.message}</div>`;}
 }
-
-// ═══════════════════════════════════════════════════════════
-// SHOPPING LIST
-// ═══════════════════════════════════════════════════════════
 function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems){
   const UNITS=['g','kg','ml','L','units','pcs','tbsp','tsp'];
   const groups={};
@@ -865,10 +826,6 @@ function showAddLinkForm(ingId,btn){const row=document.getElementById(`shop-row-
 function cancelLink(ingId){document.getElementById(`link-form-${ingId}`)?.remove();const row=document.getElementById(`shop-row-${ingId}`);if(row){const addBtn=row.querySelector('.add-link-btn');if(addBtn)addBtn.style.display='';}}
 async function saveLink(ingId){const url=document.getElementById(`link-input-${ingId}`)?.value?.trim();if(!url){showToast('Please paste a URL first','error');return;}const{error}=await sb.from('ingredients').update({lacomer_url:url}).eq('id',ingId);if(error){showToast('Error saving: '+error.message,'error');return;}const row=document.getElementById(`shop-row-${ingId}`);if(row){document.getElementById(`link-form-${ingId}`)?.remove();const addBtn=row.querySelector('.add-link-btn');if(addBtn)addBtn.replaceWith(Object.assign(document.createElement('a'),{href:url,target:'_blank',className:'shop-link',textContent:'🛒 La Comer'}));}showToast('Link saved ✓');}
 async function tickCKItem(itemId,btn){try{await ckFetch(`ck_items?id=eq.${itemId}`,{method:'PATCH',prefer:'return=minimal',body:JSON.stringify({done:true})});const row=document.getElementById(`ck-row-${itemId}`);if(row){row.classList.add('ticked');btn.classList.add('done');btn.textContent='Done ✓';}showToast('Item ticked off ✓');}catch(err){showToast('Error: '+err.message,'error');}}
-
-// ═══════════════════════════════════════════════════════════
-// PREP WARNINGS
-// ═══════════════════════════════════════════════════════════
 function checkPrepBeforeCook(recipeId,planMealId,onConfirm){const meal=currentMeals.find(m=>m.recipe_id===recipeId);const recipe=meal?.recipes;if(!recipe){onConfirm();return;}if(userProfile.role==='reviewer'){onConfirm();return;}if(recipe.advance_prep_required&&recipe.same_day_cookable===false){const desc=recipe.advance_prep_description||'Advance preparation is required for this meal.';const alternatives=currentMeals.filter(m=>m.recipe_id!==recipeId&&!m.cooked).map(m=>m.recipes).filter(r=>r&&r.same_day_cookable!==false);showPrepWarningModal(recipe.name_en,desc,alternatives,onConfirm);return;}onConfirm();}
 let _prepWarningCallback=null;
 function proceedAnywayFromWarning(){closeModal();if(_prepWarningCallback){_prepWarningCallback();_prepWarningCallback=null;}}
@@ -900,7 +857,7 @@ function updateSchedCalc(totalMinutes){
   else if(startMins<0){warnEl.style.display='block';warnEl.textContent='⚠️ Prep needs to start the evening before — plan ahead!';}
   else{warnEl.style.display='none';}
 }
-  function dayNameToDate(dayName){const dayIndex=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].indexOf(dayName);if(dayIndex===-1)return null;const now=new Date();const diff=((dayIndex-now.getDay())+7)%7;const target=new Date(now);target.setDate(now.getDate()+diff);return target.toISOString().substring(0,10);}
+function dayNameToDate(dayName){const dayIndex=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].indexOf(dayName);if(dayIndex===-1)return null;const now=new Date();const diff=((dayIndex-now.getDay())+7)%7;const target=new Date(now);target.setDate(now.getDate()+diff);return target.toISOString().substring(0,10);}
 function dateToDayName(dateStr){if(!dateStr)return'';return new Date(dateStr.substring(0,10)+'T12:00:00').toLocaleDateString('en-AU',{weekday:'long'});}
 async function confirmSchedule(planMealId,recipeId,totalMinutes){
   const dayName=document.getElementById('sched-day').value;const eatTime=document.getElementById('sched-time').value;
@@ -926,10 +883,6 @@ function renderPrepReminders(){
   const rows=advancePrepMeals.map(m=>{const r=m.recipes;const dayLabel=m.assigned_day?` · scheduled ${dateToDayName(m.assigned_day)}`:'';return`<div class="prep-reminder-row"><div class="prep-reminder-icon">⏰</div><div><div class="prep-reminder-meal">${r.name_en}${dayLabel}</div><div class="prep-reminder-desc">${r.advance_prep_description||'Advance preparation required'}</div></div></div>`;}).join('');
   return`<div class="section-label">Prep reminders</div><div class="prep-reminders-card"><div style="font-size:0.78rem;font-weight:500;color:var(--clay);margin-bottom:12px">🗒️ These meals need advance prep this week</div>${rows}</div>`;
 }
-
-// ═══════════════════════════════════════════════════════════
-// SIDE SWAP
-// ═══════════════════════════════════════════════════════════
 function openSideSwapModal(recipeId,currentSideEn){
   const isKaren=userProfile.role==='reviewer';const isSienna=userProfile.role==='planner';if(!isKaren&&!isSienna)return;
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
@@ -954,10 +907,6 @@ async function applySideSwap(recipeId,newSideEn,newSideEs){
   const meal=currentMeals.find(m=>m.recipe_id===recipeId);if(meal?.recipes){meal.recipes.default_side_en=newSideEn;meal.recipes.default_side_es=newSideEs||null;}
   closeModal();showToast(`Side changed to "${newSideEn}" ✓`);await renderDashboard();
 }
-
-// ═══════════════════════════════════════════════════════════
-// TIER OVERRIDE
-// ═══════════════════════════════════════════════════════════
 const TIER_OPTIONS=[{value:'weekly',label:'Weekly Favourite',note:'Appears every 1–2 weeks'},{value:'regular',label:'Regular',note:'Appears every 3–4 weeks'},{value:'occasional',label:'Occasional',note:'Appears every 6–8 weeks'},{value:'rare',label:'Rare',note:'Appears every 10–12 weeks'},{value:'hibernated',label:'Hibernated',note:'Removed from rotation'}];
 function openTierModal(recipeId,currentTier,isLocked){
   const meal=currentMeals.find(m=>m.recipe_id===recipeId);const mealName=meal?.recipes?.name_en||'this meal';const avgRating=meal?.recipes?.avg_rating;const autoTier=avgRating?TIER_LABELS[tierFromRating(avgRating)]:null;
@@ -969,10 +918,6 @@ function openTierModal(recipeId,currentTier,isLocked){
 }
 async function saveTierOverride(recipeId){const val=document.getElementById('tier-select')?.value;if(!val)return;const{error}=await sb.from('recipes').update({frequency_tier:val,frequency_override:true}).eq('id',recipeId);if(error){showToast('Error saving tier: '+error.message,'error');return;}const meal=currentMeals.find(m=>m.recipe_id===recipeId);if(meal?.recipes){meal.recipes.frequency_tier=val;meal.recipes.frequency_override=true;}closeModal();showToast(`Tier set to ${TIER_LABELS[val]} 🔒`);allRecipesCache=null;if(currentView==='recipes'){await renderRecipeListView();}else{await renderDashboard();}}
 async function unlockTierOverride(recipeId){const meal=currentMeals.find(m=>m.recipe_id===recipeId);const avgRating=meal?.recipes?.avg_rating;const autoTier=avgRating?tierFromRating(avgRating):(meal?.recipes?.frequency_tier||'regular');const{error}=await sb.from('recipes').update({frequency_override:false,frequency_tier:autoTier}).eq('id',recipeId);if(error){showToast('Error removing override: '+error.message,'error');return;}if(meal?.recipes){meal.recipes.frequency_override=false;meal.recipes.frequency_tier=autoTier;}closeModal();showToast(`Override removed — tier restored to ${TIER_LABELS[autoTier]}`);allRecipesCache=null;if(currentView==='recipes'){await renderRecipeListView();}else{await renderDashboard();}}
-
-// ═══════════════════════════════════════════════════════════
-// HIBERNATION
-// ═══════════════════════════════════════════════════════════
 function weeksFromNow(n){const d=new Date();d.setDate(d.getDate()+n*7);return d.toISOString().substring(0,10);}
 function openHibernateModal(recipeId,mealName){
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
@@ -993,12 +938,8 @@ async function checkHibernationWakeUps(){
   const wokenUp=[];for(const recipe of data){const restoredTier=recipe.avg_rating?tierFromRating(recipe.avg_rating):'regular';const{error:upErr}=await sb.from('recipes').update({hibernated:false,hibernate_until:null,frequency_tier:restoredTier}).eq('id',recipe.id);if(!upErr)wokenUp.push({name:recipe.name_en,tier:restoredTier});}
   wokenUp.forEach(r=>showToast(`🌅 ${r.name} is back! Restored to ${TIER_LABELS[r.tier]}`,'success'));
 }
-
-// ── VIEW SWITCHING ─────────────────────────────────────────
 let currentView='dashboard';
 function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){renderRecipeListView();}}
-
-// ── RECIPE LIST VIEW ───────────────────────────────────────
 let recipeFilterTier='all',recipeFilterSearch='',recipeShowHibernated=false,allRecipesCache=null;
 async function renderRecipeListView(){
   const content=document.getElementById('dashboard-content');
@@ -1026,7 +967,6 @@ function recipeRowHtml(r,isAdmin){
 function filterRecipes(){renderFilteredRecipes();}
 function setTierFilter(tier){recipeFilterTier=tier;recipeShowHibernated=false;renderRecipeListView();}
 function toggleHibernated(){recipeShowHibernated=!recipeShowHibernated;recipeFilterTier='all';renderRecipeListView();}
-
 async function openRecipeDetail(recipeId){
   const r=allRecipesCache?.find(x=>x.id===recipeId||x.id===parseInt(recipeId));if(!r)return;
   const isAdmin=userProfile?.role==='admin';const tier=r.hibernated?'hibernated':(r.frequency_tier||'regular');
@@ -1065,25 +1005,18 @@ async function openRecipeDetail(recipeId){
     </div>
   </div>`);
 }
-
-// ── SAFE CLOSE — warns if unsaved steps textarea is open ───
-function safeCloseRecipeDetail(recipeId) {
-  const textarea = document.getElementById(`steps-edit-${recipeId}`);
-  if (textarea) {
-    const cached = allRecipesCache?.find(x => x.id === recipeId || x.id === parseInt(recipeId));
-    const savedText = (cached?.steps || '').trim();
-    const currentText = textarea.value.trim();
-    if (currentText !== savedText && currentText !== '') {
-      if (!confirm('You have unsaved changes to the steps. Close anyway?')) return;
-    }
+function safeCloseRecipeDetail(recipeId){
+  const textarea=document.getElementById(`steps-edit-${recipeId}`);
+  if(textarea){
+    const cached=allRecipesCache?.find(x=>x.id===recipeId||x.id===parseInt(recipeId));
+    const savedText=(cached?.steps||'').trim();
+    const currentText=textarea.value.trim();
+    if(currentText!==savedText&&currentText!==''){if(!confirm('You have unsaved changes to the steps. Close anyway?'))return;}
   }
   closeRecipeDetail();
 }
-
 function closeRecipeDetail(){document.getElementById('recipe-detail-overlay')?.remove();}
 function openTierOverrideFromList(recipeId,currentTier){const isLocked=allRecipesCache?.find(r=>r.id===recipeId||r.id===parseInt(recipeId))?.frequency_override||false;openTierModal(recipeId,currentTier,isLocked);}
-
-// ── CONSOLIDATE ────────────────────────────────────────────
 function consolidateList(){
   const ckSection=document.getElementById('ck-pre-consolidate');if(!ckSection)return;
   const ckParsed=[];ckSection.querySelectorAll('.ck-item-row').forEach(row=>{const id=row.id.replace('ck-row-','');const text=row.querySelector('.ck-item-text')?.textContent?.trim()||'';const qty=parseFloat(document.getElementById(`ck-qty-${id}`)?.value)||0;const unit=document.getElementById(`ck-unit-${id}`)?.value||'';ckParsed.push({text,qty,unit,id});});
@@ -1094,10 +1027,6 @@ function consolidateList(){
 }
 function showCKLinkForm(tempId,itemName,btn){const row=document.getElementById(`shop-row-${tempId}`);if(!row)return;btn.style.display='none';const formDiv=document.createElement('div');formDiv.className='add-link-form';formDiv.id=`link-form-${tempId}`;formDiv.innerHTML=`<input class="add-link-input" id="link-input-${tempId}" placeholder="Paste La Comer URL..." type="url"><button class="save-link-btn" onclick="saveCKLink('${tempId}','${itemName.replace(/'/g,"\\'")}')">Save</button><button class="cancel-link-btn" onclick="cancelLink('${tempId}')">Cancel</button>`;row.appendChild(formDiv);}
 async function saveCKLink(tempId,itemName){const url=document.getElementById(`link-input-${tempId}`)?.value?.trim();if(!url){showToast('Please paste a URL first','error');return;}const{error}=await sb.from('ingredients').insert({name_en:itemName,name_es:itemName,lacomer_category:guessKarenCategory(itemName),lacomer_url:url}).select().single();if(error){showToast('Error saving: '+error.message,'error');return;}const row=document.getElementById(`shop-row-${tempId}`);if(row){document.getElementById(`link-form-${tempId}`)?.remove();const addBtn=row.querySelector('.add-link-btn');if(addBtn)addBtn.replaceWith(Object.assign(document.createElement('a'),{href:url,target:'_blank',className:'shop-link',textContent:'🛒 La Comer'}));}showToast(`"${itemName}" saved to ingredients ✓`);}
-
-// ═══════════════════════════════════════════════════════════
-// AI RECIPE STEPS
-// ═══════════════════════════════════════════════════════════
 async function handleStepsBtn(recipeId){
   const r=allRecipesCache?.find(x=>x.id===recipeId||x.id===parseInt(recipeId));if(!r)return;
   const stepsContainer=document.getElementById(`steps-container-${recipeId}`);const stepsBtn=document.getElementById(`steps-btn-${recipeId}`);if(!stepsContainer||!stepsBtn)return;
@@ -1162,7 +1091,6 @@ async function saveRecipeSteps(recipeId){
   const stepsBtn=document.getElementById(`steps-btn-${recipeId}`);if(stepsBtn)stepsBtn.textContent='▲ Hide steps';
   if(currentView==='recipes'){const total=allRecipesCache?.length||0;const withSteps=allRecipesCache?.filter(r=>r.steps&&r.steps.trim()).length||0;const pct=total>0?Math.round((withSteps/total)*100):0;const fill=document.querySelector('.steps-progress-fill');const count=document.querySelector('.steps-progress-count');if(fill)fill.style.width=pct+'%';if(count)count.textContent=`${withSteps} of ${total}`;}
 }
-
 init();
 </script>
 </body>
