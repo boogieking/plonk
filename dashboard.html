@@ -556,8 +556,10 @@ async function submitRating(recipeId){
   const row=document.getElementById(`stars-${recipeId}`);if(!row)return;const val=parseInt(row.dataset.selected);if(!val){showToast('Pick a star rating first','error');return;}
   const submitBtn=document.getElementById(`rate-submit-${recipeId}`);if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Saving...';}
   try{
-    const{count}=await sb.from('ratings').select('id',{count:'exact',head:true}).eq('recipe_id',recipeId).eq('rating_type','cook').eq('user_id',userProfile.id);
-    const{error:rateError}=await sb.from('ratings').insert({recipe_id:recipeId,user_id:userProfile.id,rating:val,rating_type:'cook',cook_number:(count||0)+1,created_at:new Date().toISOString()});if(rateError)throw rateError;
+    const{count:existingCount}=await sb.from('ratings').select('id',{count:'exact',head:true}).eq('recipe_id',recipeId).eq('rating_type','cook').eq('user_id',userProfile.id);
+    if(existingCount>0){showToast('You already rated this cook','error');if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Already rated';}return;}
+    const{count:totalCookCount}=await sb.from('ratings').select('id',{count:'exact',head:true}).eq('recipe_id',recipeId).eq('rating_type','cook');
+    const{error:rateError}=await sb.from('ratings').insert({recipe_id:recipeId,user_id:userProfile.id,rating:val,rating_type:'cook',cook_number:(totalCookCount||0)+1,created_at:new Date().toISOString()});if(rateError)throw rateError;
     myRatingsThisWeek[recipeId]=val;await recalculateRecipeRating(recipeId);
     const prompt=document.getElementById(`rating-prompt-${recipeId}`);if(prompt)prompt.outerHTML=`<div class="rating-submitted">Your rating: ${'★'.repeat(val)}${'☆'.repeat(5-val)} — saved ✓</div>`;
     showToast('Rating saved ✓');
