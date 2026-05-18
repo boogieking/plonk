@@ -713,8 +713,7 @@ async function loadPendingRequests(){
 }
 async function handleRequest(requestId,type,decision){
   const{error}=await sb.from('requests').update({status:decision}).eq('id',requestId);if(error){showToast('Error: '+error.message,'error');return;}
-if(type==='plan_submitted'&&decision==='approved'){if(currentPlan){if(currentPlan.status==='approved'){showToast('Plan is already approved');await renderDashboard();return;}await sb.from('weekly_plans').update({status:'approved'}).eq('id',currentPlan.id);currentPlan.status='approved';}
-  if(type==='hibernate'&&decision==='approved'){const{data:req}=await sb.from('requests').select('meta,reason').eq('id',requestId).single();const recipeId=req?.meta?.recipe_id;if(recipeId){await doHibernate(recipeId,8);return;}}
+&&decision==='approved'){const{data:req}=await sb.from('requests').select('meta,reason').eq('id',requestId).single();const recipeId=req?.meta?.recipe_id;if(recipeId){await doHibernate(recipeId,8);return;}}
   if(type==='side_swap'&&decision==='approved'){const{data:req}=await sb.from('requests').select('meta').eq('id',requestId).single();if(req?.meta){const{recipe_id,new_side_en,new_side_es}=req.meta;await applySideSwap(recipe_id,new_side_en,new_side_es||'');return;}}
   if(type==='new'&&decision==='approved'){
     const{data:req}=await sb.from('requests').select('meta,reason').eq('id',requestId).single();const mealName=req?.meta?.name_en;
