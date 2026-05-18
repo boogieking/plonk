@@ -810,7 +810,10 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems){
   return html||`<div class="empty" style="color:var(--green)">✓ Nothing needed — you have everything!</div>`;
 }
 async function generateShoppingList(){
-  const btn=document.getElementById('generate-btn');const content=document.getElementById('shopping-list-content');btn.disabled=true;btn.textContent='Loading...';content.innerHTML=`<div class="empty"><div class="spin" style="width:24px;height:24px;border-width:2px;margin:0 auto 8px"></div>Building your list...</div>`;
+  const btn=document.getElementById('generate-btn');const content=document.getElementById('shopping-list-content');
+  const savedCKQtys={};document.querySelectorAll('[id^="ck-qty-"]').forEach(el=>{const id=el.id.replace('ck-qty-','');if(el.value)savedCKQtys[id]=el.value;});
+  const savedCKUnits={};document.querySelectorAll('[id^="ck-unit-"]').forEach(el=>{const id=el.id.replace('ck-unit-','');savedCKUnits[id]=el.value;});
+  btn.disabled=true;btn.textContent='Loading...';content.innerHTML=`<div class="empty"><div class="spin" style="width:24px;height:24px;border-width:2px;margin:0 auto 8px"></div>Building your list...</div>`;
   try{const inventory=currentPlan?.inventory||{};const needIds=Object.entries(inventory).filter(([,s])=>s==='need').map(([id])=>id);
     if(needIds.length===0){content.innerHTML=`<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;btn.textContent='Generate list';btn.disabled=false;return;}
     const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;
@@ -818,6 +821,8 @@ async function generateShoppingList(){
     const mealItems=Object.values(deduped).sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));
     let ckItems=[];try{ckItems=await ckFetch('ck_items?cat=eq.shopping&done=eq.false&select=id,text,done&order=text.asc');}catch(e){console.warn('Casa King fetch failed:',e.message);}
     content.innerHTML=`<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn-primary" onclick="consolidateList()" id="consolidate-btn">🔀 Consolidate list</button></div>`+renderShoppingListHTML(mealItems,ckItems,true,karenAdditions);
+    for(const[id,val]of Object.entries(savedCKQtys)){const el=document.getElementById(`ck-qty-${id}`);if(el)el.value=val;}
+    for(const[id,val]of Object.entries(savedCKUnits)){const el=document.getElementById(`ck-unit-${id}`);if(el)el.value=val;}
     btn.textContent='Regenerate list';btn.disabled=false;
     if(!currentPlan._shoppingListSent){currentPlan._shoppingListSent=true;await sendEmail('plan_finalised');}
   }catch(err){content.innerHTML=`<div class="empty" style="color:#c44">Error: ${err.message}</div>`;btn.textContent='Generate list';btn.disabled=false;}
