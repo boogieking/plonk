@@ -816,7 +816,12 @@ async function generateShoppingList(){
   const savedCKQtys={};document.querySelectorAll('[id^="ck-qty-"]').forEach(el=>{const id=el.id.replace('ck-qty-','');if(el.value)savedCKQtys[id]=el.value;});
   const savedCKUnits={};document.querySelectorAll('[id^="ck-unit-"]').forEach(el=>{const id=el.id.replace('ck-unit-','');savedCKUnits[id]=el.value;});
   btn.disabled=true;btn.textContent='Loading...';content.innerHTML=`<div class="empty"><div class="spin" style="width:24px;height:24px;border-width:2px;margin:0 auto 8px"></div>Building your list...</div>`;
-  try{const inventory=currentPlan?.inventory||{};const needIds=Object.entries(inventory).filter(([,s])=>s==='need').map(([id])=>id);
+  try{const inventory=currentPlan?.inventory||{};
+    const{data:planMeals}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id);
+    const planRecipeIds=(planMeals||[]).map(m=>m.recipe_id);
+    const{data:planIngredients}=await sb.from('ingredients').select('id').in('recipe_id',planRecipeIds);
+    const validIds=new Set((planIngredients||[]).map(i=>String(i.id)));
+    const needIds=Object.entries(inventory).filter(([id,s])=>s==='need'&&validIds.has(id)).map(([id])=>id);
     if(needIds.length===0){content.innerHTML=`<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;btn.textContent='Generate list';btn.disabled=false;return;}
     const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;
     const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();if(!deduped[key]||(!deduped[key].lacomer_url&&ing.lacomer_url))deduped[key]=ing;}
