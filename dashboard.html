@@ -892,9 +892,6 @@ function openScheduleModal(recipeId){
 function updateSchedCalc(totalMinutes){
   const eatTime=document.getElementById('sched-time').value;const day=document.getElementById('sched-day').value;const calcEl=document.getElementById('sched-calc');const warnEl=document.getElementById('sched-warn');if(!eatTime||!calcEl)return;
   const[h,m]=eatTime.split(':').map(Number);const eatMins=h*60+m;const startMins=eatMins-totalMinutes;
-function updateSchedCalc(totalMinutes){
-  const eatTime=document.getElementById('sched-time').value;const day=document.getElementById('sched-day').value;const calcEl=document.getElementById('sched-calc');const warnEl=document.getElementById('sched-warn');if(!eatTime||!calcEl)return;
-  const[h,m]=eatTime.split(':').map(Number);const eatMins=h*60+m;const startMins=eatMins-totalMinutes;
   let startLabel;
   if(startMins<0){const over=1440+startMins;startLabel='the day before at '+String(Math.floor(over/60)).padStart(2,'0')+':'+String(over%60).padStart(2,'0');}
   else{startLabel=String(Math.floor(startMins/60)).padStart(2,'0')+':'+String(startMins%60).padStart(2,'0');}
