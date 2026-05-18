@@ -794,7 +794,11 @@ function mealRowKaren(m){
 async function loadKarenShoppingPreview(){
   const el=document.getElementById('karen-shopping-preview');if(!el)return;
   if(!currentPlan?.inventory||Object.keys(currentPlan.inventory).length===0){el.innerHTML=`<div class="empty"><span class="empty-icon">📋</span>Shopping list not generated yet</div>`;return;}
-  const needIds=Object.entries(currentPlan.inventory).filter(([,s])=>s==='need').map(([id])=>id);
+  const{data:planMeals2}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id);
+  const planRecipeIds2=(planMeals2||[]).map(m=>m.recipe_id);
+  const{data:planIngs2}=await sb.from('ingredients').select('id').in('recipe_id',planRecipeIds2);
+  const validIds2=new Set((planIngs2||[]).map(i=>String(i.id)));
+  const needIds=Object.entries(currentPlan.inventory).filter(([id,s])=>s==='need'&&validIds2.has(id)).map(([id])=>id);
   if(needIds.length===0){el.innerHTML=`<div class="empty" style="color:var(--green)">✓ Everything is in stock!</div>`;return;}
   try{const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();if(!deduped[key]||(!deduped[key].lacomer_url&&ing.lacomer_url))deduped[key]=ing;}const items=Object.values(deduped).sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load list: ${err.message}</div>`;}
