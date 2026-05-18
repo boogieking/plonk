@@ -548,7 +548,8 @@ async function confirmEatingOut(){
   const btn=document.getElementById('confirm-eating-out');btn.textContent='Saving...';btn.disabled=true;
   const homeMeals=Math.max(0,7-selectedEatingOutDays.length);const allRecipes=await loadRecipes();const picked=await selectMealsForWeek(allRecipes,homeMeals);
   try{
-    const{data:newPlan,error:planError}=await sb.from('weekly_plans').insert({week_start:getTodayDate(),eating_out_days:selectedEatingOutDays,status:'suggested',reshuffle_used:false}).select().single();if(planError)throw planError;
+await sb.from('weekly_plans').update({status:'archived'}).not('status','eq','archived');
+const{data:newPlan,error:planError}=await sb.from('weekly_plans').insert({week_start:getTodayDate(),eating_out_days:selectedEatingOutDays,status:'suggested',reshuffle_used:false}).select().single();if(planError)throw planError;
     currentPlan=newPlan;
     if(picked.length>0){const{error:mealsError}=await sb.from('weekly_plan_meals').insert(picked.map(r=>({plan_id:currentPlan.id,recipe_id:r.id,cooked:false})));if(mealsError)throw mealsError;}
     closeModal();await loadWeekData();myRatingsThisWeek={};await loadMyRatingsThisWeek();await renderDashboard();
