@@ -893,7 +893,7 @@ function openScheduleModal(recipeId){
 function updateSchedCalc(totalMinutes){
   const eatTime=document.getElementById('sched-time').value;const day=document.getElementById('sched-day').value;const calcEl=document.getElementById('sched-calc');const warnEl=document.getElementById('sched-warn');if(!eatTime||!calcEl)return;
   const[h,m]=eatTime.split(':').map(Number);const eatMins=h*60+m;const startMins=eatMins-totalMinutes;
-  const startLabel=startMins<0?`the day before at ${String(23-Math.floor(Math.abs(startMins)/60)).padStart(2,'0')}:${String(60-Math.abs(startMins)%60).padStart(2,'0')}`:`${String(Math.floor(startMins/60)).padStart(2,'0')}:${String(startMins%60).padStart(2,'0')}`;
+const startLabel=startMins<0?(()=>{const over=1440+startMins;return`the day before at ${String(Math.floor(over/60)).padStart(2,'0')}:${String(over%60).padStart(2,'0')}`;})():`${String(Math.floor(startMins/60)).padStart(2,'0')}:${String(startMins%60).padStart(2,'0')}`;
   calcEl.innerHTML=`Total prep + cook: <strong>${totalMinutes} min</strong>. Start by <strong>${startLabel}</strong>.`;
   const now=new Date();const today=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][now.getDay()];const nowMins=now.getHours()*60+now.getMinutes();
   if(day===today&&startMins<nowMins&&startMins>=0){warnEl.style.display='block';warnEl.textContent=`⚠️ Start time ${startLabel} has already passed today — you may not have enough time.`;}
