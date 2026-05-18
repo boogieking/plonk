@@ -639,7 +639,7 @@ async function submitIdeaRating(recipeId){
 }
 async function finaliseIdeaRatingIfComplete(recipeId){
   const{data:allIdeaRatings}=await sb.from('ratings').select('rating,user_id').eq('recipe_id',recipeId).eq('rating_type','idea');
-  if(!allIdeaRatings||allIdeaRatings.length<3)return;
+  const distinctRaters=new Set(allIdeaRatings.map(r=>r.user_id));if(distinctRaters.size<3)return;
   const avg=Math.round((allIdeaRatings.reduce((s,r)=>s+r.rating,0)/allIdeaRatings.length)*100)/100;
   const tier=tierFromRating(avg);
   await sb.from('recipes').update({avg_rating:avg,frequency_tier:tier}).eq('id',recipeId);
