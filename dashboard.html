@@ -528,13 +528,23 @@ async function confirmEatingOut(){
     closeModal();await loadWeekData();myRatingsThisWeek={};await loadMyRatingsThisWeek();await renderDashboard();
   }catch(err){showToast('Something went wrong. Please try again.','error');btn.textContent='Suggest meals';btn.disabled=false;}
 }
-const modalTitles={swap:{h:'Request a meal swap',p:'Tell Cameron which meal and why you want it changed.'},hibernate:{h:'Request hibernation',p:'Which meal should be rested? It will be hibernated for 2 months.'},new:{h:'Suggest a new meal',p:'What meal would you like to add? Briefly explain why.'}};
+const modalTitles={swap:{h:'Request a meal swap',p:'Pick the meal to remove, choose a replacement, and tell Cameron why.'},hibernate:{h:'Request hibernation',p:'Which meal should be rested? It will be hibernated for 2 months.'},new:{h:'Suggest a new meal',p:'What meal would you like to add? Briefly explain why.'}};
 function openModal(type){
   const t=modalTitles[type];const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-  const mealPickerHtml=(type==='hibernate'||type==='swap')&&currentMeals.length>0?`<div style="margin-bottom:12px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Meal</label><select id="modal-recipe-select" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— Pick a meal —</option>${currentMeals.filter(m=>!m.cooked).map(m=>`<option value="${m.recipe_id}">${m.recipes?.name_en||m.recipe_id}</option>`).join('')}</select></div>`:'';
+  const mealPickerHtml=(type==='hibernate'||type==='swap')&&currentMeals.length>0?`<div style="margin-bottom:12px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Remove this meal</label><select id="modal-recipe-select" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— Pick a meal to remove —</option>${currentMeals.filter(m=>!m.cooked).map(m=>`<option value="${m.recipe_id}">${m.recipes?.name_en||m.recipe_id}</option>`).join('')}</select></div>`:'';
+  const replaceMealHtml=type==='swap'?`<div style="margin-bottom:12px" id="replace-meal-wrap"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Replace with</label><select id="modal-replace-select" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— Loading meals... —</option></select></div>`:'';
   const newMealNameHtml=type==='new'?`<div style="margin-bottom:12px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Meal name</label><input type="text" id="modal-meal-name" placeholder="e.g. Butter Chicken, Fish Tacos..." style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='var(--clay)'" onblur="this.style.borderColor='var(--border)'"></div>`:'';
-  el.innerHTML=`<div class="modal"><h3>${t.h}</h3><p>${t.p}</p>${mealPickerHtml}${newMealNameHtml}<textarea id="modal-text" placeholder="${type==='new'?'Why would this be a good addition?':'Add your reason here...'}" rows="4"></textarea><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="submitRequest('${type}')">${type==='new'?'Suggest to Cameron':'Send to Cameron'}</button></div></div>`;
+  el.innerHTML=`<div class="modal"><h3>${t.h}</h3><p>${t.p}</p>${mealPickerHtml}${replaceMealHtml}${newMealNameHtml}<textarea id="modal-text" placeholder="${type==='new'?'Why would this be a good addition?':'Add your reason here...'}" rows="4"></textarea><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="submitRequest('${type}')">${type==='new'?'Suggest to Cameron':'Send to Cameron'}</button></div></div>`;
   document.body.appendChild(el);
+  if(type==='swap'){populateReplaceDropdown();}
+}
+async function populateReplaceDropdown(){
+  const currentRecipeIds=new Set(currentMeals.map(m=>m.recipe_id));
+  const{data,error}=await sb.from('recipes').select('id,name_en').eq('hibernated',false).order('name_en');
+  const select=document.getElementById('modal-replace-select');if(!select)return;
+  if(error||!data){select.innerHTML='<option value="">— Could not load meals —</option>';return;}
+  const available=data.filter(r=>!currentRecipeIds.has(r.id));
+  select.innerHTML=`<option value="">— Pick a replacement —</option>${available.map(r=>`<option value="${r.id}">${r.name_en}</option>`).join('')}`;
 }
 function closeModal(){const el=document.getElementById('modal-overlay');if(el)el.remove();}
 async function submitRequest(type){
