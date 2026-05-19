@@ -481,7 +481,7 @@ function tierFromRating(avg){for(const t of TIER_THRESHOLDS){if(avg>=t.min)retur
 const TIER_LABELS={weekly:'Weekly Favourite',regular:'Regular',occasional:'Occasional',rare:'Rare',hibernated:'Hibernated'};
 async function selectMealsForWeek(allRecipes,homeMealsNeeded){
   if(homeMealsNeeded<=0)return[];
-  const{data:allPlanMeals}=await sb.from('weekly_plan_meals').select('recipe_id,plan_id');
+  const{data:allPlanMeals}=await sb.from('weekly_plan_meals').select('recipe_id,plan_id').eq('is_dinner',false);
   const{data:allPlans}=await sb.from('weekly_plans').select('id,week_start');
   const planDateMap={};if(allPlans){for(const plan of allPlans)planDateMap[plan.id]=new Date(plan.week_start+'T12:00:00');}
   const lastSeenMap={};if(allPlanMeals){for(const row of allPlanMeals){const planDate=planDateMap[row.plan_id];if(!planDate)continue;if(!lastSeenMap[row.recipe_id]||planDate>lastSeenMap[row.recipe_id])lastSeenMap[row.recipe_id]=planDate;}}
