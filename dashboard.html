@@ -1078,7 +1078,7 @@ ${r.advance_prep_required&&r.advance_prep_description?'Note: '+r.advance_prep_de
 ${r.default_side_en?'Typically served with '+r.default_side_en+'.':''}
 Write 6-10 practical numbered steps. Be specific about heat levels, timing, and technique. Keep each step to 1-2 sentences. Australian home-style cooking — straightforward, no fancy techniques. End with a serving suggestion. Do not include any intro or outro text — just the numbered steps.`;
   try{
-    const response=await fetch('/.netlify/functions/claude',{method:'POST',body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+    const response=await fetch('https://claude-proxy.cameronjohnking.workers.dev',{method:'POST',body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
     const data=await response.json();const text=data.content?.find(b=>b.type==='text')?.text||'';if(!text)throw new Error('No steps returned. Raw: '+JSON.stringify(data));
     renderGeneratedSteps(recipeId,text);stepsBtn.disabled=false;stepsBtn.textContent='▲ Hide steps';
   }catch(err){stepsContainer.innerHTML=`<div style="font-size:0.85rem;color:#c44;padding:10px 0">Could not generate steps: ${err.message}</div>`;stepsContainer.dataset.loaded='true';stepsContainer.style.display='block';stepsBtn.disabled=false;stepsBtn.textContent='📋 Generate steps';}
