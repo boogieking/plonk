@@ -698,6 +698,23 @@ async function handleRequest(requestId,type,decision){
     await renderDashboard();
     return;
   }
+ if(type==='swap'&&decision==='approved'){
+    const{data:req}=await sb.from('requests').select('meta').eq('id',requestId).single();
+    if(req?.meta){
+      const{recipe_id,replace_recipe_id,meal_name,replace_meal_name}=req.meta;
+      if(recipe_id&&replace_recipe_id){
+        const planMeal=currentMeals.find(m=>m.recipe_id===recipe_id);
+        if(planMeal){await sb.from('weekly_plan_meals').delete().eq('id',planMeal.id);}
+        await sb.from('weekly_plan_meals').insert({plan_id:currentPlan.id,recipe_id:replace_recipe_id,cooked:false});
+        document.getElementById(`req-${requestId}`)?.remove();
+        const container=document.getElementById('requests-container');const countEl=document.getElementById('pending-count');
+        if(countEl&&container){const remaining=container.querySelectorAll('.request-item').length;countEl.textContent=remaining;if(remaining===0)container.innerHTML=`<div class="empty"><span class="empty-icon">📋</span>No pending requests from Sienna or Karen</div>`;}
+        await loadWeekData();await renderDashboard();
+        showToast(`Swap approved ✓ ${meal_name||'meal'} → ${replace_meal_name||'new meal'}`);
+        return;
+      }
+    }
+  }
   if(type==='hibernate'&&decision==='approved'){const{data:req}=await sb.from('requests').select('meta,reason').eq('id',requestId).single();const recipeId=req?.meta?.recipe_id;if(recipeId){await doHibernate(recipeId,8);return;}}
   if(type==='side_swap'&&decision==='approved'){const{data:req}=await sb.from('requests').select('meta').eq('id',requestId).single();if(req?.meta){const{recipe_id,new_side_en,new_side_es}=req.meta;await applySideSwap(recipe_id,new_side_en,new_side_es||'');return;}}
   if(type==='new'&&decision==='approved'){
