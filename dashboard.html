@@ -1038,15 +1038,7 @@ async function openRecipeDetail(recipeId){
       <div class="recipe-modal-header">
         <div class="recipe-modal-title">${r.name_en}</div>
         ${r.name_es?`<div class="recipe-modal-title-es">${r.name_es}</div>`:''}
-        <div class="recipe-modal-meta">
-          <span class="tier-badge tier-${tier}${r.frequency_override?' tier-locked':''}">${TIER_LABELS[tier]||tier}</span>
-          <span class="stars-display">${stars}</span>
-          ${time>0?`<span class="tag tag-gray">⏱ ${time} min total</span>`:''}
-          ${r.same_day_cookable?`<span class="tag tag-green">Same-day ✓</span>`:`<span class="tag tag-amber">Prep ahead</span>`}
-          ${hasSavedSteps?`<span class="steps-saved-badge">📋 Steps saved</span>`:''}
-        </div>
-     async function assignDinnersForPlan(planId,lunchMeals){
-  // Remove any existing dinners for this plan first
+          // Remove any existing dinners for this plan first
   await sb.from('weekly_plan_meals').delete().eq('plan_id',planId).eq('is_dinner',true);
   if(!lunchMeals||lunchMeals.length===0)return;
   const lunchRecipeIds=lunchMeals.map(m=>m.recipe_id);
@@ -1221,6 +1213,14 @@ async function saveRecipeSteps(recipeId){
   const stepsBtn=document.getElementById(`steps-btn-${recipeId}`);if(stepsBtn)stepsBtn.textContent='▲ Hide steps';
   if(currentView==='recipes'){const total=allRecipesCache?.length||0;const withSteps=allRecipesCache?.filter(r=>r.steps&&r.steps.trim()).length||0;const pct=total>0?Math.round((withSteps/total)*100):0;const fill=document.querySelector('.steps-progress-fill');const count=document.querySelector('.steps-progress-count');if(fill)fill.style.width=pct+'%';if(count)count.textContent=`${withSteps} of ${total}`;}
 }
+  <div class="recipe-modal-meta">
+          <span class="tier-badge tier-${tier}${r.frequency_override?' tier-locked':''}">${TIER_LABELS[tier]||tier}</span>
+          <span class="stars-display">${stars}</span>
+          ${time>0?`<span class="tag tag-gray">⏱ ${time} min total</span>`:''}
+          ${r.same_day_cookable?`<span class="tag tag-green">Same-day ✓</span>`:`<span class="tag tag-amber">Prep ahead</span>`}
+          ${hasSavedSteps?`<span class="steps-saved-badge">📋 Steps saved</span>`:''}
+        </div>
+     async function assignDinnersForPlan
 init();
 </script>
 </body>
