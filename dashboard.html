@@ -1059,6 +1059,23 @@ async function openRecipeDetail(recipeId){
   if(toInsert.length>0)await sb.from('weekly_plan_meals').insert(toInsert);
 }
 
+async function assignDinnersForPlan(planId,lunchMeals){
+  await sb.from('weekly_plan_meals').delete().eq('plan_id',planId).eq('is_dinner',true);
+  if(!lunchMeals||lunchMeals.length===0)return;
+  const lunchRecipeIds=lunchMeals.map(m=>m.recipe_id);
+  const{data:pairings}=await sb.from('dinner_pairings').select('lunch_recipe_id,dinner_recipe_id').in('lunch_recipe_id',lunchRecipeIds);
+  if(!pairings||pairings.length===0)return;
+  const pairingMap={};
+  for(const p of pairings){if(!pairingMap[p.lunch_recipe_id])pairingMap[p.lunch_recipe_id]=[];pairingMap[p.lunch_recipe_id].push(p.dinner_recipe_id);}
+  const toInsert=[];
+  for(const lunchMeal of lunchMeals){
+    const options=pairingMap[lunchMeal.recipe_id]||[];
+    if(options.length===0)continue;
+    const picked=options[Math.floor(Math.random()*options.length)];
+    toInsert.push({plan_id:planId,recipe_id:picked,lunch_recipe_id:lunchMeal.recipe_id,is_dinner:true,cooked:false});
+  }
+  if(toInsert.length>0)await sb.from('weekly_plan_meals').insert(toInsert);
+}
 function renderDinnerList(){
   if(!currentDinners||currentDinners.length===0)return'<div class="empty"><span class="empty-icon">🌙</span>No dinners assigned yet</div>';
   return currentDinners.map(d=>mealRowSiennaDinner(d)).join('');
@@ -1213,92 +1230,9 @@ async function saveRecipeSteps(recipeId){
   const stepsBtn=document.getElementById(`steps-btn-${recipeId}`);if(stepsBtn)stepsBtn.textContent='▲ Hide steps';
   if(currentView==='recipes'){const total=allRecipesCache?.length||0;const withSteps=allRecipesCache?.filter(r=>r.steps&&r.steps.trim()).length||0;const pct=total>0?Math.round((withSteps/total)*100):0;const fill=document.querySelector('.steps-progress-fill');const count=document.querySelector('.steps-progress-count');if(fill)fill.style.width=pct+'%';if(count)count.textContent=`${withSteps} of ${total}`;}
 }
-  <div class="recipe-modal-meta">
-          <span class="tier-badge tier-${tier}${r.frequency_override?' tier-locked':''}">${TIER_LABELS[tier]||tier}</span>
-          <span class="stars-display">${stars}</span>
-          ${time>0?`<span class="tag tag-gray">⏱ ${time} min total</span>`:''}
-          ${r.same_day_cookable?`<span class="tag tag-green">Same-day ✓</span>`:`<span class="tag tag-amber">Prep ahead</span>`}
-          ${hasSavedSteps?`<span class="steps-saved-badge">📋 Steps saved</span>`:''}
-       </div>
-      </div>
-      <div class="recipe-modal-body">
-        ${prepSection}${sideSection}
-        ${ingredients.length>0?`<div class="modal-section-label">Ingredients</div>${ingredientHtml}`:'<div style="font-size:0.85rem;color:var(--mid)">No ingredients loaded yet</div>'}
-        <div id="steps-container-${r.id}" style="display:none"></div>
-      </div>
-      <div class="recipe-modal-footer">
-        ${adminFooterBtns}
-        <button id="steps-btn-${r.id}" class="btn-secondary" onclick="handleStepsBtn('${r.id}')">${stepsBtnLabel}</button>
-        <button class="btn-primary" onclick="safeCloseRecipeDetail('${r.id}')">Done</button>
-      </div>
-    </div>
-  </div>\`);
+  </div>`);  
 }
-async function assignDinnersForPlan(planId,lunchMeals){
-  await sb.from('weekly_plan_meals').delete().eq('plan_id',planId).eq('is_dinner',true);
-  if(!lunchMeals||lunchMeals.length===0)return;
-  const lunchRecipeIds=lunchMeals.map(m=>m.recipe_id);
-  const{data:pairings}=await sb.from('dinner_pairings').select('lunch_recipe_id,dinner_recipe_id').in('lunch_recipe_id',lunchRecipeIds);
-  if(!pairings||pairings.length===0)return;
-  const pairingMap={};
-  for(const p of pairings){if(!pairingMap[p.lunch_recipe_id])pairingMap[p.lunch_recipe_id]=[];pairingMap[p.lunch_recipe_id].push(p.dinner_recipe_id);}
-  const toInsert=[];
-  for(const lunchMeal of lunchMeals){
-    const options=pairingMap[lunchMeal.recipe_id]||[];
-    if(options.length===0)continue;
-    const picked=options[Math.floor(Math.random()*options.length)];
-    toInsert.push({plan_id:planId,recipe_id:picked,lunch_recipe_id:lunchMeal.recipe_id,is_dinner:true,cooked:false});
-  }
-  if(toInsert.length>0)await sb.from('weekly_plan_meals').insert(toInsert);
-}
-function renderDinnerList(){
-  if(!currentDinners||currentDinners.length===0)return'<div class="empty"><span class="empty-icon">🌙</span>No dinners assigned yet</div>';
-  return currentDinners.map(d=>mealRowSiennaDinner(d)).join('');
-}
-function mealRowSiennaDinner(m){
-  if(!m)return'';const r=m.recipes||m;
-  const isCooked=m.cooked===true;
-  const ratingWindowOpen=isCooked&&isWithin24Hours(m.cooked_at);
-  const myRating=myRatingsThisWeek[r.id];
-  const avgStr=r.avg_rating?' · ⭐ '+Number(r.avg_rating).toFixed(1):'';
-  const ratingHtml=ratingWindowOpen&&!myRating?ratingPromptHTML(r.id):'';
-  const ratedHtml=myRating?`<div class="rating-submitted">Your rating: ${'★'.repeat(myRating)}${'☆'.repeat(5-myRating)}</div>`:'';
-  const actionHtml=!isCooked?`<button class="btn-secondary" style="font-size:0.75rem;padding:4px 10px" onclick="markDinnerCooked('${r.id}','${m.id}')">✓ Cooked</button>`:'<span class="tag tag-green">Cooked ✓</span>';
-  const swapBtn=!isCooked?`<button class="btn-secondary" style="font-size:0.72rem;padding:4px 10px" onclick="openDinnerSwapModal('${m.id}','${m.lunch_recipe_id}','${r.id}')">⇄ Swap</button>`:'';
-  const pairedLunch=currentMeals.find(lm=>lm.recipe_id===m.lunch_recipe_id);
-  const pairedLabel=pairedLunch?.recipes?.name_en?`<span style="font-size:0.72rem;color:var(--mid)">paired with ${pairedLunch.recipes.name_en}</span>`:'';
-  return`<div class="meal-item ${isCooked?'cooked':''}"><div style="flex:1"><div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">🌙 ${r.name_en}</div><div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${r.prep_time_minutes||'—'} min prep${avgStr} ${pairedLabel}</div>${ratingHtml}${ratedHtml}</div><div class="meal-actions" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${actionHtml}${swapBtn}</div></div>`;
-}
-async function markDinnerCooked(recipeId,planMealId){
-  const cookedAt=new Date().toISOString();
-  const{error}=await sb.from('weekly_plan_meals').update({cooked:true,cooked_at:cookedAt}).eq('id',planMealId);
-  if(error){showToast('Error marking as cooked: '+error.message,'error');return;}
-  const d=currentDinners.find(m=>m.id===planMealId);if(d){d.cooked=true;d.cooked_at=cookedAt;}
-  showToast('Dinner marked as cooked ✓ — rate it below!');await renderDashboard();
-}
-async function openDinnerSwapModal(planMealId,lunchRecipeId,currentDinnerRecipeId){
-  const{data:pairings}=await sb.from('dinner_pairings').select('dinner_recipe_id').eq('lunch_recipe_id',lunchRecipeId);
-  if(!pairings||pairings.length===0){showToast('No dinner options found for this lunch','error');return;}
-  const dinnerIds=pairings.map(p=>p.dinner_recipe_id);
-  const{data:dinnerRecipes}=await sb.from('recipes').select('id,name_en').in('id',dinnerIds);
-  if(!dinnerRecipes){showToast('Could not load options','error');return;}
-  const options=dinnerRecipes.filter(r=>r.id!==currentDinnerRecipeId);
-  if(options.length===0){showToast('No other options available for this pairing','error');return;}
-  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-  el.innerHTML=`<div class="modal" style="max-width:400px"><h3>Swap this dinner</h3><p>Pick a different option from the paired choices for this lunch.</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">${options.map(r=>`<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem" onclick="swapDinner('${planMealId}','${r.id}')">🌙 ${r.name_en}</button>`).join('')}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
-  document.body.appendChild(el);
-}
-async function swapDinner(planMealId,newDinnerRecipeId){
-  const{error}=await sb.from('weekly_plan_meals').update({recipe_id:newDinnerRecipeId}).eq('id',planMealId);
-  if(error){showToast('Error swapping dinner: '+error.message,'error');return;}
-  closeModal();showToast('Dinner swapped ✓');await loadWeekData();await renderDashboard();
-}
-async function reshuffleDinners(){
-  if(!currentPlan||!currentMeals.length){showToast('No active plan','error');return;}
-  await assignDinnersForPlan(currentPlan.id,currentMeals);
-  await loadWeekData();await renderDashboard();
-  showToast('Dinners reshuffled ✓');
-}
+
 init();
 </script>
 </body>
