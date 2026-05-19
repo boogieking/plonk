@@ -750,6 +750,7 @@ function renderSienna(recipes,name){
       <div class="card-header"><div class="card-title">Meal pool</div>${hasPlan?`<span class="tag tag-green">${mealCount} meals</span>`:''}</div>
       ${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowSienna(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>${hasPlan?'No meals in plan yet':'No plan yet this week'}</div>`}
     </div>
+   ${userProfile.role==='planner'&&currentPlan?.status==='approved'?`<div class="section-label">Dinners this week</div><div class="card" style="margin-bottom:20px" id="dinner-section"><div class="card-header"><div class="card-title">Tonight's options</div><button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all dinners</button></div><div id="dinner-list">${renderDinnerList()}</div></div>`:''}
     <div class="section-label">Request from Cameron</div>
     <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Requests</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0"><button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button><button class="btn-secondary" onclick="openModal('hibernate')">😴 Request hibernation</button><button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button></div></div>
     ${pendingIdeaRatings.length>0?`<div class="section-label">Idea ratings needed</div>${renderPendingIdeaRatingCards()}`:''}
