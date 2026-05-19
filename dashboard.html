@@ -345,7 +345,7 @@ async function loadWeekData(){
     currentDinners=dinnerData||[];
   }
 }
-async function loadRecipes(){const{data}=await sb.from('recipes').select('*').order('name_en');return data||[];}
+async function loadRecipes(){const{data}=await sb.from('recipes').select('*').eq('is_dinner',false).order('name_en');return data||[];}
 async function renderDashboard(){
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
   await loadKarenAdditions();await loadPendingIdeaRatings();
