@@ -339,13 +339,13 @@ async function loadWeekData(){
   const{data:planData}=await sb.from('weekly_plans').select('*').neq('status','archived').order('created_at',{ascending:false}).limit(1).maybeSingle();
   currentPlan=planData||null;currentMeals=[];currentDinners=[];
   if(currentPlan){
-    const{data:mealData}=await sb.from('weekly_plan_meals').select('*, recipes(id,name_en,name_es,prep_time_minutes,cook_time_minutes,advance_prep_required,advance_prep_description,same_day_cookable,avg_rating,default_side_en,default_side_es,frequency_tier,frequency_override)').eq('plan_id',currentPlan.id).eq('is_dinner',false);
+    const{data:mealData}=await sb.from('weekly_plan_meals').select('*, recipes(id,name_en,name_es,prep_time_minutes,cook_time_minutes,advance_prep_required,advance_prep_description,same_day_cookable,avg_rating,default_side_en,default_side_es,frequency_tier,frequency_override)').eq('plan_id',currentPlan.id).neq('is_dinner',true);
     currentMeals=mealData||[];
     const{data:dinnerData}=await sb.from('weekly_plan_meals').select('*, recipes(id,name_en,name_es,prep_time_minutes,cook_time_minutes,advance_prep_required,advance_prep_description,same_day_cookable,avg_rating,default_side_en,default_side_es,frequency_tier,frequency_override)').eq('plan_id',currentPlan.id).eq('is_dinner',true);
     currentDinners=dinnerData||[];
   }
 }
-async function loadRecipes(){const{data}=await sb.from('recipes').select('*').eq('is_dinner',false).order('name_en');return data||[];}
+async function loadRecipes(){const{data}=await sb.from('recipes').select('*').order('name_en');return data||[];}
 async function renderDashboard(){
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
   await loadKarenAdditions();await loadPendingIdeaRatings();
@@ -481,20 +481,16 @@ function tierFromRating(avg){for(const t of TIER_THRESHOLDS){if(avg>=t.min)retur
 const TIER_LABELS={weekly:'Weekly Favourite',regular:'Regular',occasional:'Occasional',rare:'Rare',hibernated:'Hibernated'};
 async function selectMealsForWeek(allRecipes,homeMealsNeeded){
   if(homeMealsNeeded<=0)return[];
-  const{data:allPlanMeals}=await sb.from('weekly_plan_meals').select('recipe_id,plan_id').eq('is_dinner',false);
+  const{data:allPlanMeals}=await sb.from('weekly_plan_meals').select('recipe_id,plan_id');
   const{data:allPlans}=await sb.from('weekly_plans').select('id,week_start');
   const planDateMap={};if(allPlans){for(const plan of allPlans)planDateMap[plan.id]=new Date(plan.week_start+'T12:00:00');}
   const lastSeenMap={};if(allPlanMeals){for(const row of allPlanMeals){const planDate=planDateMap[row.plan_id];if(!planDate)continue;if(!lastSeenMap[row.recipe_id]||planDate>lastSeenMap[row.recipe_id])lastSeenMap[row.recipe_id]=planDate;}}
   const now=new Date();
   function weeksAgo(date){return(now-date)/(1000*60*60*24*7);}
   function isEligible(recipe,intervalOverride){if(recipe.frequency_tier==='hibernated')return false;const interval=intervalOverride??TIER_INTERVALS[recipe.frequency_tier]??8;if(interval===Infinity)return false;const lastSeen=lastSeenMap[recipe.id];if(!lastSeen)return true;return weeksAgo(lastSeen)>=interval;}
-  console.log('[Plonk] selectMealsForWeek: allRecipes=',allRecipes.length,'homeMealsNeeded=',homeMealsNeeded,'lastSeenMap keys=',Object.keys(lastSeenMap).length);
   let eligible=allRecipes.filter(r=>isEligible(r));
-  console.log('[Plonk] eligible after tier filter:',eligible.length);
   if(eligible.length<homeMealsNeeded){for(const tier of TIER_ORDER){if(eligible.length>=homeMealsNeeded)break;const alreadyIn=new Set(eligible.map(r=>r.id));const extras=allRecipes.filter(r=>r.frequency_tier===tier&&!alreadyIn.has(r.id)&&isEligible(r,Math.max(1,Math.floor((TIER_INTERVALS[r.frequency_tier]||8)/2))));eligible=[...eligible,...extras];}}
-  console.log('[Plonk] eligible after half-interval fallback:',eligible.length);
   if(eligible.length<homeMealsNeeded){const alreadyIn=new Set(eligible.map(r=>r.id));eligible=[...eligible,...allRecipes.filter(r=>r.frequency_tier!=='hibernated'&&!alreadyIn.has(r.id))];}
-  console.log('[Plonk] eligible after final fallback:',eligible.length);
   return eligible.sort(()=>Math.random()-0.5).slice(0,homeMealsNeeded);
 }
 function showToast(msg,type='success'){const t=document.createElement('div');t.style.cssText=`position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:${type==='error'?'#c44':'#4A7C59'};color:white;padding:11px 22px;border-radius:999px;font-size:0.88rem;font-family:'DM Sans',sans-serif;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,0.18);z-index:9999;animation:fadeIn 0.3s ease;white-space:nowrap;`;t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
@@ -507,7 +503,7 @@ async function doReshuffle(btn){
     const beforeNames=currentMeals.map(m=>m.recipes?.name_en||'').filter(Boolean);
     const picked=await selectMealsForWeek(allRecipes,homeMeals);
     const{error:delError}=await sb.from('weekly_plan_meals').delete().eq('plan_id',currentPlan.id);if(delError)throw delError;
-    if(picked.length>0){const{error:insError}=await sb.from('weekly_plan_meals').insert(picked.map(r=>({plan_id:currentPlan.id,recipe_id:r.id,cooked:false})));if(insError)throw insError;}
+    if(picked.length>0){const{error:insError}=await sb.from('weekly_plan_meals').insert(picked.map(r=>({plan_id:currentPlan.id,recipe_id:r.id,cooked:false,is_dinner:false})));if(insError)throw insError;}
     const afterNames=picked.map(r=>r.name_en);
     const removed=beforeNames.filter(n=>!afterNames.includes(n));
     const added=afterNames.filter(n=>!beforeNames.includes(n));
@@ -528,19 +524,14 @@ function mealCountPreview(outCount){const home=Math.max(0,7-outCount);return`<sp
 function toggleDay(day,btn){if(selectedEatingOutDays.includes(day)){selectedEatingOutDays=selectedEatingOutDays.filter(d=>d!==day);btn.classList.remove('selected');}else{selectedEatingOutDays.push(day);btn.classList.add('selected');}document.getElementById('meal-count-preview').innerHTML=mealCountPreview(selectedEatingOutDays.length);}
 async function confirmEatingOut(){
   const btn=document.getElementById('confirm-eating-out');btn.textContent='Saving...';btn.disabled=true;
+  const homeMeals=Math.max(0,7-selectedEatingOutDays.length);const allRecipes=await loadRecipes();const picked=await selectMealsForWeek(allRecipes,homeMeals);
   try{
-    const homeMeals=Math.max(0,7-selectedEatingOutDays.length);
-    const allRecipes=await loadRecipes();
-    console.log('[Plonk] loadRecipes returned:',allRecipes.length,'recipes');
-    const picked=await selectMealsForWeek(allRecipes,homeMeals);
-    console.log('[Plonk] selectMealsForWeek picked:',picked.length,'meals for',homeMeals,'needed');
     await sb.from('weekly_plans').update({status:'archived'}).not('status','eq','archived');
     const{data:newPlan,error:planError}=await sb.from('weekly_plans').insert({week_start:getTodayDate(),eating_out_days:selectedEatingOutDays,status:'suggested',reshuffle_used:false}).select().single();if(planError)throw planError;
     currentPlan=newPlan;
-    if(picked.length>0){const{error:mealsError}=await sb.from('weekly_plan_meals').insert(picked.map(r=>({plan_id:currentPlan.id,recipe_id:r.id,cooked:false})));if(mealsError)throw mealsError;}
-    else{console.warn('[Plonk] picked was empty — no meals inserted. allRecipes:',allRecipes.length,'homeMeals:',homeMeals);}
+    if(picked.length>0){const{error:mealsError}=await sb.from('weekly_plan_meals').insert(picked.map(r=>({plan_id:currentPlan.id,recipe_id:r.id,cooked:false,is_dinner:false})));if(mealsError)throw mealsError;}
     closeModal();await loadWeekData();myRatingsThisWeek={};await loadMyRatingsThisWeek();await renderDashboard();
-  }catch(err){console.error('[Plonk] confirmEatingOut error:',err);showToast('Error: '+err.message,'error');btn.textContent='Suggest meals';btn.disabled=false;}
+  }catch(err){showToast('Something went wrong. Please try again.','error');btn.textContent='Suggest meals';btn.disabled=false;}
 }
 const modalTitles={swap:{h:'Request a meal swap',p:'Pick the meal to remove, choose a replacement, and tell Cameron why.'},hibernate:{h:'Request hibernation',p:'Which meal should be rested? It will be hibernated for 2 months.'},new:{h:'Suggest a new meal',p:'What meal would you like to add? Briefly explain why.'}};
 function openModal(type){
@@ -605,7 +596,7 @@ async function recalculateRecipeRating(recipeId){
 }
 let pendingIdeaRatings=[];
 async function loadPendingIdeaRatings(){
-  const{data:recipes}=await sb.from('recipes').select('id,name_en').is('avg_rating',null).eq('hibernated',false).eq('is_dinner',false);
+  const{data:recipes}=await sb.from('recipes').select('id,name_en').is('avg_rating',null).eq('hibernated',false);
   if(!recipes||recipes.length===0){pendingIdeaRatings=[];return;}
   const recipeIds=recipes.map(r=>r.id);
   const{data:myRatings}=await sb.from('ratings').select('recipe_id').eq('user_id',userProfile.id).eq('rating_type','idea').in('recipe_id',recipeIds);
