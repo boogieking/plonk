@@ -1137,8 +1137,6 @@ async function saveRecipeSteps(recipeId){
   const stepsBtn=document.getElementById(`steps-btn-${recipeId}`);if(stepsBtn)stepsBtn.textContent='▲ Hide steps';
   if(currentView==='recipes'){const total=allRecipesCache?.length||0;const withSteps=allRecipesCache?.filter(r=>r.steps&&r.steps.trim()).length||0;const pct=total>0?Math.round((withSteps/total)*100):0;const fill=document.querySelector('.steps-progress-fill');const count=document.querySelector('.steps-progress-count');if(fill)fill.style.width=pct+'%';if(count)count.textContent=`${withSteps} of ${total}`;}
 }
-  </div>`);  
-}
 
 init();
 </script>
