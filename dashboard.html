@@ -1038,26 +1038,7 @@ async function openRecipeDetail(recipeId){
       <div class="recipe-modal-header">
         <div class="recipe-modal-title">${r.name_en}</div>
         ${r.name_es?`<div class="recipe-modal-title-es">${r.name_es}</div>`:''}
-          // Remove any existing dinners for this plan first
-  await sb.from('weekly_plan_meals').delete().eq('plan_id',planId).eq('is_dinner',true);
-  if(!lunchMeals||lunchMeals.length===0)return;
-  const lunchRecipeIds=lunchMeals.map(m=>m.recipe_id);
-  // Load all pairings for these lunches
-  const{data:pairings}=await sb.from('dinner_pairings').select('lunch_recipe_id,dinner_recipe_id').in('lunch_recipe_id',lunchRecipeIds);
-  if(!pairings||pairings.length===0)return;
-  // Group pairings by lunch
-  const pairingMap={};
-  for(const p of pairings){if(!pairingMap[p.lunch_recipe_id])pairingMap[p.lunch_recipe_id]=[];pairingMap[p.lunch_recipe_id].push(p.dinner_recipe_id);}
-  // Pick one random dinner per lunch
-  const toInsert=[];
-  for(const lunchMeal of lunchMeals){
-    const options=pairingMap[lunchMeal.recipe_id]||[];
-    if(options.length===0)continue;
-    const picked=options[Math.floor(Math.random()*options.length)];
-    toInsert.push({plan_id:planId,recipe_id:picked,lunch_recipe_id:lunchMeal.recipe_id,is_dinner:true,cooked:false});
-  }
-  if(toInsert.length>0)await sb.from('weekly_plan_meals').insert(toInsert);
-}
+        
 
 async function assignDinnersForPlan(planId,lunchMeals){
   await sb.from('weekly_plan_meals').delete().eq('plan_id',planId).eq('is_dinner',true);
