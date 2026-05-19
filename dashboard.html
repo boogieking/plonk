@@ -774,7 +774,7 @@ function mealRowSienna(m){
 }
 async function approvePlanAsAdmin(btn){
   if(!currentPlan)return;btn.disabled=true;btn.textContent='Approving...';
-  try{const{error}=await sb.from('weekly_plans').update({status:'approved'}).eq('id',currentPlan.id);if(error)throw error;currentPlan.status='approved';showToast('Plan approved ✓ Inventory check unlocked');await sb.from('requests').insert({request_type:'week_finalised',reason:"This week's meal plan has been finalised by Cameron.",requested_by:userProfile.id,status:'info',created_at:new Date().toISOString()});const advancePrepMeals=currentMeals.filter(m=>m.recipes?.advance_prep_required&&!m.cooked);if(advancePrepMeals.length>0)await sendEmail('prep_reminder_weekly');await sendEmail('plan_approved');await renderDashboard();}
+ try{const{error}=await sb.from('weekly_plans').update({status:'approved'}).eq('id',currentPlan.id);if(error)throw error;currentPlan.status='approved';await assignDinnersForPlan(currentPlan.id,currentMeals);showToast('Plan approved ✓ Inventory check unlocked');await sb.from('requests').insert({request_type:'week_finalised',reason:"This week's meal plan has been finalised by Cameron.",requested_by:userProfile.id,status:'info',created_at:new Date().toISOString()});const advancePrepMeals=currentMeals.filter(m=>m.recipes?.advance_prep_required&&!m.cooked);if(advancePrepMeals.length>0)await sendEmail('prep_reminder_weekly');await sendEmail('plan_approved');await loadWeekData();await renderDashboard();}
   catch(err){btn.disabled=false;btn.textContent='✓ Approve plan';showToast('Error: '+err.message,'error');}
 }
 async function submitPlan(btn){
