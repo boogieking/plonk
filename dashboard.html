@@ -339,9 +339,9 @@ async function loadWeekData(){
   const{data:planData}=await sb.from('weekly_plans').select('*').neq('status','archived').order('created_at',{ascending:false}).limit(1).maybeSingle();
   currentPlan=planData||null;currentMeals=[];currentDinners=[];
   if(currentPlan){
-    const{data:mealData}=await sb.from('weekly_plan_meals').select('*, recipes(id,name_en,name_es,prep_time_minutes,cook_time_minutes,advance_prep_required,advance_prep_description,same_day_cookable,avg_rating,default_side_en,default_side_es,frequency_tier,frequency_override)').eq('plan_id',currentPlan.id).neq('is_dinner',true);
+    const{data:mealData}=await sb.from('weekly_plan_meals').select('*, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en,name_es,prep_time_minutes,cook_time_minutes,advance_prep_required,advance_prep_description,same_day_cookable,avg_rating,default_side_en,default_side_es,frequency_tier,frequency_override)').eq('plan_id',currentPlan.id).neq('is_dinner',true);
     currentMeals=mealData||[];
-    const{data:dinnerData}=await sb.from('weekly_plan_meals').select('*, recipes(id,name_en,name_es,prep_time_minutes,cook_time_minutes,advance_prep_required,advance_prep_description,same_day_cookable,avg_rating,default_side_en,default_side_es,frequency_tier,frequency_override)').eq('plan_id',currentPlan.id).eq('is_dinner',true);
+    const{data:dinnerData}=await sb.from('weekly_plan_meals').select('*, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en,name_es,prep_time_minutes,cook_time_minutes,advance_prep_required,advance_prep_description,same_day_cookable,avg_rating,default_side_en,default_side_es,frequency_tier,frequency_override)').eq('plan_id',currentPlan.id).eq('is_dinner',true);
     currentDinners=dinnerData||[];
   }
 }
