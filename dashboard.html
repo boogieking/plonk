@@ -694,13 +694,14 @@ async function handleRequest(requestId,type,decision){
       if(currentPlan.status==='approved'){showToast('Plan is already approved');await renderDashboard();return;}
       await sb.from('weekly_plans').update({status:'approved'}).eq('id',currentPlan.id);
       currentPlan.status='approved';
+      await assignDinnersForPlan(currentPlan.id,currentMeals);
     }
     await sb.from('requests').insert({request_type:'week_finalised',reason:"This week's meal plan has been finalised by Cameron.",requested_by:userProfile.id,status:'info',created_at:new Date().toISOString()});
     await sendEmail('plan_approved');
     const advancePrepMeals=currentMeals.filter(m=>m.recipes?.advance_prep_required&&!m.cooked);
     if(advancePrepMeals.length>0)await sendEmail('prep_reminder_weekly');
     showToast('Plan approved ✓ Inventory check unlocked');
-    await renderDashboard();
+    await loadWeekData();await renderDashboard();
     return;
   }
  if(type==='swap'&&decision==='approved'){
