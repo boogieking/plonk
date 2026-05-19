@@ -551,7 +551,7 @@ async function submitRequest(type){
   const text=document.getElementById('modal-text').value.trim();if(!text){showToast('Please add a reason before sending.','error');return;}
   let meta=null;
   if(type==='hibernate'){const recipeId=document.getElementById('modal-recipe-select')?.value;if(!recipeId){showToast('Please pick a meal to hibernate.','error');return;}meta={recipe_id:recipeId};}
-  if(type==='swap'){const recipeId=document.getElementById('modal-recipe-select')?.value;if(!recipeId){showToast('Please pick the meal you want swapped.','error');return;}const meal=currentMeals.find(m=>m.recipe_id===recipeId);meta={recipe_id:recipeId,meal_name:meal?.recipes?.name_en||recipeId};}
+ if(type==='swap'){const recipeId=document.getElementById('modal-recipe-select')?.value;if(!recipeId){showToast('Please pick the meal you want removed.','error');return;}const replaceId=document.getElementById('modal-replace-select')?.value;if(!replaceId){showToast('Please pick a replacement meal.','error');return;}const meal=currentMeals.find(m=>m.recipe_id===recipeId);const{data:replaceRecipe}=await sb.from('recipes').select('name_en').eq('id',replaceId).single();meta={recipe_id:recipeId,meal_name:meal?.recipes?.name_en||recipeId,replace_recipe_id:replaceId,replace_meal_name:replaceRecipe?.name_en||replaceId};}
   if(type==='new'){const mealName=document.getElementById('modal-meal-name')?.value.trim();if(!mealName){showToast('Please enter the meal name.','error');return;}meta={name_en:mealName};}
   const{error}=await sb.from('requests').insert({request_type:type,reason:text,requested_by:userProfile.id,status:'pending',meta:meta,created_at:new Date().toISOString()});
   if(error)showToast('Error sending request: '+error.message,'error');
