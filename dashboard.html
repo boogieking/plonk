@@ -442,7 +442,7 @@ async function loadInventory(){
   if(!currentPlan)return;inventoryState=currentPlan.inventory||{};
   const{data:planMeals,error:pmError}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id);
   if(pmError||!planMeals||planMeals.length===0){document.getElementById('inv-list').innerHTML='<div class="empty">No meals in this plan</div>';return;}
-  const recipeIds=planMeals.map(m=>m.recipe_id);
+  const recipeIds=[...new Set([...planMeals.map(m=>m.recipe_id),...currentDinners.map(m=>m.recipe_id)])];
   const{data,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category').in('recipe_id',recipeIds);
   if(error||!data){document.getElementById('inv-list').innerHTML='<div class="empty">Could not load ingredients</div>';return;}
   const seenByName={};inventoryItems=[];
