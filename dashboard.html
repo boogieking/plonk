@@ -1038,6 +1038,14 @@ async function openRecipeDetail(recipeId){
       <div class="recipe-modal-header">
         <div class="recipe-modal-title">${r.name_en}</div>
         ${r.name_es?`<div class="recipe-modal-title-es">${r.name_es}</div>`:''}
+        <div class="recipe-modal-meta">
+          <span class="stars-display">${stars}</span>
+          <span class="tag tag-${tier}">${TIER_LABELS[tier]||tier}</span>
+          ${time>0?`<span class="recipe-meta-item">⏱ ${time} min total</span>`:''}
+          ${r.advance_prep_required?`<span class="tag tag-amber">⏰ Advance prep</span>`:''}
+          ${hasSavedSteps?`<span class="steps-saved-badge">📋 Steps saved</span>`:''}
+        </div>
+      </div>
       <div class="recipe-modal-body">
         ${prepSection}${sideSection}
         ${ingredients.length>0?`<div class="modal-section-label">Ingredients</div>${ingredientHtml}`:'<div style="font-size:0.85rem;color:var(--mid)">No ingredients loaded yet</div>'}
