@@ -337,8 +337,13 @@ function planDateLabel(plan){if(!plan)return'';const d=new Date(plan.week_start+
 function getTodayDate(){const now=new Date();return`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;}
 async function loadWeekData(){
   const{data:planData}=await sb.from('weekly_plans').select('*').neq('status','archived').order('created_at',{ascending:false}).limit(1).maybeSingle();
-  currentPlan=planData||null;currentMeals=[];
-  if(currentPlan){const{data:mealData}=await sb.from('weekly_plan_meals').select('*, recipes(id,name_en,name_es,prep_time_minutes,cook_time_minutes,advance_prep_required,advance_prep_description,same_day_cookable,avg_rating,default_side_en,default_side_es,frequency_tier,frequency_override)').eq('plan_id',currentPlan.id);currentMeals=mealData||[];}
+  currentPlan=planData||null;currentMeals=[];currentDinners=[];
+  if(currentPlan){
+    const{data:mealData}=await sb.from('weekly_plan_meals').select('*, recipes(id,name_en,name_es,prep_time_minutes,cook_time_minutes,advance_prep_required,advance_prep_description,same_day_cookable,avg_rating,default_side_en,default_side_es,frequency_tier,frequency_override)').eq('plan_id',currentPlan.id).eq('is_dinner',false);
+    currentMeals=mealData||[];
+    const{data:dinnerData}=await sb.from('weekly_plan_meals').select('*, recipes(id,name_en,name_es,prep_time_minutes,cook_time_minutes,advance_prep_required,advance_prep_description,same_day_cookable,avg_rating,default_side_en,default_side_es,frequency_tier,frequency_override)').eq('plan_id',currentPlan.id).eq('is_dinner',true);
+    currentDinners=dinnerData||[];
+  }
 }
 async function loadRecipes(){const{data}=await sb.from('recipes').select('*').order('name_en');return data||[];}
 async function renderDashboard(){
