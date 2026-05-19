@@ -426,7 +426,7 @@ function mealRowAdmin(m){
   const myRating=myRatingsThisWeek[r.id];
   const avgStr=r.avg_rating?' · ⭐ '+Number(r.avg_rating).toFixed(1):'';
   const ratingHtml=ratingWindowOpen&&!myRating?ratingPromptHTML(r.id):'';
-  const ratedHtml=myRating?`<div class="rating-submitted">Your rating: ${'★'.repeat(myRating)}${'☆'.repeat(5-myRating)}</div>`:'';
+  const ratedHtml=myRating?('<div class="rating-submitted">Your rating: '+'★'.repeat(myRating)+'☆'.repeat(5-myRating)+'</div>'):'';
   const scheduledLabel=planMeal.assigned_day?`<span class="scheduled-tag">📅 ${dateToDayName(planMeal.assigned_day)}${planMeal.target_eat_time?' · eat '+planMeal.target_eat_time:''}${planMeal.prep_start_time?' · prep '+planMeal.prep_start_time:''}</span>`:`<button class="schedule-btn" onclick="openScheduleModal('${r.id}')">📅 Schedule</button>`;
   const advPrepTag=r.advance_prep_required?`<span class="tag tag-amber" style="font-size:0.65rem;padding:2px 7px">⏰ Advance prep</span>`:'';
   const tierKey=r.frequency_tier||'regular';const isLocked=r.frequency_override===true;
@@ -576,7 +576,7 @@ async function submitRating(recipeId){
     const{count:totalCookCount}=await sb.from('ratings').select('id',{count:'exact',head:true}).eq('recipe_id',recipeId).eq('rating_type','cook');
     const{error:rateError}=await sb.from('ratings').insert({recipe_id:recipeId,user_id:userProfile.id,rating:val,rating_type:'cook',cook_number:(totalCookCount||0)+1,created_at:new Date().toISOString()});if(rateError)throw rateError;
     myRatingsThisWeek[recipeId]=val;await recalculateRecipeRating(recipeId);
-    const prompt=document.getElementById(`rating-prompt-${recipeId}`);if(prompt)prompt.outerHTML=`<div class="rating-submitted">Your rating: ${'★'.repeat(val)}${'☆'.repeat(5-val)} — saved ✓</div>`;
+    const prompt=document.getElementById(`rating-prompt-${recipeId}`);if(prompt)prompt.outerHTML=('<div class="rating-submitted">Your rating: '+'★'.repeat(val)+'☆'.repeat(5-val)+' — saved ✓</div>');
     showToast('Rating saved ✓');
   }catch(err){showToast('Error saving rating: '+err.message,'error');if(submitBtn){submitBtn.disabled=false;submitBtn.textContent='Submit';}}
 }
@@ -768,7 +768,7 @@ function mealRowSienna(m){
   const isCooked=planMeal.cooked===true;const ratingWindowOpen=isCooked&&isWithin24Hours(planMeal.cooked_at);
   const myRating=myRatingsThisWeek[r.id];const avgStr=r.avg_rating?' · ⭐ '+Number(r.avg_rating).toFixed(1):'';
   const ratingHtml=ratingWindowOpen&&!myRating?ratingPromptHTML(r.id):'';
-  const ratedHtml=myRating?`<div class="rating-submitted">Your rating: ${'★'.repeat(myRating)}${'☆'.repeat(5-myRating)}</div>`:'';
+  const ratedHtml=myRating?('<div class="rating-submitted">Your rating: '+'★'.repeat(myRating)+'☆'.repeat(5-myRating)+'</div>'):'';
   const actionHtml=!isCooked?cookedBtn(r.id,planMeal.id,true):'<span class="tag tag-green">Cooked ✓</span>';
   const scheduledLabel=planMeal.assigned_day?`<span class="scheduled-tag">📅 ${dateToDayName(planMeal.assigned_day)}${planMeal.target_eat_time?' · eat '+planMeal.target_eat_time:''}${planMeal.prep_start_time?' · prep '+planMeal.prep_start_time:''}</span>`:`<button class="schedule-btn" onclick="openScheduleModal('${r.id}')">📅 Schedule</button>`;
   const advPrepTag=r.advance_prep_required?`<span class="tag tag-amber" style="font-size:0.65rem;padding:2px 7px">⏰ Advance prep</span>`:'';
@@ -821,7 +821,7 @@ function mealRowKaren(m){
   const isCooked=planMeal.cooked===true;const ratingWindowOpen=isCooked&&isWithin24Hours(planMeal.cooked_at);
   const myRating=myRatingsThisWeek[r.id];const avgStr=r.avg_rating?' · ⭐ '+Number(r.avg_rating).toFixed(1):'';
   const ratingHtml=ratingWindowOpen&&!myRating?ratingPromptHTML(r.id):'';
-  const ratedHtml=myRating?`<div class="rating-submitted">Your rating: ${'★'.repeat(myRating)}${'☆'.repeat(5-myRating)}</div>`:'';
+  const ratedHtml=myRating?('<div class="rating-submitted">Your rating: '+'★'.repeat(myRating)+'☆'.repeat(5-myRating)+'</div>'):'';
   const actionHtml=!isCooked?cookedBtn(r.id,planMeal.id,true):'<span class="tag tag-green">Cooked ✓</span>';
   return`<div class="meal-item ${isCooked?'cooked':''}"><div style="flex:1"><div class="meal-name">${r.name_en}</div><div class="meal-meta">${r.prep_time_minutes||'—'} min prep${avgStr}</div>${r.default_side_en?`<div class="meal-side">🍽 With: <span>${r.default_side_en}</span>${r.default_side_es?' · <em>'+r.default_side_es+'</em>':''}${!isCooked?`<button class="side-swap-btn" onclick="openSideSwapModal('${r.id}','${(r.default_side_en||'').replace(/'/g,"\\'")}')">⇄ Swap side</button>`:''}`:''}</div>${ratingHtml}${ratedHtml}</div><div class="meal-actions">${actionHtml}</div></div>`;
 }
