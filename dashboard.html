@@ -809,7 +809,7 @@ const{data:planIngs2}=await sb.from('ingredients').select('id').in('recipe_id',p
 const validIds2=new Set((planIngs2||[]).map(i=>String(i.id)));
 const needIds=Object.entries(currentPlan.inventory).filter(([id,s])=>s==='need'&&validIds2.has(id)).map(([id])=>id);
   if(needIds.length===0){el.innerHTML=`<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;return;}
-  try{const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();if(!deduped[key]||(!deduped[key].lacomer_url&&ing.lacomer_url))deduped[key]=ing;}const items=Object.values(deduped).sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
+  try{const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;const items=dedupeIngredients(ingredients);el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load preview: ${err.message}</div>`;}
 }
 function renderKaren(recipes,name){
@@ -850,13 +850,36 @@ async function loadKarenShoppingPreview(){
   const validIds2=new Set((planIngs2||[]).map(i=>String(i.id)));
   const needIds=Object.entries(currentPlan.inventory).filter(([id,s])=>s==='need'&&validIds2.has(id)).map(([id])=>id);
   if(needIds.length===0){el.innerHTML=`<div class="empty" style="color:var(--green)">✓ Everything is in stock!</div>`;return;}
-  try{const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();if(!deduped[key]||(!deduped[key].lacomer_url&&ing.lacomer_url))deduped[key]=ing;}const items=Object.values(deduped).sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
+  try{const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;const items=dedupeIngredients(ingredients);el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load list: ${err.message}</div>`;}
+}
+function dedupeIngredients(ingredients){
+  const map={};
+  for(const ing of ingredients){
+    const key=ing.name_en.toLowerCase();
+    if(!map[key]){
+      map[key]={...ing,_quantities:ing.quantity?[{qty:Number(ing.quantity),unit:ing.unit||null}]:[]};
+    } else {
+      if(ing.lacomer_url&&!map[key].lacomer_url)map[key].lacomer_url=ing.lacomer_url;
+      if(ing.quantity)map[key]._quantities.push({qty:Number(ing.quantity),unit:ing.unit||null});
+    }
+  }
+  for(const item of Object.values(map)){
+    const qs=item._quantities;
+    if(qs.length===0){item.quantity=null;item.unit=null;}
+    else {
+      const byUnit={};
+      for(const q of qs){const u=q.unit||'';if(!byUnit[u])byUnit[u]=0;byUnit[u]+=q.qty;}
+      const parts=Object.entries(byUnit).map(([u,total])=>u?`${total} ${u}`:`${total}`);
+      item._qtyDisplay=parts.join(' + ');
+    }
+  }
+  return Object.values(map).sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));
 }
 function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems){
   const UNITS=['g','kg','ml','L','units','pcs','tbsp','tsp'];
   const groups={};
-  for(const ing of mealItems){const cat=ing.lacomer_category||'Other';if(!groups[cat])groups[cat]=[];const qty=ing.quantity?`${ing.quantity}${ing.unit?' '+ing.unit:''}`:'' ;groups[cat].push({...ing,_type:'ingredient',_qtyStr:qty});}
+  for(const ing of mealItems){const cat=ing.lacomer_category||'Other';if(!groups[cat])groups[cat]=[];const qty=ing._qtyDisplay||(ing.quantity?`${ing.quantity}${ing.unit?' '+ing.unit:''}`:'')||'';groups[cat].push({...ing,_type:'ingredient',_qtyStr:qty});}
   if(karenItems&&karenItems.length>0){const existingNames=new Set(mealItems.map(i=>i.name_en.toLowerCase()));for(const ka of karenItems){if(!existingNames.has(ka.name_en.toLowerCase())){const cat=ka.lacomer_category||'Other';if(!groups[cat])groups[cat]=[];groups[cat].push({...ka,_type:'karen',_qtyStr:''});}}}
   let html='';
   for(const cat of Object.keys(groups).sort()){
@@ -882,8 +905,7 @@ async function generateShoppingList(){
     const needIds=Object.entries(inventory).filter(([id,s])=>s==='need'&&validIds.has(id)).map(([id])=>id);
     if(needIds.length===0){content.innerHTML=`<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;btn.textContent='Generate list';btn.disabled=false;return;}
     const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;
-    const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();if(!deduped[key]||(!deduped[key].lacomer_url&&ing.lacomer_url))deduped[key]=ing;}
-    const mealItems=Object.values(deduped).sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));
+    const mealItems=dedupeIngredients(ingredients);
     let ckItems=[];try{ckItems=await ckFetch('ck_items?cat=eq.shopping&done=eq.false&select=id,text,done&order=text.asc');}catch(e){console.warn('Casa King fetch failed:',e.message);}
     content.innerHTML=`<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn-primary" onclick="consolidateList()" id="consolidate-btn">🔀 Consolidate list</button></div>`+renderShoppingListHTML(mealItems,ckItems,true,karenAdditions);
     for(const[id,val]of Object.entries(savedCKQtys)){const el=document.getElementById(`ck-qty-${id}`);if(el)el.value=val;}
@@ -1086,7 +1108,7 @@ function consolidateList(){
   const ckParsed=[];ckSection.querySelectorAll('.ck-item-row').forEach(row=>{const id=row.id.replace('ck-row-','');const text=row.querySelector('.ck-item-text')?.textContent?.trim()||'';const qty=parseFloat(document.getElementById(`ck-qty-${id}`)?.value)||0;const unit=document.getElementById(`ck-unit-${id}`)?.value||'';ckParsed.push({text,qty,unit,id});});
   const content=document.getElementById('shopping-list-content');const mealMap={};
   content.querySelectorAll('.shop-row[id^="shop-row-"]').forEach(row=>{const nameEl=row.querySelector('.shop-name-en');if(!nameEl)return;const qtySpan=nameEl.querySelector('.shop-qty');const qtyText=qtySpan?qtySpan.textContent.replace(' · ','').trim():'';const name=nameEl.textContent.replace(qtySpan?.textContent||'','').trim();mealMap[name.toLowerCase()]={name,qtyText,row};});
-  for(const ck of ckParsed){if(!ck.text)continue;const key=ck.text.toLowerCase().trim();const qtyStr=ck.qty?`${ck.qty}${ck.unit?' '+ck.unit:''}`:'' ;let matched=false;for(const[mKey,mVal]of Object.entries(mealMap)){const exactMatch=mKey===key;const wordMatch=new RegExp('(^|\\s)'+key.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(\\s|$)').test(mKey)||new RegExp('(^|\\s)'+mKey.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(\\s|$)').test(key);if(exactMatch||wordMatch){const nameEl=mVal.row.querySelector('.shop-name-en');if(nameEl){let existing=nameEl.querySelector('.shop-qty');if(!existing){const span=document.createElement('span');span.className='shop-qty';nameEl.appendChild(span);existing=span;}const combined=mVal.qtyText&&qtyStr?`${mVal.qtyText} + ${qtyStr} (meal+household)`:qtyStr?`${qtyStr} (household)`:mVal.qtyText;existing.textContent=combined?` · ${combined}`:''; }matched=true;break;}}if(!matched){let gs=document.getElementById('consolidated-general');if(!gs){gs=document.createElement('div');gs.id='consolidated-general';gs.innerHTML=`<div class="shop-category-label">General</div>`;content.appendChild(gs);}const tempId='ck-new-'+ck.id;const div=document.createElement('div');div.className='shop-row';div.id=`shop-row-${tempId}`;div.innerHTML=`<div class="shop-names"><div class="shop-name-en">${ck.text}${qtyStr?`<span class="shop-qty"> · ${qtyStr}</span>`:''}</div><div class="shop-name-es" style="color:var(--blue);font-size:0.7rem">Household item</div></div><button class="add-link-btn" onclick="showCKLinkForm('${tempId}','${ck.text.replace(/'/g,"\\'")}',this)">+ Add link</button>`;gs.appendChild(div);}}
+  for(const ck of ckParsed){if(!ck.text)continue;const key=ck.text.toLowerCase().trim();const qtyStr=ck.qty?`${ck.qty}${ck.unit?' '+ck.unit:''}`:'' ;let matched=false;for(const[mKey,mVal]of Object.entries(mealMap)){if(mKey.includes(key)||key.includes(mKey)){const nameEl=mVal.row.querySelector('.shop-name-en');if(nameEl){let existing=nameEl.querySelector('.shop-qty');if(!existing){const span=document.createElement('span');span.className='shop-qty';nameEl.appendChild(span);existing=span;}const combined=mVal.qtyText&&qtyStr?`${mVal.qtyText} + ${qtyStr} (meal+household)`:qtyStr?`${qtyStr} (household)`:mVal.qtyText;existing.textContent=combined?` · ${combined}`:''; }matched=true;break;}}if(!matched){let gs=document.getElementById('consolidated-general');if(!gs){gs=document.createElement('div');gs.id='consolidated-general';gs.innerHTML=`<div class="shop-category-label">General</div>`;content.appendChild(gs);}const tempId='ck-new-'+ck.id;const div=document.createElement('div');div.className='shop-row';div.id=`shop-row-${tempId}`;div.innerHTML=`<div class="shop-names"><div class="shop-name-en">${ck.text}${qtyStr?`<span class="shop-qty"> · ${qtyStr}</span>`:''}</div><div class="shop-name-es" style="color:var(--blue);font-size:0.7rem">Household item</div></div><button class="add-link-btn" onclick="showCKLinkForm('${tempId}','${ck.text.replace(/'/g,"\\'")}',this)">+ Add link</button>`;gs.appendChild(div);}}
   ckSection.remove();document.getElementById('consolidate-btn')?.closest('div')?.remove();
 }
 function showCKLinkForm(tempId,itemName,btn){const row=document.getElementById(`shop-row-${tempId}`);if(!row)return;btn.style.display='none';const formDiv=document.createElement('div');formDiv.className='add-link-form';formDiv.id=`link-form-${tempId}`;formDiv.innerHTML=`<input class="add-link-input" id="link-input-${tempId}" placeholder="Paste La Comer URL..." type="url"><button class="save-link-btn" onclick="saveCKLink('${tempId}','${itemName.replace(/'/g,"\\'")}')">Save</button><button class="cancel-link-btn" onclick="cancelLink('${tempId}')">Cancel</button>`;row.appendChild(formDiv);}
