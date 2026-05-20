@@ -479,6 +479,15 @@ const TIER_ORDER=['weekly','regular','occasional','rare'];
 const TIER_THRESHOLDS=[{min:4.5,tier:'weekly'},{min:3.5,tier:'regular'},{min:2.5,tier:'occasional'},{min:1.5,tier:'rare'},{min:0,tier:'hibernated'}];
 function tierFromRating(avg){for(const t of TIER_THRESHOLDS){if(avg>=t.min)return t.tier;}return'hibernated';}
 const TIER_LABELS={weekly:'Weekly Favourite',regular:'Regular',occasional:'Occasional',rare:'Rare',hibernated:'Hibernated'};
+function getProteinType(name){
+  const n=(name||'').toLowerCase();
+  if(/chicken|schnitzel|parmigiana|satay|milanesa de pech|lemon chicken|orange chicken/.test(n))return'chicken';
+  if(/beef|stroganoff|wellington|lasagne|lasagna|shepherd|arrachera|mince/.test(n))return'beef';
+  if(/pork|sausage|snag|carbonara|crackling/.test(n))return'pork';
+  if(/fish|tuna|mornay/.test(n))return'fish';
+  if(/lamb/.test(n))return'lamb';
+  return'other';
+}
 async function selectMealsForWeek(allRecipes,homeMealsNeeded){
   if(homeMealsNeeded<=0)return[];
   const{data:allPlanMeals}=await sb.from('weekly_plan_meals').select('recipe_id,plan_id').eq('is_dinner',false);
@@ -491,7 +500,14 @@ async function selectMealsForWeek(allRecipes,homeMealsNeeded){
   let eligible=allRecipes.filter(r=>isEligible(r));
   if(eligible.length<homeMealsNeeded){for(const tier of TIER_ORDER){if(eligible.length>=homeMealsNeeded)break;const alreadyIn=new Set(eligible.map(r=>r.id));const extras=allRecipes.filter(r=>r.frequency_tier===tier&&!alreadyIn.has(r.id)&&isEligible(r,Math.max(1,Math.floor((TIER_INTERVALS[r.frequency_tier]||8)/2))));eligible=[...eligible,...extras];}}
   if(eligible.length<homeMealsNeeded){const alreadyIn=new Set(eligible.map(r=>r.id));eligible=[...eligible,...allRecipes.filter(r=>r.frequency_tier!=='hibernated'&&!alreadyIn.has(r.id))];}
-  return eligible.sort(()=>Math.random()-0.5).slice(0,homeMealsNeeded);
+  // Spread by protein type — cap same protein at 2 per week (1 if only 3 meals or fewer)
+  const shuffled=eligible.sort(()=>Math.random()-0.5);
+  const maxSameProtein=homeMealsNeeded<=3?1:2;
+  const picked=[];const proteinCount={};
+  for(const r of shuffled){if(picked.length>=homeMealsNeeded)break;const p=getProteinType(r.name_en);if((proteinCount[p]||0)<maxSameProtein){picked.push(r);proteinCount[p]=(proteinCount[p]||0)+1;}}
+  // Top up if variety rules left us short
+  if(picked.length<homeMealsNeeded){const pickedIds=new Set(picked.map(r=>r.id));for(const r of shuffled){if(picked.length>=homeMealsNeeded)break;if(!pickedIds.has(r.id)){picked.push(r);pickedIds.add(r.id);}}}
+  return picked;
 }
 function showToast(msg,type='success'){const t=document.createElement('div');t.style.cssText=`position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:${type==='error'?'#c44':'#4A7C59'};color:white;padding:11px 22px;border-radius:999px;font-size:0.88rem;font-family:'DM Sans',sans-serif;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,0.18);z-index:9999;animation:fadeIn 0.3s ease;white-space:nowrap;`;t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
 async function doReshuffle(btn){
@@ -545,7 +561,7 @@ function openModal(type){
 }
 async function populateReplaceDropdown(){
   const currentRecipeIds=new Set(currentMeals.map(m=>m.recipe_id));
-  const{data,error}=await sb.from('recipes').select('id,name_en').eq('hibernated',false).order('name_en');
+  const{data,error}=await sb.from('recipes').select('id,name_en').eq('hibernated',false).neq('is_dinner',true).order('name_en');
   const select=document.getElementById('modal-replace-select');if(!select)return;
   if(error||!data){select.innerHTML='<option value="">— Could not load meals —</option>';return;}
   const available=data.filter(r=>!currentRecipeIds.has(r.id));
