@@ -947,11 +947,13 @@ function renderTrolleyUI(){
   let banner=document.getElementById('trolley-banner');
   if(!banner){banner=document.createElement('div');banner.id='trolley-banner';banner.className='trolley-banner';document.body.appendChild(banner);}
   updateTrolleyBanner();
-  // Add column header row once
+  // Add column header row once — insert after the consolidate button div if present, otherwise at top
   if(!document.getElementById('trolley-col-header')){
     const hdr=document.createElement('div');hdr.id='trolley-col-header';hdr.className='trolley-col-header';
     hdr.innerHTML=`<span class="trolley-col-label">In trolley?</span><span style="flex:1"></span><span class="trolley-col-label-price">Price (MXN)</span>`;
-    content.insertBefore(hdr,content.firstChild);
+    const consolidateDiv=content.querySelector('[style*="justify-content:flex-end"]');
+    if(consolidateDiv&&consolidateDiv.nextSibling){content.insertBefore(hdr,consolidateDiv.nextSibling);}
+    else{content.insertBefore(hdr,content.firstChild);}
   }
   // Add checkbox wrap + price wrap to each shop-row
   document.querySelectorAll('.shop-row').forEach(row=>{
