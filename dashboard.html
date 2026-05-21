@@ -261,6 +261,19 @@
     .reshuffle-diff-row{display:flex;align-items:center;gap:8px;padding:3px 0;color:var(--dark);}
     .reshuffle-removed{color:#c44;text-decoration:line-through;opacity:0.7;}
     .reshuffle-added{color:var(--green);font-weight:500;}
+    .recipe-modal-footer{padding:16px 28px 20px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0;}
+    .products-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px;}
+    .product-grid{display:flex;flex-direction:column;gap:10px;}
+    .product-row{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:rgba(255,255,255,0.75);border:1px solid var(--border);border-radius:12px;gap:12px;transition:border-color 0.15s,box-shadow 0.15s;}
+    .product-row:hover{border-color:rgba(200,103,74,0.4);box-shadow:0 3px 14px rgba(200,103,74,0.1);}
+    .product-main{flex:1;min-width:0}
+    .product-name-en{font-size:0.93rem;font-weight:500;color:var(--dark)}
+    .product-name-es{font-size:0.76rem;color:var(--mid);margin-top:1px}
+    .product-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px;}
+    .product-store-tag{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(46,95,138,0.1);color:var(--blue);}
+    .product-pref-tag{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(74,124,89,0.1);color:var(--green);}
+    .product-actions{display:flex;gap:6px;flex-shrink:0;}
+    .unlinked-badge{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(200,103,74,0.12);color:var(--clay);}
   </style>
 </head>
 <body>
@@ -271,6 +284,7 @@
     <div class="nav-tabs" id="nav-tabs">
       <button class="nav-tab active" data-view="dashboard" onclick="switchView('dashboard')">This Week</button>
       <button class="nav-tab" data-view="recipes" onclick="switchView('recipes')">Recipes</button>
+      <button class="nav-tab" data-view="products" onclick="switchView('products')" id="products-tab" style="display:none">Products</button>
     </div>
     <div class="nav-right">
       <div class="user-chip">
@@ -331,7 +345,7 @@ async function init(){
   document.getElementById('loading').style.display='none';
   document.getElementById('app').classList.add('ready');
 }
-function renderNav(){const col=roleColor[userProfile.role]||'#888';const initials=(userProfile.name||'U').substring(0,1).toUpperCase();document.getElementById('nav-avatar').textContent=initials;document.getElementById('nav-avatar').style.background=col;document.getElementById('nav-name').textContent=userProfile.name;const roleEl=document.getElementById('nav-role-tag');roleEl.textContent=roleLabel[userProfile.role]||userProfile.role;roleEl.style.background=col;}
+function renderNav(){const col=roleColor[userProfile.role]||'#888';const initials=(userProfile.name||'U').substring(0,1).toUpperCase();document.getElementById('nav-avatar').textContent=initials;document.getElementById('nav-avatar').style.background=col;document.getElementById('nav-name').textContent=userProfile.name;const roleEl=document.getElementById('nav-role-tag');roleEl.textContent=roleLabel[userProfile.role]||userProfile.role;roleEl.style.background=col;const productsTab=document.getElementById('products-tab');if(productsTab)productsTab.style.display=userProfile.role==='admin'?'':'none';}
 async function signOut(){await sb.auth.signOut();window.location.href='index.html';}
 function planDateLabel(plan){if(!plan)return'';const d=new Date(plan.week_start+'T12:00:00');return d.toLocaleDateString('en-AU',{month:'long',day:'numeric',year:'numeric'});}
 function getTodayDate(){const now=new Date();return`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;}
@@ -1009,7 +1023,7 @@ async function checkHibernationWakeUps(){
   wokenUp.forEach(r=>showToast(`🌅 ${r.name} is back! Restored to ${TIER_LABELS[r.tier]}`,'success'));
 }
 let currentView='dashboard';
-function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){renderRecipeListView();}}
+function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){renderRecipeListView();}else if(view==='products'){renderProductsView();}}
 let recipeFilterTier='all',recipeFilterSearch='',recipeShowHibernated=false,allRecipesCache=null;
 async function renderRecipeListView(){
   const content=document.getElementById('dashboard-content');
@@ -1064,6 +1078,8 @@ async function openRecipeDetail(recipeId){
       <div class="recipe-modal-footer">
         ${adminFooterBtns}
         <button id="steps-btn-${r.id}" class="btn-secondary" onclick="handleStepsBtn('${r.id}')">${stepsBtnLabel}</button>
+        <button class="btn-secondary" onclick="copyRecipe('${r.id}')" title="Copy recipe to clipboard">📋 Copy</button>
+        <button class="btn-secondary" onclick="shareRecipe('${r.id}')" title="Share recipe">↗ Share</button>
         <button class="btn-primary" onclick="safeCloseRecipeDetail('${r.id}')">Done</button>
       </div>
     </div>
@@ -1225,6 +1241,170 @@ async function reshuffleDinners(){
   await assignDinnersForPlan(currentPlan.id,currentMeals);
   await loadWeekData();await renderDashboard();
   showToast('Dinners reshuffled ✓');
+}
+
+// ── RECIPE COPY & SHARE ──────────────────────────────────────────
+function buildRecipeText(recipeId){
+  const r=allRecipesCache?.find(x=>x.id===recipeId||x.id===parseInt(recipeId));if(!r)return'';
+  const ingredients=r.ingredients||[];
+  let text=`🍽 ${r.name_en}`;
+  if(r.name_es)text+=` (${r.name_es})`;
+  text+='\n';
+  const totalTime=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);
+  if(totalTime>0)text+=`⏱ ${totalTime} min total\n`;
+  if(r.advance_prep_required&&r.advance_prep_description)text+=`⏰ Prep note: ${r.advance_prep_description}\n`;
+  if(r.default_side_en)text+=`🍴 Serve with: ${r.default_side_en}\n`;
+  if(ingredients.length>0){
+    text+='\nIngredients:\n';
+    ingredients.forEach(ing=>{const qty=ing.quantity?`${ing.quantity}${ing.unit?' '+ing.unit:''}`:'' ;text+=`• ${ing.name_en}${qty?' — '+qty:''}\n`;});
+  }
+  if(r.steps&&r.steps.trim()){text+='\nSteps:\n'+r.steps.trim();}
+  return text.trim();
+}
+function copyRecipe(recipeId){
+  const text=buildRecipeText(recipeId);if(!text){showToast('Recipe not loaded','error');return;}
+  navigator.clipboard.writeText(text).then(()=>showToast('Recipe copied to clipboard ✓')).catch(()=>showToast('Could not copy — try again','error'));
+}
+function shareRecipe(recipeId){
+  const r=allRecipesCache?.find(x=>x.id===recipeId||x.id===parseInt(recipeId));if(!r)return;
+  const text=buildRecipeText(recipeId);
+  if(navigator.share){navigator.share({title:r.name_en,text}).catch(()=>{});}
+  else{navigator.clipboard.writeText(text).then(()=>showToast('Copied to clipboard — paste into WhatsApp ✓')).catch(()=>showToast('Share not supported on this device','error'));}
+}
+
+// ── PRODUCTS VIEW ────────────────────────────────────────────────
+let productsCache=null,productFilterStore='all',productFilterSearch='';
+const STORE_OPTIONS=['La Comer','City Market','Other'];
+
+async function renderProductsView(){
+  if(userProfile.role!=='admin'){showToast('Products management is admin only','error');switchView('dashboard');return;}
+  const content=document.getElementById('dashboard-content');
+  content.innerHTML=`<div class="fade-in"><div class="page-header"><h1>Products</h1><p>Manage the household products linked to recipe ingredients</p></div><div class="products-toolbar"><input class="search-input" id="product-search" placeholder="Search products…" oninput="filterProducts()" style="max-width:280px"><button class="filter-pill ${productFilterStore==='all'?'active':''}" onclick="setProductStoreFilter('all')">All stores</button><button class="filter-pill ${productFilterStore==='La Comer'?'active':''}" onclick="setProductStoreFilter('La Comer')">La Comer</button><button class="filter-pill ${productFilterStore==='City Market'?'active':''}" onclick="setProductStoreFilter('City Market')">City Market</button><button class="btn-primary" style="margin-left:auto" onclick="openAddProductModal()">+ Add product</button></div><div id="products-grid"><div class="empty"><span class="empty-icon">🛒</span>Loading products...</div></div></div>`;
+  await loadAndRenderProducts();
+}
+
+async function loadAndRenderProducts(){
+  const{data,error}=await sb.from('household_products').select('*, ingredients(name_en)').order('name_es');
+  if(error){document.getElementById('products-grid').innerHTML=`<div class="empty" style="color:#c44">Could not load products: ${error.message}</div>`;return;}
+  productsCache=data||[];renderFilteredProducts();
+}
+
+function renderFilteredProducts(){
+  const container=document.getElementById('products-grid');if(!container||!productsCache)return;
+  const search=(document.getElementById('product-search')?.value||productFilterSearch).toLowerCase().trim();productFilterSearch=search;
+  let list=productsCache;
+  if(productFilterStore!=='all')list=list.filter(p=>p.store===productFilterStore);
+  if(search)list=list.filter(p=>p.name_en?.toLowerCase().includes(search)||p.name_es?.toLowerCase().includes(search));
+  if(list.length===0){container.innerHTML=`<div class="empty"><span class="empty-icon">🔍</span>${productsCache.length===0?'No products added yet — click + Add product to start':'No products match'}</div>`;return;}
+  const grouped={};list.forEach(p=>{const cat=p.category||'Uncategorised';if(!grouped[cat])grouped[cat]=[];grouped[cat].push(p);});
+  container.innerHTML=Object.entries(grouped).sort(([a],[b])=>a.localeCompare(b)).map(([cat,prods])=>`<div class="shop-category-label">${cat}</div><div class="product-grid">${prods.map(p=>productRowHtml(p)).join('')}</div>`).join('');
+}
+
+function productRowHtml(p){
+  const linkedIng=p.ingredients?.name_en||null;
+  const prefLaComer=p.is_preferred_lacomer?`<span class="product-pref-tag">★ La Comer</span>`:'';
+  const prefCity=p.is_preferred_citymarket?`<span class="product-pref-tag">★ City Market</span>`:'';
+  const unlinked=!linkedIng?`<span class="unlinked-badge">⚠ unlinked ingredient</span>`:'';
+  const urlBtn=p.store_url?`<a class="shop-link" href="${p.store_url}" target="_blank">🛒 View</a>`:'';
+  return`<div class="product-row" id="prod-row-${p.id}">
+    <div class="product-main">
+      <div class="product-name-en">${p.name_en||p.name_es}</div>
+      ${p.name_es&&p.name_en!==p.name_es?`<div class="product-name-es">${p.name_es}</div>`:''}
+      <div class="product-meta">
+        <span class="product-store-tag">${p.store||'La Comer'}</span>
+        ${prefLaComer}${prefCity}
+        ${linkedIng?`<span style="font-size:0.72rem;color:var(--mid)">→ ${linkedIng}</span>`:''}
+        ${unlinked}
+        ${p.notes?`<span style="font-size:0.72rem;color:var(--mid);font-style:italic">${p.notes}</span>`:''}
+      </div>
+    </div>
+    <div class="product-actions">
+      ${urlBtn}
+      <button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px" onclick="openEditProductModal('${p.id}')">Edit</button>
+      <button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;color:#c44;border-color:rgba(200,50,50,0.3)" onclick="deleteProduct('${p.id}','${(p.name_en||p.name_es).replace(/'/g,"\\'")}')">Delete</button>
+    </div>
+  </div>`;
+}
+
+function setProductStoreFilter(store){productFilterStore=store;renderProductsView();}
+function filterProducts(){renderFilteredProducts();}
+
+async function openAddProductModal(prefill={}){
+  const{data:ingredients}=await sb.from('ingredients').select('id,name_en').order('name_en');
+  const ingOptions=(ingredients||[]).map(i=>`<option value="${i.id}" ${prefill.ingredient_id===i.id?'selected':''}>${i.name_en}</option>`).join('');
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="modal" style="max-width:480px;max-height:90vh;overflow-y:auto">
+    <h3>Add product</h3>
+    <p>Link a real product to a recipe ingredient.</p>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Spanish name *</label><input id="prod-name-es" class="search-input" placeholder="e.g. Filete de Pollo Selecto" value="${prefill.name_es||''}" style="width:100%"></div>
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">English name</label><input id="prod-name-en" class="search-input" placeholder="e.g. Chicken Breast Fillet" value="${prefill.name_en||''}" style="width:100%"></div>
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Store</label><select id="prod-store" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white">${STORE_OPTIONS.map(s=>`<option value="${s}" ${(prefill.store||'La Comer')===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Category</label><input id="prod-category" class="search-input" placeholder="e.g. Meats & Eggs, Produce, Dairy…" value="${prefill.category||''}" style="width:100%"></div>
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Store URL</label><input id="prod-url" class="search-input" placeholder="Paste La Comer product URL…" type="url" value="${prefill.store_url||''}" style="width:100%"></div>
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Links to ingredient</label><select id="prod-ingredient" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— No ingredient linked —</option>${ingOptions}</select></div>
+      <div style="display:flex;gap:16px"><label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" id="prod-pref-lc" ${prefill.is_preferred_lacomer?'checked':''}> Preferred at La Comer</label><label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" id="prod-pref-cm" ${prefill.is_preferred_citymarket?'checked':''}> Preferred at City Market</label></div>
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Notes (optional)</label><input id="prod-notes" class="search-input" placeholder="e.g. Only buy on sale" value="${prefill.notes||''}" style="width:100%"></div>
+    </div>
+    <div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="saveNewProduct()">Save product</button></div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+async function saveNewProduct(){
+  const name_es=document.getElementById('prod-name-es')?.value.trim();
+  if(!name_es){showToast('Spanish name is required','error');return;}
+  const payload={
+    name_es,
+    name_en:document.getElementById('prod-name-en')?.value.trim()||null,
+    store:document.getElementById('prod-store')?.value||'La Comer',
+    category:document.getElementById('prod-category')?.value.trim()||null,
+    store_url:document.getElementById('prod-url')?.value.trim()||null,
+    ingredient_id:document.getElementById('prod-ingredient')?.value||null,
+    is_preferred_lacomer:document.getElementById('prod-pref-lc')?.checked||false,
+    is_preferred_citymarket:document.getElementById('prod-pref-cm')?.checked||false,
+    notes:document.getElementById('prod-notes')?.value.trim()||null,
+    added_by:userProfile.id,
+    created_at:new Date().toISOString()
+  };
+  const{error}=await sb.from('household_products').insert(payload);
+  if(error){showToast('Error saving product: '+error.message,'error');return;}
+  closeModal();showToast('Product saved ✓');productsCache=null;await loadAndRenderProducts();
+}
+
+async function openEditProductModal(productId){
+  const p=productsCache?.find(x=>x.id===productId);if(!p)return;
+  await openAddProductModal(p);
+  // swap the save button to update instead
+  const saveBtn=document.querySelector('#modal-overlay .btn-primary');
+  if(saveBtn){saveBtn.textContent='Update product';saveBtn.onclick=()=>updateProduct(productId);}
+  const h=document.querySelector('#modal-overlay h3');if(h)h.textContent='Edit product';
+}
+
+async function updateProduct(productId){
+  const name_es=document.getElementById('prod-name-es')?.value.trim();
+  if(!name_es){showToast('Spanish name is required','error');return;}
+  const payload={
+    name_es,
+    name_en:document.getElementById('prod-name-en')?.value.trim()||null,
+    store:document.getElementById('prod-store')?.value||'La Comer',
+    category:document.getElementById('prod-category')?.value.trim()||null,
+    store_url:document.getElementById('prod-url')?.value.trim()||null,
+    ingredient_id:document.getElementById('prod-ingredient')?.value||null,
+    is_preferred_lacomer:document.getElementById('prod-pref-lc')?.checked||false,
+    is_preferred_citymarket:document.getElementById('prod-pref-cm')?.checked||false,
+    notes:document.getElementById('prod-notes')?.value.trim()||null
+  };
+  const{error}=await sb.from('household_products').update(payload).eq('id',productId);
+  if(error){showToast('Error updating product: '+error.message,'error');return;}
+  closeModal();showToast('Product updated ✓');productsCache=null;await loadAndRenderProducts();
+}
+
+async function deleteProduct(productId,name){
+  if(!confirm(`Delete "${name}"? This cannot be undone.`))return;
+  const{error}=await sb.from('household_products').delete().eq('id',productId);
+  if(error){showToast('Error deleting product: '+error.message,'error');return;}
+  showToast(`"${name}" deleted`);productsCache=null;await loadAndRenderProducts();
 }
 
 init();
