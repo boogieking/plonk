@@ -243,26 +243,33 @@
     .recipe-modal-footer{padding:16px 28px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0;flex-wrap:wrap;}
     .shop-qty{color:var(--clay);font-size:0.82rem;font-weight:400;}
     /* Trolley mode */
-    .trolley-banner{position:sticky;top:58px;z-index:50;background:var(--dark);color:white;border-radius:12px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;box-shadow:0 4px 20px rgba(26,22,18,0.25);}
+    .trolley-banner{position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--dark);color:white;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 -4px 24px rgba(26,22,18,0.3);}
     .trolley-total-label{font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:rgba(255,255,255,0.55);}
     .trolley-total-mxn{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;color:white;line-height:1.1;}
     .trolley-total-usd{font-size:0.78rem;color:rgba(255,255,255,0.5);margin-top:1px;}
     .trolley-finish-btn{background:var(--clay);color:white;border:none;border-radius:9px;padding:9px 18px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:500;cursor:pointer;white-space:nowrap;transition:background 0.18s;}
     .trolley-finish-btn:hover{background:var(--clay-dark);}
     .shop-row.in-trolley{display:none!important;}
+    .trolley-col-header{display:flex;align-items:center;justify-content:space-between;padding:4px 0 6px;border-bottom:1px solid var(--border);margin-bottom:4px;}
+    .trolley-col-label{font-size:0.65rem;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--mid);}
+    .trolley-col-label-price{font-size:0.65rem;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--mid);}
+    .trolley-check-wrap{display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;}
+    .trolley-check-label{font-size:0.6rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);}
     .trolley-check{width:22px;height:22px;border-radius:6px;border:2px solid var(--border);background:white;cursor:pointer;flex-shrink:0;appearance:none;-webkit-appearance:none;transition:background 0.15s,border-color 0.15s;position:relative;}
     .trolley-check:checked{background:var(--green);border-color:var(--green);}
     .trolley-check:checked::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:white;font-size:0.75rem;font-weight:600;}
-    .trolley-price-input{width:88px;border:1.5px solid var(--border);border-radius:8px;padding:5px 8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;background:rgba(255,255,255,0.8);color:var(--dark);outline:none;text-align:right;}
+    .trolley-price-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;}
+    .trolley-price-label{font-size:0.6rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);}
+    .trolley-price-input{width:90px;border:1.5px solid var(--border);border-radius:8px;padding:5px 8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;background:rgba(255,255,255,0.8);color:var(--dark);outline:none;text-align:right;}
     .trolley-price-input:focus{border-color:var(--clay);}
-    .trolley-price-wrap{display:flex;align-items:center;gap:5px;font-size:0.72rem;color:var(--mid);}
-    .in-trolley-section{margin-top:22px;padding-top:16px;border-top:2px dashed var(--border);}
+    .in-trolley-section{margin-top:22px;margin-bottom:90px;padding-top:16px;border-top:2px dashed var(--border);}
     .in-trolley-header{font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:var(--green);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
-    .in-trolley-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(200,180,160,0.1);gap:10px;opacity:0.6;}
+    .in-trolley-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(200,180,160,0.1);gap:10px;}
     .in-trolley-row:last-child{border-bottom:none;}
-    .in-trolley-name{font-size:0.85rem;color:var(--dark);flex:1;text-decoration:line-through;color:var(--mid);}
-    .in-trolley-price{font-size:0.82rem;font-weight:500;color:var(--green);}
-    .trolley-uncheck-btn{background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--mid);padding:2px 6px;border-radius:5px;transition:background 0.12s;}
+    .in-trolley-name{font-size:0.85rem;flex:1;text-decoration:line-through;color:var(--mid);}
+    .in-trolley-price-input{width:80px;border:1.5px solid rgba(74,124,89,0.35);border-radius:8px;padding:4px 7px;font-family:'DM Sans',sans-serif;font-size:0.82rem;background:rgba(74,124,89,0.06);color:var(--green);outline:none;text-align:right;font-weight:500;}
+    .in-trolley-price-input:focus{border-color:var(--green);}
+    .trolley-uncheck-btn{background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--mid);padding:2px 6px;border-radius:5px;transition:background 0.12s;white-space:nowrap;}
     .trolley-uncheck-btn:hover{background:var(--light);color:var(--dark);}
     .recipe-steps-list{display:flex;flex-direction:column;gap:10px;margin-top:2px}
     .recipe-step{display:flex;gap:12px;align-items:flex-start}
@@ -933,11 +940,48 @@ async function generateShoppingList(){
 /* ── TROLLEY MODE ─────────────────────────────── */
 async function fetchExchangeRate(){if(usdRate)return usdRate;try{const r=await fetch('https://open.er-api.com/v6/latest/MXN');const d=await r.json();if(d&&d.rates&&d.rates.USD){usdRate=d.rates.USD;return usdRate;}}catch(e){console.warn('Exchange rate fetch failed:',e.message);}return null;}
 async function startTrolleyMode(){trolleyMode=true;trolleyItems={};await fetchExchangeRate();const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');if(genBtn)genBtn.style.display='none';if(ssBtn)ssBtn.style.display='none';renderTrolleyUI();showToast('Shopping mode on — tick items as you add them 🛒');}
-function finishTrolleyMode(){trolleyMode=false;trolleyItems={};const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');if(genBtn){genBtn.style.display='';genBtn.textContent='Regenerate list';}if(ssBtn)ssBtn.style.display='';const banner=document.getElementById('trolley-banner');if(banner)banner.remove();const inTrolleySec=document.getElementById('in-trolley-section');if(inTrolleySec)inTrolleySec.remove();document.querySelectorAll('.trolley-check').forEach(el=>el.remove());document.querySelectorAll('.trolley-price-wrap').forEach(el=>el.remove());document.querySelectorAll('.shop-row').forEach(row=>{row.classList.remove('in-trolley');});showToast('Shopping done ✓');}
-function renderTrolleyUI(){const content=document.getElementById('shopping-list-content');if(!content)return;let banner=document.getElementById('trolley-banner');if(!banner){banner=document.createElement('div');banner.id='trolley-banner';banner.className='trolley-banner';content.insertBefore(banner,content.firstChild);}updateTrolleyBanner();document.querySelectorAll('.shop-row').forEach(row=>{if(row.querySelector('.trolley-check'))return;const itemId=row.id.replace('shop-row-','');const nameEl=row.querySelector('.shop-name-en');const itemName=nameEl?nameEl.childNodes[0]?(nameEl.childNodes[0].textContent||'').trim():nameEl.textContent.trim():'';const chk=document.createElement('input');chk.type='checkbox';chk.className='trolley-check';chk.dataset.itemId=itemId;chk.addEventListener('change',function(){tickTrolleyItem(this,row,itemId,itemName);});row.insertBefore(chk,row.firstChild);const priceWrap=document.createElement('div');priceWrap.className='trolley-price-wrap';priceWrap.innerHTML=`<span>$</span><input class="trolley-price-input" type="number" min="0" step="0.01" placeholder="0.00" oninput="trolleyPriceInput(this,'${itemId}')">`;row.appendChild(priceWrap);});if(!document.getElementById('in-trolley-section')){const sec=document.createElement('div');sec.id='in-trolley-section';sec.className='in-trolley-section';sec.innerHTML=`<div class="in-trolley-header">🛒 In Trolley <span id="trolley-item-count">(0)</span></div><div id="in-trolley-list"></div>`;content.appendChild(sec);}}
+function finishTrolleyMode(){trolleyMode=false;trolleyItems={};const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');if(genBtn){genBtn.style.display='';genBtn.textContent='Regenerate list';}if(ssBtn)ssBtn.style.display='';document.getElementById('trolley-banner')?.remove();document.getElementById('in-trolley-section')?.remove();document.getElementById('trolley-col-header')?.remove();document.querySelectorAll('.trolley-check-wrap').forEach(el=>el.remove());document.querySelectorAll('.trolley-price-wrap').forEach(el=>el.remove());document.querySelectorAll('.shop-row').forEach(row=>{row.classList.remove('in-trolley');});showToast('Shopping done ✓');}
+function renderTrolleyUI(){
+  const content=document.getElementById('shopping-list-content');if(!content)return;
+  // Banner fixed to bottom of viewport — append to body not card
+  let banner=document.getElementById('trolley-banner');
+  if(!banner){banner=document.createElement('div');banner.id='trolley-banner';banner.className='trolley-banner';document.body.appendChild(banner);}
+  updateTrolleyBanner();
+  // Add column header row once
+  if(!document.getElementById('trolley-col-header')){
+    const hdr=document.createElement('div');hdr.id='trolley-col-header';hdr.className='trolley-col-header';
+    hdr.innerHTML=`<span class="trolley-col-label">In trolley?</span><span style="flex:1"></span><span class="trolley-col-label-price">Price (MXN)</span>`;
+    content.insertBefore(hdr,content.firstChild);
+  }
+  // Add checkbox wrap + price wrap to each shop-row
+  document.querySelectorAll('.shop-row').forEach(row=>{
+    if(row.querySelector('.trolley-check'))return;
+    const itemId=row.id.replace('shop-row-','');
+    const nameEl=row.querySelector('.shop-name-en');
+    const itemName=nameEl?nameEl.childNodes[0]?(nameEl.childNodes[0].textContent||'').trim():nameEl.textContent.trim():'';
+    // Checkbox with label above
+    const chkWrap=document.createElement('div');chkWrap.className='trolley-check-wrap';
+    const chk=document.createElement('input');chk.type='checkbox';chk.className='trolley-check';chk.dataset.itemId=itemId;
+    chk.addEventListener('change',function(){tickTrolleyItem(this,row,itemId,itemName);});
+    chkWrap.appendChild(chk);
+    row.insertBefore(chkWrap,row.firstChild);
+    // Price with label above
+    const priceWrap=document.createElement('div');priceWrap.className='trolley-price-wrap';
+    priceWrap.innerHTML=`<input class="trolley-price-input" type="number" min="0" step="0.01" placeholder="0.00" oninput="trolleyPriceInput(this,'${itemId}')">`;
+    row.appendChild(priceWrap);
+  });
+  // In Trolley section at bottom
+  if(!document.getElementById('in-trolley-section')){
+    const sec=document.createElement('div');sec.id='in-trolley-section';sec.className='in-trolley-section';
+    sec.innerHTML=`<div class="in-trolley-header">🛒 In Trolley <span id="trolley-item-count">(0)</span></div><div id="in-trolley-list"></div>`;
+    content.appendChild(sec);
+  }
+}
+function inTrolleyPriceInput(input,itemId){if(trolleyItems[itemId]){trolleyItems[itemId].price=parseFloat(input.value)||0;updateTrolleyBanner();// sync back to original row price input if visible
+const origInput=document.querySelector(`#shop-row-${itemId} .trolley-price-input`);if(origInput)origInput.value=input.value;}}
 function trolleyPriceInput(input,itemId){if(trolleyItems[itemId]){trolleyItems[itemId].price=parseFloat(input.value)||0;updateTrolleyBanner();updateInTrolleyRow(itemId);}}
 function tickTrolleyItem(chk,row,itemId,itemName){if(chk.checked){const priceInput=row.querySelector('.trolley-price-input');const price=priceInput?parseFloat(priceInput.value)||0:0;trolleyItems[itemId]={name:itemName,price};row.classList.add('in-trolley');addInTrolleyRow(itemId,itemName,price);}else{delete trolleyItems[itemId];row.classList.remove('in-trolley');removeInTrolleyRow(itemId);}updateTrolleyBanner();}
-function addInTrolleyRow(itemId,itemName,price){const list=document.getElementById('in-trolley-list');if(!list)return;const div=document.createElement('div');div.className='in-trolley-row';div.id=`introlley-row-${itemId}`;div.innerHTML=`<span class="in-trolley-name">${itemName}</span><span class="in-trolley-price" id="introlley-price-${itemId}">${price>0?'$'+price.toFixed(2):'—'}</span><button class="trolley-uncheck-btn" onclick="uncheckTrolleyItem('${itemId}')">↑ Put back</button>`;list.appendChild(div);const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
+function addInTrolleyRow(itemId,itemName,price){const list=document.getElementById('in-trolley-list');if(!list)return;const div=document.createElement('div');div.className='in-trolley-row';div.id=`introlley-row-${itemId}`;div.innerHTML=`<span class="in-trolley-name">${itemName}</span><input class="in-trolley-price-input" type="number" min="0" step="0.01" placeholder="0.00" value="${price>0?price:''}" oninput="inTrolleyPriceInput(this,'${itemId}')"><button class="trolley-uncheck-btn" onclick="uncheckTrolleyItem('${itemId}')">↑ Put back</button>`;list.appendChild(div);const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
 function updateInTrolleyRow(itemId){const priceEl=document.getElementById(`introlley-price-${itemId}`);if(priceEl&&trolleyItems[itemId]){const p=trolleyItems[itemId].price;priceEl.textContent=p>0?'$'+p.toFixed(2):'—';}}
 function removeInTrolleyRow(itemId){document.getElementById(`introlley-row-${itemId}`)?.remove();const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
 function uncheckTrolleyItem(itemId){const origRow=document.getElementById(`shop-row-${itemId}`);if(origRow){const chk=origRow.querySelector('.trolley-check');if(chk)chk.checked=false;origRow.classList.remove('in-trolley');}delete trolleyItems[itemId];removeInTrolleyRow(itemId);updateTrolleyBanner();}
