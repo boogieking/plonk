@@ -242,6 +242,29 @@
     .prep-flag-icon{font-size:1rem;flex-shrink:0;margin-top:1px}
     .recipe-modal-footer{padding:16px 28px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0;flex-wrap:wrap;}
     .shop-qty{color:var(--clay);font-size:0.82rem;font-weight:400;}
+    /* Trolley mode */
+    .trolley-banner{position:sticky;top:58px;z-index:50;background:var(--dark);color:white;border-radius:12px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;box-shadow:0 4px 20px rgba(26,22,18,0.25);}
+    .trolley-total-label{font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:rgba(255,255,255,0.55);}
+    .trolley-total-mxn{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;color:white;line-height:1.1;}
+    .trolley-total-usd{font-size:0.78rem;color:rgba(255,255,255,0.5);margin-top:1px;}
+    .trolley-finish-btn{background:var(--clay);color:white;border:none;border-radius:9px;padding:9px 18px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:500;cursor:pointer;white-space:nowrap;transition:background 0.18s;}
+    .trolley-finish-btn:hover{background:var(--clay-dark);}
+    .shop-row.in-trolley{opacity:0.42;text-decoration:line-through;pointer-events:none;}
+    .shop-row.in-trolley .trolley-check{pointer-events:auto;}
+    .trolley-check{width:22px;height:22px;border-radius:6px;border:2px solid var(--border);background:white;cursor:pointer;flex-shrink:0;appearance:none;-webkit-appearance:none;transition:background 0.15s,border-color 0.15s;position:relative;}
+    .trolley-check:checked{background:var(--green);border-color:var(--green);}
+    .trolley-check:checked::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:white;font-size:0.75rem;font-weight:600;}
+    .trolley-price-input{width:88px;border:1.5px solid var(--border);border-radius:8px;padding:5px 8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;background:rgba(255,255,255,0.8);color:var(--dark);outline:none;text-align:right;}
+    .trolley-price-input:focus{border-color:var(--clay);}
+    .trolley-price-wrap{display:flex;align-items:center;gap:5px;font-size:0.72rem;color:var(--mid);}
+    .in-trolley-section{margin-top:22px;padding-top:16px;border-top:2px dashed var(--border);}
+    .in-trolley-header{font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:var(--green);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+    .in-trolley-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(200,180,160,0.1);gap:10px;opacity:0.6;}
+    .in-trolley-row:last-child{border-bottom:none;}
+    .in-trolley-name{font-size:0.85rem;color:var(--dark);flex:1;text-decoration:line-through;color:var(--mid);}
+    .in-trolley-price{font-size:0.82rem;font-weight:500;color:var(--green);}
+    .trolley-uncheck-btn{background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--mid);padding:2px 6px;border-radius:5px;transition:background 0.12s;}
+    .trolley-uncheck-btn:hover{background:var(--light);color:var(--dark);}
     .recipe-steps-list{display:flex;flex-direction:column;gap:10px;margin-top:2px}
     .recipe-step{display:flex;gap:12px;align-items:flex-start}
     .recipe-step-num{font-family:'Playfair Display',serif;font-size:1rem;color:var(--clay);font-weight:700;flex-shrink:0;min-width:24px;line-height:1.4;}
@@ -426,7 +449,7 @@ function renderCameron(recipes,name){
     </div>
     <div class="section-label">Shopping list</div>
     <div class="card" id="cameron-shopping-card">
-      <div class="card-header"><div class="card-title">La Comer + Casa King</div><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div>
+      <div class="card-header"><div class="card-title">La Comer + Casa King</div><div style="display:flex;gap:8px;align-items:center"><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
       <div id="shopping-list-content"><div class="empty"><span class="empty-icon">🛍️</span>${hasInventory?'Click Generate list to build your shopping list':'Complete inventory check first to generate the shopping list'}</div></div>
     </div>
   </div>`;
@@ -452,6 +475,7 @@ function mealRowAdmin(m){
   return`<div class="meal-item ${isCooked?'cooked':''}" id="meal-item-${r.id}"><div style="flex:1"><div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${r.name_en} ${advPrepTag} ${tierBadge}</div><div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${r.prep_time_minutes||'—'} min prep · ${r.cook_time_minutes||'—'} min cook${avgStr} ${scheduledLabel}</div>${sideHtml}${ratingHtml}${ratedHtml}</div><div class="meal-actions" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${actionHtml}${removeBtn}${hibernateBtn}</div></div>`;
 }
 let inventoryItems=[],inventoryState={};
+let trolleyMode=false,trolleyItems={},usdRate=null;
 async function loadInventory(){
   if(!currentPlan)return;inventoryState=currentPlan.inventory||{};
   const{data:planMeals,error:pmError}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id);
@@ -903,9 +927,23 @@ async function generateShoppingList(){
     for(const[id,val]of Object.entries(savedCKQtys)){const el=document.getElementById(`ck-qty-${id}`);if(el)el.value=val;}
     for(const[id,val]of Object.entries(savedCKUnits)){const el=document.getElementById(`ck-unit-${id}`);if(el)el.value=val;}
     btn.textContent='Regenerate list';btn.disabled=false;
+    const ssBtn=document.getElementById('start-shopping-btn');if(ssBtn)ssBtn.style.display='';
    const sentKey=`plonk_shoplist_sent_${currentPlan.id}`;if(!localStorage.getItem(sentKey)){localStorage.setItem(sentKey,'1');await sendEmail('plan_finalised');}
   }catch(err){content.innerHTML=`<div class="empty" style="color:#c44">Error: ${err.message}</div>`;btn.textContent='Generate list';btn.disabled=false;}
 }
+/* ── TROLLEY MODE ─────────────────────────────── */
+async function fetchExchangeRate(){if(usdRate)return usdRate;try{const r=await fetch('https://open.er-api.com/v6/latest/MXN');const d=await r.json();if(d&&d.rates&&d.rates.USD){usdRate=d.rates.USD;return usdRate;}}catch(e){console.warn('Exchange rate fetch failed:',e.message);}return null;}
+async function startTrolleyMode(){trolleyMode=true;trolleyItems={};await fetchExchangeRate();const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');if(genBtn)genBtn.style.display='none';if(ssBtn)ssBtn.style.display='none';renderTrolleyUI();showToast('Shopping mode on — tick items as you add them 🛒');}
+function finishTrolleyMode(){trolleyMode=false;trolleyItems={};const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');if(genBtn){genBtn.style.display='';genBtn.textContent='Regenerate list';}if(ssBtn)ssBtn.style.display='';const banner=document.getElementById('trolley-banner');if(banner)banner.remove();const inTrolleySec=document.getElementById('in-trolley-section');if(inTrolleySec)inTrolleySec.remove();document.querySelectorAll('.trolley-check').forEach(el=>el.remove());document.querySelectorAll('.trolley-price-wrap').forEach(el=>el.remove());document.querySelectorAll('.shop-row.in-trolley').forEach(row=>{row.classList.remove('in-trolley');});showToast('Shopping done ✓');}
+function renderTrolleyUI(){const content=document.getElementById('shopping-list-content');if(!content)return;let banner=document.getElementById('trolley-banner');if(!banner){banner=document.createElement('div');banner.id='trolley-banner';banner.className='trolley-banner';content.insertBefore(banner,content.firstChild);}updateTrolleyBanner();document.querySelectorAll('.shop-row').forEach(row=>{if(row.querySelector('.trolley-check'))return;const itemId=row.id.replace('shop-row-','');const nameEl=row.querySelector('.shop-name-en');const itemName=nameEl?nameEl.childNodes[0]?(nameEl.childNodes[0].textContent||'').trim():nameEl.textContent.trim():'';const chk=document.createElement('input');chk.type='checkbox';chk.className='trolley-check';chk.dataset.itemId=itemId;chk.addEventListener('change',function(){tickTrolleyItem(this,row,itemId,itemName);});row.insertBefore(chk,row.firstChild);const priceWrap=document.createElement('div');priceWrap.className='trolley-price-wrap';priceWrap.innerHTML=`<span>$</span><input class="trolley-price-input" type="number" min="0" step="0.01" placeholder="0.00" oninput="trolleyPriceInput(this,'${itemId}')">`;row.appendChild(priceWrap);});if(!document.getElementById('in-trolley-section')){const sec=document.createElement('div');sec.id='in-trolley-section';sec.className='in-trolley-section';sec.innerHTML=`<div class="in-trolley-header">🛒 In Trolley <span id="trolley-item-count">(0)</span></div><div id="in-trolley-list"></div>`;content.appendChild(sec);}}
+function trolleyPriceInput(input,itemId){if(trolleyItems[itemId]){trolleyItems[itemId].price=parseFloat(input.value)||0;updateTrolleyBanner();updateInTrolleyRow(itemId);}}
+function tickTrolleyItem(chk,row,itemId,itemName){if(chk.checked){const priceInput=row.querySelector('.trolley-price-input');const price=priceInput?parseFloat(priceInput.value)||0:0;trolleyItems[itemId]={name:itemName,price};row.classList.add('in-trolley');addInTrolleyRow(itemId,itemName,price);}else{delete trolleyItems[itemId];row.classList.remove('in-trolley');removeInTrolleyRow(itemId);}updateTrolleyBanner();}
+function addInTrolleyRow(itemId,itemName,price){const list=document.getElementById('in-trolley-list');if(!list)return;const div=document.createElement('div');div.className='in-trolley-row';div.id=`introlley-row-${itemId}`;div.innerHTML=`<span class="in-trolley-name">${itemName}</span><span class="in-trolley-price" id="introlley-price-${itemId}">${price>0?'$'+price.toFixed(2):'—'}</span><button class="trolley-uncheck-btn" onclick="uncheckTrolleyItem('${itemId}')">↑ Put back</button>`;list.appendChild(div);const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
+function updateInTrolleyRow(itemId){const priceEl=document.getElementById(`introlley-price-${itemId}`);if(priceEl&&trolleyItems[itemId]){const p=trolleyItems[itemId].price;priceEl.textContent=p>0?'$'+p.toFixed(2):'—';}}
+function removeInTrolleyRow(itemId){document.getElementById(`introlley-row-${itemId}`)?.remove();const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
+function uncheckTrolleyItem(itemId){const origRow=document.getElementById(`shop-row-${itemId}`);if(origRow){const chk=origRow.querySelector('.trolley-check');if(chk)chk.checked=false;origRow.classList.remove('in-trolley');const priceInput=origRow.querySelector('.trolley-price-input');if(priceInput)priceInput.value='';}delete trolleyItems[itemId];removeInTrolleyRow(itemId);updateTrolleyBanner();}
+function updateTrolleyBanner(){const banner=document.getElementById('trolley-banner');if(!banner)return;const totalMXN=Object.values(trolleyItems).reduce((s,i)=>s+(i.price||0),0);const count=Object.keys(trolleyItems).length;const usdStr=usdRate&&totalMXN>0?`<div class="trolley-total-usd">≈ USD $${(totalMXN*usdRate).toFixed(2)}</div>`:`<div class="trolley-total-usd">${totalMXN>0&&!usdRate?'USD rate unavailable':count===0?'Tick items as you add to trolley':''}</div>`;banner.innerHTML=`<div><div class="trolley-total-label">Running total · ${count} item${count!==1?'s':''} in trolley</div><div class="trolley-total-mxn">$${totalMXN.toFixed(2)} <span style="font-size:0.9rem;font-weight:400;opacity:0.7">MXN</span></div>${usdStr}</div><button class="trolley-finish-btn" onclick="finishTrolleyMode()">✓ Finish Shopping</button>`;}
+/* ── END TROLLEY MODE ─────────────────────────── */
 function showAddLinkForm(ingId,btn){const row=document.getElementById(`shop-row-${ingId}`);if(!row)return;btn.style.display='none';const formDiv=document.createElement('div');formDiv.className='add-link-form';formDiv.id=`link-form-${ingId}`;formDiv.innerHTML=`<input class="add-link-input" id="link-input-${ingId}" placeholder="Paste La Comer URL..." type="url"><button class="save-link-btn" onclick="saveLink('${ingId}')">Save</button><button class="cancel-link-btn" onclick="cancelLink('${ingId}')">Cancel</button>`;row.appendChild(formDiv);}
 function cancelLink(ingId){document.getElementById(`link-form-${ingId}`)?.remove();const row=document.getElementById(`shop-row-${ingId}`);if(row){const addBtn=row.querySelector('.add-link-btn');if(addBtn)addBtn.style.display='';}}
 async function saveLink(ingId){const url=document.getElementById('link-input-'+ingId)?.value?.trim();if(!url){showToast('Please paste a URL first','error');return;}const{error}=await sb.from('ingredients').update({lacomer_url:url}).eq('id',ingId);if(error){showToast('Error saving: '+error.message,'error');return;}const row=document.getElementById('shop-row-'+ingId);if(row){document.getElementById('link-form-'+ingId)?.remove();const addBtn=row.querySelector('.add-link-btn');if(addBtn)addBtn.remove();const nameEl=row.querySelector('.shop-name-en');if(nameEl){const icon=document.createElement('a');icon.href=url;icon.target='_blank';icon.title='View on La Comer';icon.textContent='🔗';icon.style.cssText='text-decoration:none;font-size:0.85rem;margin-left:5px;opacity:0.7;vertical-align:middle;line-height:1';icon.onclick=function(e){e.stopPropagation();};nameEl.appendChild(icon);}}showToast('Link saved \u2713');}
