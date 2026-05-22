@@ -251,21 +251,19 @@
     .trolley-finish-btn:hover{background:var(--clay-dark);}
     /* ── SCANNER ── */
     .scanner-overlay{position:fixed;inset:0;z-index:300;background:rgba(26,22,18,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;}
-    .scanner-card{background:var(--card);border-radius:18px;padding:24px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto;}
+    .scanner-card{background:var(--cream);border-radius:18px;padding:24px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto;}
     .scanner-card h3{margin:0 0 6px;font-size:1.05rem;}
     .scanner-card p{margin:0 0 16px;font-size:0.82rem;color:var(--mid);}
     #scanner-viewport{width:100%;border-radius:12px;overflow:hidden;background:#000;min-height:200px;}
     #scanner-viewport video{width:100%!important;border-radius:12px;}
     #html5-qrcode-button-camera-permission,#html5-qrcode-button-camera-stop,#html5-qrcode-anchor-scan-type-change{display:none!important;}
     .scanner-result-card{background:rgba(74,124,89,0.08);border:1px solid rgba(74,124,89,0.25);border-radius:12px;padding:16px;margin-top:16px;}
-    .scanner-result-card .result-label{font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:3px;}
-    .scanner-result-card .result-val{font-size:0.9rem;font-weight:500;margin-bottom:10px;}
     .scanner-field-row{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;}
     .scanner-field-row label{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);}
     .scanner-field-row input,.scanner-field-row select{padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:0.87rem;outline:none;background:white;width:100%;box-sizing:border-box;}
     .scanner-field-row input:focus,.scanner-field-row select:focus{border-color:var(--clay);}
     .scanner-status{text-align:center;padding:16px;font-size:0.85rem;color:var(--mid);}
-    .scan-btn{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1.5px solid var(--border);border-radius:9px;padding:7px 14px;font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:500;cursor:pointer;transition:border-color 0.15s,background 0.15s;}
+    .scan-btn{display:inline-flex;align-items:center;gap:6px;background:white;border:1.5px solid var(--border);border-radius:9px;padding:7px 14px;font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:500;cursor:pointer;transition:border-color 0.15s,background 0.15s;}
     .scan-btn:hover{border-color:var(--clay);background:rgba(200,103,74,0.06);}
     .shop-row.in-trolley{display:none!important;}
     .trolley-col-header{display:flex;align-items:center;justify-content:space-between;padding:4px 0 6px;border-bottom:1px solid var(--border);margin-bottom:4px;}
@@ -1473,6 +1471,7 @@ async function openAddProductModal(prefill={}){
       <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Store URL</label><input id="prod-url" class="search-input" placeholder="Paste La Comer product URL…" type="url" value="${prefill.store_url||''}" style="width:100%"></div>
       <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Links to ingredient</label><select id="prod-ingredient" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— No ingredient linked —</option>${ingOptions}</select></div>
       <div style="display:flex;gap:16px"><label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" id="prod-pref-lc" ${prefill.is_preferred_lacomer?'checked':''}> Preferred at La Comer</label><label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" id="prod-pref-cm" ${prefill.is_preferred_citymarket?'checked':''}> Preferred at City Market</label></div>
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Price at La Comer (MXN)</label><input id="prod-price" class="search-input" placeholder="e.g. 45.50" type="number" min="0" step="0.01" value="${prefill.last_price_mxn||''}" style="width:100%"></div>
       <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Notes (optional)</label><input id="prod-notes" class="search-input" placeholder="e.g. Only buy on sale" value="${prefill.notes||''}" style="width:100%"></div>
     </div>
     <div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="saveNewProduct()">Save product</button></div>
@@ -1492,6 +1491,7 @@ async function saveNewProduct(){
     ingredient_id:document.getElementById('prod-ingredient')?.value||null,
     is_preferred_lacomer:document.getElementById('prod-pref-lc')?.checked||false,
     is_preferred_citymarket:document.getElementById('prod-pref-cm')?.checked||false,
+    last_price_mxn:parseFloat(document.getElementById('prod-price')?.value)||null,
     notes:document.getElementById('prod-notes')?.value.trim()||null,
     added_by:userProfile.id,
     created_at:new Date().toISOString()
@@ -1522,6 +1522,7 @@ async function updateProduct(productId){
     ingredient_id:document.getElementById('prod-ingredient')?.value||null,
     is_preferred_lacomer:document.getElementById('prod-pref-lc')?.checked||false,
     is_preferred_citymarket:document.getElementById('prod-pref-cm')?.checked||false,
+    last_price_mxn:parseFloat(document.getElementById('prod-price')?.value)||null,
     notes:document.getElementById('prod-notes')?.value.trim()||null
   };
   const{error}=await sb.from('household_products').update(payload).eq('id',productId);
@@ -1536,11 +1537,10 @@ async function deleteProduct(productId,name){
   showToast(`"${name}" deleted`);productsCache=null;await loadAndRenderProducts();
 }
 
-init();
 
 /* ── BARCODE SCANNER ───────────────────────────── */
 let html5QrScanner=null;
-let scannerContext='products'; // 'products' or 'shopping'
+let scannerContext='products';
 
 function openBarcodeScanner(context){
   scannerContext=context||'products';
@@ -1578,7 +1578,6 @@ function startScanner(){
       document.getElementById('scanner-status').textContent='No camera found on this device.';
       return;
     }
-    // Prefer back camera on mobile
     const cam=cameras.find(c=>c.label.toLowerCase().includes('back')||c.label.toLowerCase().includes('rear'))||cameras[cameras.length-1];
     document.getElementById('scanner-status').textContent='Scanning… point at barcode';
     html5QrScanner.start(
@@ -1608,7 +1607,7 @@ async function onBarcodeDetected(barcode){
   const resultEl=document.getElementById('scanner-result');
   if(statusEl)statusEl.textContent='Found barcode: '+barcode+' — looking up product…';
   try{
-    const res=await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}?fields=product_name,product_name_es,categories_tags,brands,image_url`);
+    const res=await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}?fields=product_name,product_name_es,categories_tags,brands`);
     const data=await res.json();
     if(data.status===0||!data.product){
       if(statusEl)statusEl.textContent='Product not found in database. Fill in details manually.';
@@ -1618,7 +1617,6 @@ async function onBarcodeDetected(barcode){
     const p=data.product;
     const nameEn=p.product_name||'';
     const nameEs=p.product_name_es||p.product_name||'';
-    // Guess category from Open Food Facts tags
     const category=guessCategoryFromOFF(p.categories_tags||[]);
     if(statusEl)statusEl.textContent='Product found! Check the details below.';
     renderScannerForm(barcode,{nameEn,nameEs,category});
@@ -1633,7 +1631,7 @@ function guessCategoryFromOFF(tags){
   if(t.includes('meat')||t.includes('chicken')||t.includes('beef')||t.includes('pork')||t.includes('sausage')||t.includes('egg'))return'Meats & Eggs';
   if(t.includes('dairy')||t.includes('cheese')||t.includes('milk')||t.includes('cream')||t.includes('yogurt'))return'Dairy';
   if(t.includes('vegetable')||t.includes('fruit')||t.includes('produce')||t.includes('fresh'))return'Produce';
-  if(t.includes('pasta')||t.includes('rice')||t.includes('bread')||t.includes('flour')||t.includes('grain')||t.includes('cereal'))return'Grains, Pasta & Bakery';
+  if(t.includes('pasta')||t.includes('rice')||t.includes('bread')||t.includes('flour')||t.includes('grain'))return'Grains, Pasta & Bakery';
   if(t.includes('canned')||t.includes('sauce')||t.includes('condiment')||t.includes('oil')||t.includes('vinegar'))return'Canned & Packaged Foods';
   if(t.includes('herb')||t.includes('spice')||t.includes('seasoning'))return'Herbs, Vinegar & Condiments';
   if(t.includes('frozen'))return'Frozen';
@@ -1649,12 +1647,13 @@ async function renderScannerForm(barcode,prefill){
   const storeOpts=STORE_OPTIONS.map(s=>`<option value="${s}" ${s==='La Comer'?'selected':''}>${s}</option>`).join('');
   resultEl.innerHTML=`
     <div class="scanner-result-card">
-      <div class="result-label">Barcode</div>
-      <div class="result-val" style="font-family:monospace;font-size:0.82rem;color:var(--mid)">${barcode}</div>
+      <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:3px">Barcode</div>
+      <div style="font-family:monospace;font-size:0.82rem;color:var(--mid);margin-bottom:12px">${barcode}</div>
       <div class="scanner-field-row"><label>Spanish name *</label><input id="scan-name-es" placeholder="e.g. Filete de Pollo Selecto" value="${prefill.nameEs||prefill.nameEn||''}"></div>
       <div class="scanner-field-row"><label>English name</label><input id="scan-name-en" placeholder="e.g. Chicken Breast Fillet" value="${prefill.nameEn||''}"></div>
       <div class="scanner-field-row"><label>Store</label><select id="scan-store">${storeOpts}</select></div>
       <div class="scanner-field-row"><label>Category</label><input id="scan-category" placeholder="e.g. Meats & Eggs, Dairy, Produce…" value="${prefill.category||''}"></div>
+      <div class="scanner-field-row"><label>Price at La Comer (MXN)</label><input id="scan-price" type="number" min="0" step="0.01" placeholder="e.g. 45.50"></div>
       <div class="scanner-field-row"><label>Store URL (optional)</label><input id="scan-url" type="url" placeholder="Paste La Comer URL if you have it"></div>
       <div class="scanner-field-row"><label>Links to ingredient (optional)</label><select id="scan-ingredient"><option value="">— No ingredient linked —</option>${ingOptions}</select></div>
       ${scannerContext==='shopping'?`<div style="display:flex;align-items:center;gap:8px;margin:8px 0"><input type="checkbox" id="scan-add-to-list" checked><label for="scan-add-to-list" style="font-size:0.85rem;cursor:pointer">Also add to this week's shopping list</label></div>`:''}
@@ -1676,6 +1675,7 @@ async function saveScanResult(barcode){
     category:document.getElementById('scan-category')?.value.trim()||null,
     store_url:document.getElementById('scan-url')?.value.trim()||null,
     ingredient_id:document.getElementById('scan-ingredient')?.value||null,
+    last_price_mxn:parseFloat(document.getElementById('scan-price')?.value)||null,
     is_preferred_lacomer:document.getElementById('scan-store')?.value==='La Comer',
     notes:`Barcode: ${barcode}`,
     added_by:userProfile.id,
@@ -1686,7 +1686,6 @@ async function saveScanResult(barcode){
   closeBarcodeScanner();
   showToast('Product saved ✓');
   productsCache=null;
-  // If triggered from shopping list, add to Karen additions so it shows on list
   if(scannerContext==='shopping'&&document.getElementById('scan-add-to-list')?.checked){
     const item={
       id:'scan-'+Date.now(),
@@ -1697,18 +1696,14 @@ async function saveScanResult(barcode){
     };
     karenAdditions.push(item);
     showToast('Added to shopping list ✓');
-    // Refresh shopping list if visible
-    const shoppingContent=document.getElementById('shopping-list-content');
-    if(shoppingContent&&shoppingContent.querySelector('.shop-category-label')){
-      generateShoppingList();
-    }
   }
-  // Refresh products tab if visible
   if(document.getElementById('products-grid')){
     await loadAndRenderProducts();
   }
 }
 /* ── END BARCODE SCANNER ───────────────────────── */
+
+init();
 </script>
 </body>
 </html>
