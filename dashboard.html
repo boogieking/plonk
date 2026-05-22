@@ -249,6 +249,24 @@
     .trolley-total-usd{font-size:0.78rem;color:rgba(255,255,255,0.5);margin-top:1px;}
     .trolley-finish-btn{background:var(--clay);color:white;border:none;border-radius:9px;padding:9px 18px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:500;cursor:pointer;white-space:nowrap;transition:background 0.18s;}
     .trolley-finish-btn:hover{background:var(--clay-dark);}
+    /* ── SCANNER ── */
+    .scanner-overlay{position:fixed;inset:0;z-index:300;background:rgba(26,22,18,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;}
+    .scanner-card{background:var(--card);border-radius:18px;padding:24px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto;}
+    .scanner-card h3{margin:0 0 6px;font-size:1.05rem;}
+    .scanner-card p{margin:0 0 16px;font-size:0.82rem;color:var(--mid);}
+    #scanner-viewport{width:100%;border-radius:12px;overflow:hidden;background:#000;min-height:200px;}
+    #scanner-viewport video{width:100%!important;border-radius:12px;}
+    #html5-qrcode-button-camera-permission,#html5-qrcode-button-camera-stop,#html5-qrcode-anchor-scan-type-change{display:none!important;}
+    .scanner-result-card{background:rgba(74,124,89,0.08);border:1px solid rgba(74,124,89,0.25);border-radius:12px;padding:16px;margin-top:16px;}
+    .scanner-result-card .result-label{font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:3px;}
+    .scanner-result-card .result-val{font-size:0.9rem;font-weight:500;margin-bottom:10px;}
+    .scanner-field-row{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;}
+    .scanner-field-row label{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);}
+    .scanner-field-row input,.scanner-field-row select{padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:0.87rem;outline:none;background:white;width:100%;box-sizing:border-box;}
+    .scanner-field-row input:focus,.scanner-field-row select:focus{border-color:var(--clay);}
+    .scanner-status{text-align:center;padding:16px;font-size:0.85rem;color:var(--mid);}
+    .scan-btn{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1.5px solid var(--border);border-radius:9px;padding:7px 14px;font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:500;cursor:pointer;transition:border-color 0.15s,background 0.15s;}
+    .scan-btn:hover{border-color:var(--clay);background:rgba(200,103,74,0.06);}
     .shop-row.in-trolley{display:none!important;}
     .trolley-col-header{display:flex;align-items:center;justify-content:space-between;padding:4px 0 6px;border-bottom:1px solid var(--border);margin-bottom:4px;}
     .trolley-col-label{font-size:0.65rem;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--mid);}
@@ -327,6 +345,7 @@
   <main id="dashboard-content"></main>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
 const SUPABASE_URL='https://znwoiqygmsgabyoslrbt.supabase.co';
 const SUPABASE_KEY='sb_publishable_SGLBIKifgg4nGL0pPtQssQ_Ng3dMgDK';
@@ -455,7 +474,7 @@ function renderCameron(recipes,name){
     </div>
     <div class="section-label">Shopping list</div>
     <div class="card" id="cameron-shopping-card">
-      <div class="card-header"><div class="card-title">La Comer + Casa King</div><div style="display:flex;gap:8px;align-items:center"><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
+      <div class="card-header"><div class="card-title">La Comer + Casa King</div><div style="display:flex;gap:8px;align-items:center"><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
       <div id="shopping-list-content"><div class="empty"><span class="empty-icon">🛍️</span>${hasInventory?'Click Generate list to build your shopping list':'Complete inventory check first to generate the shopping list'}</div></div>
     </div>
   </div>`;
@@ -1389,7 +1408,7 @@ const STORE_OPTIONS=['La Comer','City Market','Other'];
 async function renderProductsView(){
   if(userProfile.role!=='admin'){showToast('Products management is admin only','error');switchView('dashboard');return;}
   const content=document.getElementById('dashboard-content');
-  content.innerHTML=`<div class="fade-in"><div class="page-header"><h1>Products</h1><p>Manage the household products linked to recipe ingredients</p></div><div class="products-toolbar"><input class="search-input" id="product-search" placeholder="Search products…" oninput="filterProducts()" style="max-width:280px"><button class="filter-pill ${productFilterStore==='all'?'active':''}" onclick="setProductStoreFilter('all')">All stores</button><button class="filter-pill ${productFilterStore==='La Comer'?'active':''}" onclick="setProductStoreFilter('La Comer')">La Comer</button><button class="filter-pill ${productFilterStore==='City Market'?'active':''}" onclick="setProductStoreFilter('City Market')">City Market</button><button class="btn-primary" style="margin-left:auto" onclick="openAddProductModal()">+ Add product</button></div><div id="products-grid"><div class="empty"><span class="empty-icon">🛒</span>Loading products...</div></div></div>`;
+  content.innerHTML=`<div class="fade-in"><div class="page-header"><h1>Products</h1><p>Manage the household products linked to recipe ingredients</p></div><div class="products-toolbar"><input class="search-input" id="product-search" placeholder="Search products…" oninput="filterProducts()" style="max-width:280px"><button class="filter-pill ${productFilterStore==='all'?'active':''}" onclick="setProductStoreFilter('all')">All stores</button><button class="filter-pill ${productFilterStore==='La Comer'?'active':''}" onclick="setProductStoreFilter('La Comer')">La Comer</button><button class="filter-pill ${productFilterStore==='City Market'?'active':''}" onclick="setProductStoreFilter('City Market')">City Market</button><button class="btn-primary" style="margin-left:auto" onclick="openAddProductModal()">+ Add product</button><button class="scan-btn" style="margin-left:8px" onclick="openBarcodeScanner('products')">📷 Scan</button></div><div id="products-grid"><div class="empty"><span class="empty-icon">🛒</span>Loading products...</div></div></div>`;
   await loadAndRenderProducts();
 }
 
@@ -1518,6 +1537,178 @@ async function deleteProduct(productId,name){
 }
 
 init();
+
+/* ── BARCODE SCANNER ───────────────────────────── */
+let html5QrScanner=null;
+let scannerContext='products'; // 'products' or 'shopping'
+
+function openBarcodeScanner(context){
+  scannerContext=context||'products';
+  const overlay=document.createElement('div');
+  overlay.id='scanner-overlay';
+  overlay.className='scanner-overlay';
+  overlay.innerHTML=`
+    <div class="scanner-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <h3>📷 Scan barcode</h3>
+        <button onclick="closeBarcodeScanner()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid);padding:4px 8px">✕</button>
+      </div>
+      <p>Point your camera at a product barcode. Works best in good light.</p>
+      <div id="scanner-viewport"></div>
+      <div id="scanner-status" class="scanner-status">Starting camera…</div>
+      <div id="scanner-result"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  startScanner();
+}
+
+function closeBarcodeScanner(){
+  stopScanner();
+  document.getElementById('scanner-overlay')?.remove();
+}
+
+function startScanner(){
+  if(typeof Html5Qrcode==='undefined'){
+    document.getElementById('scanner-status').textContent='Scanner library not loaded — try refreshing.';
+    return;
+  }
+  html5QrScanner=new Html5Qrcode('scanner-viewport');
+  Html5Qrcode.getCameras().then(cameras=>{
+    if(!cameras||cameras.length===0){
+      document.getElementById('scanner-status').textContent='No camera found on this device.';
+      return;
+    }
+    // Prefer back camera on mobile
+    const cam=cameras.find(c=>c.label.toLowerCase().includes('back')||c.label.toLowerCase().includes('rear'))||cameras[cameras.length-1];
+    document.getElementById('scanner-status').textContent='Scanning… point at barcode';
+    html5QrScanner.start(
+      cam.id,
+      {fps:10,qrbox:{width:250,height:120},aspectRatio:1.5},
+      (barcode)=>onBarcodeDetected(barcode),
+      ()=>{}
+    ).catch(err=>{
+      document.getElementById('scanner-status').textContent='Camera error: '+err;
+    });
+  }).catch(err=>{
+    document.getElementById('scanner-status').textContent='Could not access camera. Check browser permissions.';
+    console.warn('Camera error:',err);
+  });
+}
+
+function stopScanner(){
+  if(html5QrScanner){
+    try{html5QrScanner.stop().catch(()=>{});}catch(e){}
+    html5QrScanner=null;
+  }
+}
+
+async function onBarcodeDetected(barcode){
+  stopScanner();
+  const statusEl=document.getElementById('scanner-status');
+  const resultEl=document.getElementById('scanner-result');
+  if(statusEl)statusEl.textContent='Found barcode: '+barcode+' — looking up product…';
+  try{
+    const res=await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}?fields=product_name,product_name_es,categories_tags,brands,image_url`);
+    const data=await res.json();
+    if(data.status===0||!data.product){
+      if(statusEl)statusEl.textContent='Product not found in database. Fill in details manually.';
+      renderScannerForm(barcode,{});
+      return;
+    }
+    const p=data.product;
+    const nameEn=p.product_name||'';
+    const nameEs=p.product_name_es||p.product_name||'';
+    // Guess category from Open Food Facts tags
+    const category=guessCategoryFromOFF(p.categories_tags||[]);
+    if(statusEl)statusEl.textContent='Product found! Check the details below.';
+    renderScannerForm(barcode,{nameEn,nameEs,category});
+  }catch(e){
+    if(statusEl)statusEl.textContent='Lookup failed — fill in details manually.';
+    renderScannerForm(barcode,{});
+  }
+}
+
+function guessCategoryFromOFF(tags){
+  const t=tags.join(' ').toLowerCase();
+  if(t.includes('meat')||t.includes('chicken')||t.includes('beef')||t.includes('pork')||t.includes('sausage')||t.includes('egg'))return'Meats & Eggs';
+  if(t.includes('dairy')||t.includes('cheese')||t.includes('milk')||t.includes('cream')||t.includes('yogurt'))return'Dairy';
+  if(t.includes('vegetable')||t.includes('fruit')||t.includes('produce')||t.includes('fresh'))return'Produce';
+  if(t.includes('pasta')||t.includes('rice')||t.includes('bread')||t.includes('flour')||t.includes('grain')||t.includes('cereal'))return'Grains, Pasta & Bakery';
+  if(t.includes('canned')||t.includes('sauce')||t.includes('condiment')||t.includes('oil')||t.includes('vinegar'))return'Canned & Packaged Foods';
+  if(t.includes('herb')||t.includes('spice')||t.includes('seasoning'))return'Herbs, Vinegar & Condiments';
+  if(t.includes('frozen'))return'Frozen';
+  if(t.includes('beverage')||t.includes('drink')||t.includes('juice'))return'Beverages';
+  return'Other';
+}
+
+async function renderScannerForm(barcode,prefill){
+  const resultEl=document.getElementById('scanner-result');
+  if(!resultEl)return;
+  const{data:ingredients}=await sb.from('ingredients').select('id,name_en').order('name_en');
+  const ingOptions=(ingredients||[]).map(i=>`<option value="${i.id}">${i.name_en}</option>`).join('');
+  const storeOpts=STORE_OPTIONS.map(s=>`<option value="${s}" ${s==='La Comer'?'selected':''}>${s}</option>`).join('');
+  resultEl.innerHTML=`
+    <div class="scanner-result-card">
+      <div class="result-label">Barcode</div>
+      <div class="result-val" style="font-family:monospace;font-size:0.82rem;color:var(--mid)">${barcode}</div>
+      <div class="scanner-field-row"><label>Spanish name *</label><input id="scan-name-es" placeholder="e.g. Filete de Pollo Selecto" value="${prefill.nameEs||prefill.nameEn||''}"></div>
+      <div class="scanner-field-row"><label>English name</label><input id="scan-name-en" placeholder="e.g. Chicken Breast Fillet" value="${prefill.nameEn||''}"></div>
+      <div class="scanner-field-row"><label>Store</label><select id="scan-store">${storeOpts}</select></div>
+      <div class="scanner-field-row"><label>Category</label><input id="scan-category" placeholder="e.g. Meats & Eggs, Dairy, Produce…" value="${prefill.category||''}"></div>
+      <div class="scanner-field-row"><label>Store URL (optional)</label><input id="scan-url" type="url" placeholder="Paste La Comer URL if you have it"></div>
+      <div class="scanner-field-row"><label>Links to ingredient (optional)</label><select id="scan-ingredient"><option value="">— No ingredient linked —</option>${ingOptions}</select></div>
+      ${scannerContext==='shopping'?`<div style="display:flex;align-items:center;gap:8px;margin:8px 0"><input type="checkbox" id="scan-add-to-list" checked><label for="scan-add-to-list" style="font-size:0.85rem;cursor:pointer">Also add to this week's shopping list</label></div>`:''}
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn-ghost" onclick="closeBarcodeScanner()">Cancel</button>
+        <button class="btn-secondary" style="flex:0 0 auto" onclick="startScanner();document.getElementById('scanner-result').innerHTML='';document.getElementById('scanner-status').textContent='Scanning…'">↩ Rescan</button>
+        <button class="btn-primary" style="flex:1" onclick="saveScanResult('${barcode}')">Save product</button>
+      </div>
+    </div>`;
+}
+
+async function saveScanResult(barcode){
+  const name_es=document.getElementById('scan-name-es')?.value.trim();
+  if(!name_es){showToast('Spanish name is required','error');return;}
+  const payload={
+    name_es,
+    name_en:document.getElementById('scan-name-en')?.value.trim()||null,
+    store:document.getElementById('scan-store')?.value||'La Comer',
+    category:document.getElementById('scan-category')?.value.trim()||null,
+    store_url:document.getElementById('scan-url')?.value.trim()||null,
+    ingredient_id:document.getElementById('scan-ingredient')?.value||null,
+    is_preferred_lacomer:document.getElementById('scan-store')?.value==='La Comer',
+    notes:`Barcode: ${barcode}`,
+    added_by:userProfile.id,
+    created_at:new Date().toISOString()
+  };
+  const{error}=await sb.from('household_products').insert(payload);
+  if(error){showToast('Error saving: '+error.message,'error');return;}
+  closeBarcodeScanner();
+  showToast('Product saved ✓');
+  productsCache=null;
+  // If triggered from shopping list, add to Karen additions so it shows on list
+  if(scannerContext==='shopping'&&document.getElementById('scan-add-to-list')?.checked){
+    const item={
+      id:'scan-'+Date.now(),
+      name_en:payload.name_en||payload.name_es,
+      name_es:payload.name_es,
+      lacomer_category:payload.category||'Other',
+      lacomer_url:payload.store_url||null
+    };
+    karenAdditions.push(item);
+    showToast('Added to shopping list ✓');
+    // Refresh shopping list if visible
+    const shoppingContent=document.getElementById('shopping-list-content');
+    if(shoppingContent&&shoppingContent.querySelector('.shop-category-label')){
+      generateShoppingList();
+    }
+  }
+  // Refresh products tab if visible
+  if(document.getElementById('products-grid')){
+    await loadAndRenderProducts();
+  }
+}
+/* ── END BARCODE SCANNER ───────────────────────── */
 </script>
 </body>
 </html>
