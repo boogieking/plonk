@@ -3,6 +3,13 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="theme-color" content="#C8674A"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="Plonk"/>
+  <link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Plonk%22%2C%22short_name%22%3A%22Plonk%22%2C%22start_url%22%3A%22%2Fdashboard%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23F5F0E8%22%2C%22theme_color%22%3A%22%23C8674A%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%3D%2527http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%2527%2520viewBox%3D%25270%25200%2520100%2520100%2527%253E%253Crect%2520width%3D%2527100%2527%2520height%3D%2527100%2527%2520rx%3D%252720%2527%2520fill%3D%2527%2523C8674A%2527%2F%253E%253Ctext%2520y%3D%2527.9em%2527%2520font-size%3D%252780%2527%2520x%3D%252710%2527%253E%25F0%259C%25BD%264%253C%2Ftext%253E%253C%2Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D"/>
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23C8674A'/><text y='.9em' font-size='80' x='10'>🍴</text></svg>"/>
   <title>Forknight — Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -250,17 +257,17 @@
     .trolley-finish-btn{background:var(--clay);color:white;border:none;border-radius:9px;padding:9px 18px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:500;cursor:pointer;white-space:nowrap;transition:background 0.18s;}
     .trolley-finish-btn:hover{background:var(--clay-dark);}
     /* ── SCANNER ── */
-    .scanner-overlay{position:fixed;inset:0;z-index:300;background:rgba(26,22,18,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;}
-    .scanner-card{background:var(--cream);border-radius:18px;padding:24px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto;}
+    .scanner-overlay{position:fixed;inset:0;z-index:300;background:rgba(26,22,18,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;}
+    .scanner-card{background:var(--cream);border-radius:18px;padding:16px;width:100%;max-width:420px;max-height:92vh;overflow-y:auto;box-sizing:border-box;}
     .scanner-card h3{margin:0 0 6px;font-size:1.05rem;}
     .scanner-card p{margin:0 0 16px;font-size:0.82rem;color:var(--mid);}
     #scanner-viewport{width:100%;border-radius:12px;overflow:hidden;background:#000;min-height:200px;}
     #scanner-viewport video{width:100%!important;border-radius:12px;}
     #html5-qrcode-button-camera-permission,#html5-qrcode-button-camera-stop,#html5-qrcode-anchor-scan-type-change{display:none!important;}
     .scanner-result-card{background:rgba(74,124,89,0.08);border:1px solid rgba(74,124,89,0.25);border-radius:12px;padding:16px;margin-top:16px;}
-    .scanner-field-row{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;}
+    .scanner-field-row{display:flex;flex-direction:column;gap:3px;margin-bottom:8px;}
     .scanner-field-row label{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);}
-    .scanner-field-row input,.scanner-field-row select{padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:0.87rem;outline:none;background:white;width:100%;box-sizing:border-box;}
+    .scanner-field-row input,.scanner-field-row select{padding:7px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:0.85rem;outline:none;background:white;width:100%;box-sizing:border-box;}
     .scanner-field-row input:focus,.scanner-field-row select:focus{border-color:var(--clay);}
     .scanner-status{text-align:center;padding:16px;font-size:0.85rem;color:var(--mid);}
     .scan-btn{display:inline-flex;align-items:center;gap:6px;background:white;border:1.5px solid var(--border);border-radius:9px;padding:7px 14px;font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:500;cursor:pointer;transition:border-color 0.15s,background 0.15s;}
@@ -319,6 +326,9 @@
     .product-pref-tag{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(74,124,89,0.1);color:var(--green);}
     .product-actions{display:flex;gap:6px;flex-shrink:0;}
     .unlinked-badge{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(200,103,74,0.12);color:var(--clay);}
+    .incomplete-badge{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(184,134,11,0.12);color:var(--amber);border:1px solid rgba(184,134,11,0.3);}
+    .ai-fill-btn{display:inline-flex;align-items:center;gap:5px;font-size:0.75rem;font-weight:500;padding:5px 12px;border-radius:8px;background:rgba(200,103,74,0.08);border:1.5px solid rgba(200,103,74,0.25);color:var(--clay);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;white-space:nowrap;}
+    .ai-fill-btn:hover{background:var(--clay);color:white;border-color:var(--clay);}
   </style>
 </head>
 <body>
@@ -1432,6 +1442,8 @@ function productRowHtml(p){
   const prefLaComer=p.is_preferred_lacomer?`<span class="product-pref-tag">★ La Comer</span>`:'';
   const prefCity=p.is_preferred_citymarket?`<span class="product-pref-tag">★ City Market</span>`:'';
   const unlinked=!linkedIng?`<span class="unlinked-badge">⚠ unlinked ingredient</span>`:'';
+  const isIncomplete=p.notes?.includes('incomplete')||(!p.name_en||!p.category);
+  const incompleteBadge=isIncomplete?`<span class="incomplete-badge">⚠ incomplete</span>`:'';
   const urlBtn=p.store_url?`<a class="shop-link" href="${p.store_url}" target="_blank">🛒 View</a>`:'';
   return`<div class="product-row" id="prod-row-${p.id}">
     <div class="product-main">
@@ -1442,11 +1454,13 @@ function productRowHtml(p){
         ${prefLaComer}${prefCity}
         ${linkedIng?`<span style="font-size:0.72rem;color:var(--mid)">→ ${linkedIng}</span>`:''}
         ${unlinked}
-        ${p.notes?`<span style="font-size:0.72rem;color:var(--mid);font-style:italic">${p.notes}</span>`:''}
+        ${incompleteBadge}
+        ${p.notes&&!p.notes.includes('incomplete')?`<span style="font-size:0.72rem;color:var(--mid);font-style:italic">${p.notes}</span>`:''}
       </div>
     </div>
     <div class="product-actions">
       ${urlBtn}
+      ${isIncomplete?`<button class="ai-fill-btn" onclick="aiFillProduct('${p.id}')" title="Fill in missing details with AI">✨ Fill</button>`:''}
       <button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px" onclick="openEditProductModal('${p.id}')">Edit</button>
       <button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;color:#c44;border-color:rgba(200,50,50,0.3)" onclick="deleteProduct('${p.id}','${(p.name_en||p.name_es).replace(/'/g,"\\'")}')">Delete</button>
     </div>
@@ -1639,45 +1653,86 @@ function guessCategoryFromOFF(tags){
   return'Other';
 }
 
-async function renderScannerForm(barcode,prefill){
+async function renderScannerForm(barcode,prefill,existingProduct=null){
   const resultEl=document.getElementById('scanner-result');
   if(!resultEl)return;
-  const{data:ingredients}=await sb.from('ingredients').select('id,name_en').order('name_en');
-  const ingOptions=(ingredients||[]).map(i=>`<option value="${i.id}">${i.name_en}</option>`).join('');
-  const storeOpts=STORE_OPTIONS.map(s=>`<option value="${s}" ${s==='La Comer'?'selected':''}>${s}</option>`).join('');
+
+  // ── Duplicate check ──────────────────────────────────────────────────────
+  if(!existingProduct){
+    const{data:existing}=await sb.from('household_products').select('*').ilike('notes',`%${barcode}%`).maybeSingle();
+    if(existing){
+      resultEl.innerHTML=`
+        <div class="scanner-result-card">
+          <div style="font-size:0.72rem;font-weight:600;color:var(--amber);margin-bottom:8px">⚠ Already in your products</div>
+          <div style="font-size:0.95rem;font-weight:500;margin-bottom:4px">${existing.name_es||existing.name_en}</div>
+          ${existing.name_en&&existing.name_en!==existing.name_es?`<div style="font-size:0.78rem;color:var(--mid);margin-bottom:10px">${existing.name_en}</div>`:''}
+          ${existing.last_price_mxn?`<div style="font-size:0.85rem;color:var(--mid);margin-bottom:14px">Last price: <strong style="color:var(--dark)">$${existing.last_price_mxn} MXN</strong></div>`:'<div style="font-size:0.82rem;color:var(--mid);margin-bottom:14px">No price recorded yet</div>'}
+          <div class="scanner-field-row"><label>Update price (MXN)</label><input id="scan-update-price" type="number" min="0" step="0.01" placeholder="${existing.last_price_mxn||'Enter price'}" value="${existing.last_price_mxn||''}"></div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="btn-ghost" onclick="closeBarcodeScanner()">Cancel</button>
+            <button class="btn-secondary" style="flex:0 0 auto" onclick="renderScannerForm('${barcode}',{},true)">Edit all</button>
+            <button class="btn-primary" style="flex:1" onclick="updateExistingProduct('${existing.id}')">Update price ✓</button>
+          </div>
+        </div>`;
+      return;
+    }
+  }
+
+  // ── New product — minimal in-store form ──────────────────────────────────
+  const autoName=prefill.nameEs||prefill.nameEn||'';
   resultEl.innerHTML=`
     <div class="scanner-result-card">
       <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:3px">Barcode</div>
-      <div style="font-family:monospace;font-size:0.82rem;color:var(--mid);margin-bottom:12px">${barcode}</div>
-      <div class="scanner-field-row"><label>Spanish name *</label><input id="scan-name-es" placeholder="e.g. Filete de Pollo Selecto" value="${prefill.nameEs||prefill.nameEn||''}"></div>
-      <div class="scanner-field-row"><label>English name</label><input id="scan-name-en" placeholder="e.g. Chicken Breast Fillet" value="${prefill.nameEn||''}"></div>
-      <div class="scanner-field-row"><label>Store</label><select id="scan-store">${storeOpts}</select></div>
-      <div class="scanner-field-row"><label>Category</label><input id="scan-category" placeholder="e.g. Meats & Eggs, Dairy, Produce…" value="${prefill.category||''}"></div>
-      <div class="scanner-field-row"><label>Price at La Comer (MXN)</label><input id="scan-price" type="number" min="0" step="0.01" placeholder="e.g. 45.50"></div>
-      <div class="scanner-field-row"><label>Store URL (optional)</label><input id="scan-url" type="url" placeholder="Paste La Comer URL if you have it"></div>
-      <div class="scanner-field-row"><label>Links to ingredient (optional)</label><select id="scan-ingredient"><option value="">— No ingredient linked —</option>${ingOptions}</select></div>
-      ${scannerContext==='shopping'?`<div style="display:flex;align-items:center;gap:8px;margin:8px 0"><input type="checkbox" id="scan-add-to-list" checked><label for="scan-add-to-list" style="font-size:0.85rem;cursor:pointer">Also add to this week's shopping list</label></div>`:''}
-      <div style="display:flex;gap:10px;margin-top:14px">
+      <div style="font-family:monospace;font-size:0.78rem;color:var(--mid);margin-bottom:10px">${barcode}</div>
+      <div class="scanner-field-row">
+        <label>Product name (Spanish) *</label>
+        <input id="scan-name-es" placeholder="e.g. Leche León 900ml" value="${autoName}" style="font-size:0.95rem">
+      </div>
+      <div class="scanner-field-row"><label>Price (MXN)</label><input id="scan-price" type="number" min="0" step="0.01" placeholder="e.g. 20.50" style="font-size:1rem"></div>
+      <details style="margin:10px 0">
+        <summary style="font-size:0.75rem;color:var(--mid);cursor:pointer;padding:4px 0">+ More details (fill at home)</summary>
+        <div style="padding-top:10px">
+          <div class="scanner-field-row"><label>English name</label><input id="scan-name-en" placeholder="e.g. León Milk 900ml" value="${prefill.nameEn||''}"></div>
+          <div class="scanner-field-row"><label>Category</label><input id="scan-category" placeholder="e.g. Dairy, Produce…" value="${prefill.category||''}"></div>
+          <div class="scanner-field-row"><label>Store URL</label><input id="scan-url" type="url" placeholder="Paste La Comer URL"></div>
+        </div>
+      </details>
+      ${scannerContext==='shopping'?`<div style="display:flex;align-items:center;gap:8px;margin:8px 0"><input type="checkbox" id="scan-add-to-list" checked><label for="scan-add-to-list" style="font-size:0.85rem;cursor:pointer">Add to this week's list</label></div>`:''}
+      <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn-ghost" onclick="closeBarcodeScanner()">Cancel</button>
-        <button class="btn-secondary" style="flex:0 0 auto" onclick="startScanner();document.getElementById('scanner-result').innerHTML='';document.getElementById('scanner-status').textContent='Scanning…'">↩ Rescan</button>
-        <button class="btn-primary" style="flex:1" onclick="saveScanResult('${barcode}')">Save product</button>
+        <button class="btn-secondary" style="flex:0 0 auto;font-size:0.8rem" onclick="startScanner();document.getElementById('scanner-result').innerHTML='';document.getElementById('scanner-status').textContent='Scanning…'">↩ Rescan</button>
+        <button class="btn-primary" style="flex:1" onclick="saveScanResult('${barcode}')">Save ✓</button>
       </div>
     </div>`;
+  // Auto-focus name field if empty
+  if(!autoName){setTimeout(()=>document.getElementById('scan-name-es')?.focus(),100);}
+}
+
+async function updateExistingProduct(productId){
+  const price=parseFloat(document.getElementById('scan-update-price')?.value);
+  if(!price){showToast('Enter a price first','error');return;}
+  const{error}=await sb.from('household_products').update({last_price_mxn:price}).eq('id',productId);
+  if(error){showToast('Error updating: '+error.message,'error');return;}
+  closeBarcodeScanner();
+  showToast('Price updated ✓');
+  productsCache=null;
+  if(document.getElementById('products-grid'))await loadAndRenderProducts();
 }
 
 async function saveScanResult(barcode){
   const name_es=document.getElementById('scan-name-es')?.value.trim();
-  if(!name_es){showToast('Spanish name is required','error');return;}
+  if(!name_es){showToast('Enter a product name first','error');document.getElementById('scan-name-es')?.focus();return;}
+  const isIncomplete=!document.getElementById('scan-name-en')?.value.trim()||!document.getElementById('scan-category')?.value.trim();
   const payload={
     name_es,
     name_en:document.getElementById('scan-name-en')?.value.trim()||null,
-    store:document.getElementById('scan-store')?.value||'La Comer',
+    store:'La Comer',
     category:document.getElementById('scan-category')?.value.trim()||null,
     store_url:document.getElementById('scan-url')?.value.trim()||null,
-    ingredient_id:document.getElementById('scan-ingredient')?.value||null,
+    ingredient_id:null,
     last_price_mxn:parseFloat(document.getElementById('scan-price')?.value)||null,
-    is_preferred_lacomer:document.getElementById('scan-store')?.value==='La Comer',
-    notes:`Barcode: ${barcode}`,
+    is_preferred_lacomer:true,
+    notes:`Barcode: ${barcode}${isIncomplete?' | incomplete':''}`,
     added_by:userProfile.id,
     created_at:new Date().toISOString()
   };
@@ -1702,6 +1757,49 @@ async function saveScanResult(barcode){
   }
 }
 /* ── END BARCODE SCANNER ───────────────────────── */
+
+/* ── AI PRODUCT FILL ───────────────────────────── */
+async function aiFillProduct(productId){
+  const p=productsCache?.find(x=>x.id===productId);
+  if(!p)return;
+  const btn=document.querySelector(`#prod-row-${productId} .ai-fill-btn`);
+  if(btn){btn.textContent='✨ Filling…';btn.disabled=true;}
+  try{
+    const prompt=`You are helping fill in product details for a Mexican supermarket product database.
+Product Spanish name: "${p.name_es}"
+${p.notes?`Notes: ${p.notes}`:''}
+
+Please provide the following in JSON only, no other text:
+{
+  "name_en": "English product name",
+  "category": "one of: Meats & Eggs, Dairy, Produce, Grains Pasta & Bakery, Canned & Packaged Foods, Herbs Vinegar & Condiments, Frozen, Beverages, Household & Cleaning, Other"
+}`;
+    const response=await fetch('https://claude-proxy.cameronjohnking.workers.dev',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-proxy-secret':'Oreo-Ginger-Neo-Ella_11!!'},
+      body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:200,messages:[{role:'user',content:prompt}]})
+    });
+    const data=await response.json();
+    const text=data.content?.find(b=>b.type==='text')?.text||'';
+    const clean=text.replace(/```json|```/g,'').trim();
+    const parsed=JSON.parse(clean);
+    // Remove 'incomplete' flag from notes
+    const newNotes=(p.notes||'').replace(/\s*\|\s*incomplete/,'').trim()||null;
+    const{error}=await sb.from('household_products').update({
+      name_en:parsed.name_en||p.name_en,
+      category:parsed.category||p.category,
+      notes:newNotes
+    }).eq('id',productId);
+    if(error)throw error;
+    productsCache=null;
+    await loadAndRenderProducts();
+    showToast('Product filled in ✓');
+  }catch(e){
+    showToast('AI fill failed — try editing manually','error');
+    if(btn){btn.textContent='✨ Fill';btn.disabled=false;}
+  }
+}
+/* ── END AI PRODUCT FILL ───────────────────────── */
 
 init();
 </script>
