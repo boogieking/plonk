@@ -313,6 +313,22 @@
     .in-trolley-price-input:focus{border-color:var(--green);}
     .trolley-uncheck-btn{background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--mid);padding:2px 6px;border-radius:5px;transition:background 0.12s;white-space:nowrap;}
     .trolley-uncheck-btn:hover{background:var(--light);color:var(--dark);}
+    .cat-subtotal{font-size:0.7rem;font-weight:500;color:var(--clay);margin-left:auto;padding-left:8px;white-space:nowrap;}
+    .trolley-banner-cats{font-size:0.72rem;color:rgba(255,255,255,0.55);margin-top:4px;line-height:1.6;}
+    .receipt-modal{background:white;border-radius:var(--radius);padding:28px 24px;max-width:400px;width:90%;max-height:80vh;overflow-y:auto;}
+    .receipt-title{font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--dark);margin-bottom:4px;}
+    .receipt-date{font-size:0.75rem;color:var(--mid);margin-bottom:18px;}
+    .receipt-cat{font-size:0.7rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin:12px 0 4px;}
+    .receipt-row{display:flex;justify-content:space-between;align-items:baseline;font-size:0.85rem;padding:3px 0;border-bottom:1px solid rgba(200,180,160,0.15);}
+    .receipt-row:last-child{border-bottom:none;}
+    .receipt-item-name{color:var(--dark);flex:1;padding-right:12px;}
+    .receipt-item-price{color:var(--clay);font-weight:500;white-space:nowrap;}
+    .receipt-cat-total{display:flex;justify-content:space-between;font-size:0.78rem;font-weight:500;color:var(--mid);padding:4px 0 6px;border-bottom:1px solid var(--border);}
+    .receipt-grand{display:flex;justify-content:space-between;align-items:baseline;margin-top:14px;padding-top:12px;border-top:2px solid var(--dark);}
+    .receipt-grand-label{font-weight:500;font-size:0.9rem;}
+    .receipt-grand-mxn{font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:700;color:var(--clay);}
+    .receipt-grand-usd{font-size:0.75rem;color:var(--mid);text-align:right;margin-top:2px;}
+    .receipt-saved-note{font-size:0.75rem;color:var(--green);margin-top:10px;text-align:center;}
     .recipe-steps-list{display:flex;flex-direction:column;gap:10px;margin-top:2px}
     .recipe-step{display:flex;gap:12px;align-items:flex-start}
     .recipe-step-num{font-family:'Playfair Display',serif;font-size:1rem;color:var(--clay);font-weight:700;flex-shrink:0;min-width:24px;line-height:1.4;}
@@ -1013,7 +1029,69 @@ async function generateShoppingList(){
 /* ── TROLLEY MODE ─────────────────────────────── */
 async function fetchExchangeRate(){if(usdRate)return usdRate;try{const r=await fetch('https://open.er-api.com/v6/latest/MXN');const d=await r.json();if(d&&d.rates&&d.rates.USD){usdRate=d.rates.USD;return usdRate;}}catch(e){console.warn('Exchange rate fetch failed:',e.message);}return null;}
 async function startTrolleyMode(){trolleyMode=true;trolleyItems={};await fetchExchangeRate();const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');if(genBtn)genBtn.style.display='none';if(ssBtn)ssBtn.style.display='none';renderTrolleyUI();showToast('Shopping mode on — tick items as you add them 🛒');}
-function finishTrolleyMode(){trolleyMode=false;trolleyItems={};const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');if(genBtn){genBtn.style.display='';genBtn.textContent='Regenerate list';}if(ssBtn)ssBtn.style.display='';document.getElementById('trolley-banner')?.remove();document.getElementById('in-trolley-section')?.remove();document.getElementById('trolley-col-header')?.remove();document.querySelectorAll('.trolley-check-wrap').forEach(el=>el.remove());document.querySelectorAll('.trolley-price-wrap').forEach(el=>el.remove());document.querySelectorAll('.shop-row').forEach(row=>{row.classList.remove('in-trolley');});showToast('Shopping done ✓');}
+async function finishTrolleyMode(){
+  // Save prices to household_products for all items that have a price
+  const itemsWithPrice=Object.entries(trolleyItems).filter(([,v])=>v.price>0);
+  let savedCount=0;
+  if(itemsWithPrice.length>0){
+    for(const[ingId,item]of itemsWithPrice){
+      try{
+        await sb.from('household_products').update({last_price_mxn:item.price}).eq('ingredient_id',ingId);
+        savedCount++;
+      }catch(e){console.warn('Price save failed for',ingId,e.message);}
+    }
+  }
+  // Show receipt modal before clearing state
+  const snapshot={...trolleyItems};
+  const snapTotal=Object.values(snapshot).reduce((s,i)=>s+(i.price||0),0);
+  showReceiptModal(snapshot,snapTotal,savedCount);
+  // Clear trolley UI
+  trolleyMode=false;trolleyItems={};
+  const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');
+  if(genBtn){genBtn.style.display='';genBtn.textContent='Regenerate list';}
+  if(ssBtn)ssBtn.style.display='';
+  document.getElementById('trolley-banner')?.remove();
+  document.getElementById('in-trolley-section')?.remove();
+  document.getElementById('trolley-col-header')?.remove();
+  document.querySelectorAll('.trolley-check-wrap').forEach(el=>el.remove());
+  document.querySelectorAll('.trolley-price-wrap').forEach(el=>el.remove());
+  document.querySelectorAll('.shop-cat-subtotal').forEach(el=>el.remove());
+  document.querySelectorAll('.shop-row').forEach(row=>{row.classList.remove('in-trolley');});
+}
+function showReceiptModal(items,totalMXN,savedCount){
+  const now=new Date();
+  const dateStr=now.toLocaleDateString('en-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  // group by category
+  const cats={};
+  for(const[,item]of Object.entries(items)){
+    const c=item.cat||'Other';if(!cats[c])cats[c]=[];
+    cats[c].push(item);
+  }
+  let catHtml='';
+  for(const[cat,catItems]of Object.entries(cats).sort(([a],[b])=>a.localeCompare(b))){
+    const catTotal=catItems.reduce((s,i)=>s+(i.price||0),0);
+    catHtml+=`<div class="receipt-cat">${cat}</div>`;
+    for(const item of catItems){
+      catHtml+=`<div class="receipt-row"><span class="receipt-item-name">${item.name}</span><span class="receipt-item-price">${item.price>0?'$'+item.price.toFixed(2):'—'}</span></div>`;
+    }
+    if(catTotal>0)catHtml+=`<div class="receipt-cat-total"><span>Subtotal</span><span>$${catTotal.toFixed(2)} MXN</span></div>`;
+  }
+  const usdLine=usdRate&&totalMXN>0?`<div class="receipt-grand-usd">≈ USD $${(totalMXN*usdRate).toFixed(2)}</div>`:'';
+  const savedNote=savedCount>0?`<div class="receipt-saved-note">✓ ${savedCount} price${savedCount!==1?'s':''} saved to product list</div>`:'';
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="receipt-modal">
+    <div class="receipt-title">🛒 Shopping Receipt</div>
+    <div class="receipt-date">${dateStr}</div>
+    ${catHtml}
+    <div class="receipt-grand">
+      <span class="receipt-grand-label">Total</span>
+      <div style="text-align:right"><div class="receipt-grand-mxn">$${totalMXN.toFixed(2)} MXN</div>${usdLine}</div>
+    </div>
+    ${savedNote}
+    <div class="modal-btns" style="margin-top:18px"><button class="btn-primary" onclick="closeModal()">Done</button></div>
+  </div>`;
+  document.body.appendChild(el);
+}
 function renderTrolleyUI(){
   const content=document.getElementById('shopping-list-content');if(!content)return;
   // Banner fixed to bottom of viewport — append to body not card
@@ -1045,6 +1123,14 @@ function renderTrolleyUI(){
     priceWrap.innerHTML=`<input class="trolley-price-input" type="number" min="0" step="0.01" placeholder="0.00" oninput="trolleyPriceInput(this,'${itemId}')">`;
     row.appendChild(priceWrap);
   });
+  // Add subtotal span to each category label
+  document.querySelectorAll('.shop-category-label').forEach(lbl=>{
+    if(!lbl.querySelector('.cat-subtotal')){
+      const span=document.createElement('span');span.className='cat-subtotal';
+      lbl.style.display='flex';lbl.style.alignItems='center';
+      lbl.appendChild(span);
+    }
+  });
   // In Trolley section at bottom
   if(!document.getElementById('in-trolley-section')){
     const sec=document.createElement('div');sec.id='in-trolley-section';sec.className='in-trolley-section';
@@ -1052,15 +1138,47 @@ function renderTrolleyUI(){
     content.appendChild(sec);
   }
 }
-function inTrolleyPriceInput(input,itemId){if(trolleyItems[itemId]){trolleyItems[itemId].price=parseFloat(input.value)||0;updateTrolleyBanner();// sync back to original row price input if visible
-const origInput=document.querySelector(`#shop-row-${itemId} .trolley-price-input`);if(origInput)origInput.value=input.value;}}
-function trolleyPriceInput(input,itemId){if(trolleyItems[itemId]){trolleyItems[itemId].price=parseFloat(input.value)||0;updateTrolleyBanner();updateInTrolleyRow(itemId);}}
-function tickTrolleyItem(chk,row,itemId,itemName){if(chk.checked){const priceInput=row.querySelector('.trolley-price-input');const price=priceInput?parseFloat(priceInput.value)||0:0;trolleyItems[itemId]={name:itemName,price};row.classList.add('in-trolley');addInTrolleyRow(itemId,itemName,price);}else{delete trolleyItems[itemId];row.classList.remove('in-trolley');removeInTrolleyRow(itemId);}updateTrolleyBanner();}
+function inTrolleyPriceInput(input,itemId){if(trolleyItems[itemId]){trolleyItems[itemId].price=parseFloat(input.value)||0;updateTrolleyBanner();updateCatSubtotals();const origInput=document.querySelector(`#shop-row-${itemId} .trolley-price-input`);if(origInput)origInput.value=input.value;}}
+function trolleyPriceInput(input,itemId){if(trolleyItems[itemId]){trolleyItems[itemId].price=parseFloat(input.value)||0;updateTrolleyBanner();updateCatSubtotals();updateInTrolleyRow(itemId);}}
+function tickTrolleyItem(chk,row,itemId,itemName){
+  if(chk.checked){
+    const priceInput=row.querySelector('.trolley-price-input');
+    const price=priceInput?parseFloat(priceInput.value)||0:0;
+    let cat='Other';let el=row.previousElementSibling;
+    while(el){if(el.classList.contains('shop-category-label')){cat=el.textContent.trim();break;}el=el.previousElementSibling;}
+    trolleyItems[itemId]={name:itemName,price,cat};
+    row.classList.add('in-trolley');addInTrolleyRow(itemId,itemName,price);
+  }else{
+    delete trolleyItems[itemId];row.classList.remove('in-trolley');removeInTrolleyRow(itemId);
+  }
+  updateTrolleyBanner();updateCatSubtotals();
+}
 function addInTrolleyRow(itemId,itemName,price){const list=document.getElementById('in-trolley-list');if(!list)return;const div=document.createElement('div');div.className='in-trolley-row';div.id=`introlley-row-${itemId}`;div.innerHTML=`<span class="in-trolley-name">${itemName}</span><input class="in-trolley-price-input" type="number" min="0" step="0.01" placeholder="0.00" value="${price>0?price:''}" oninput="inTrolleyPriceInput(this,'${itemId}')"><button class="trolley-uncheck-btn" onclick="uncheckTrolleyItem('${itemId}')">↑ Put back</button>`;list.appendChild(div);const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
 function updateInTrolleyRow(itemId){const priceEl=document.getElementById(`introlley-price-${itemId}`);if(priceEl&&trolleyItems[itemId]){const p=trolleyItems[itemId].price;priceEl.textContent=p>0?'$'+p.toFixed(2):'—';}}
 function removeInTrolleyRow(itemId){document.getElementById(`introlley-row-${itemId}`)?.remove();const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
 function uncheckTrolleyItem(itemId){const origRow=document.getElementById(`shop-row-${itemId}`);if(origRow){const chk=origRow.querySelector('.trolley-check');if(chk)chk.checked=false;origRow.classList.remove('in-trolley');}delete trolleyItems[itemId];removeInTrolleyRow(itemId);updateTrolleyBanner();}
-function updateTrolleyBanner(){const banner=document.getElementById('trolley-banner');if(!banner)return;const totalMXN=Object.values(trolleyItems).reduce((s,i)=>s+(i.price||0),0);const count=Object.keys(trolleyItems).length;const usdStr=usdRate&&totalMXN>0?`<div class="trolley-total-usd">≈ USD $${(totalMXN*usdRate).toFixed(2)}</div>`:`<div class="trolley-total-usd">${totalMXN>0&&!usdRate?'USD rate unavailable':count===0?'Tick items as you add to trolley':''}</div>`;banner.innerHTML=`<div><div class="trolley-total-label">Running total · ${count} item${count!==1?'s':''} in trolley</div><div class="trolley-total-mxn">$${totalMXN.toFixed(2)} <span style="font-size:0.9rem;font-weight:400;opacity:0.7">MXN</span></div>${usdStr}</div><button class="trolley-finish-btn" onclick="finishTrolleyMode()">✓ Finish Shopping</button>`;}
+function updateTrolleyBanner(){
+  const banner=document.getElementById('trolley-banner');if(!banner)return;
+  const totalMXN=Object.values(trolleyItems).reduce((s,i)=>s+(i.price||0),0);
+  const count=Object.keys(trolleyItems).length;
+  const usdStr=usdRate&&totalMXN>0?`<div class="trolley-total-usd">≈ USD $${(totalMXN*usdRate).toFixed(2)}</div>`:`<div class="trolley-total-usd">${totalMXN>0&&!usdRate?'USD rate unavailable':count===0?'Tick items as you add to trolley':''}</div>`;
+  // category breakdown
+  const cats={};for(const it of Object.values(trolleyItems)){const c=it.cat||'Other';cats[c]=(cats[c]||0)+(it.price||0);}
+  const catLines=Object.entries(cats).filter(([,v])=>v>0).map(([c,v])=>`${c}: $${v.toFixed(2)}`).join(' · ');
+  const catsHtml=catLines?`<div class="trolley-banner-cats">${catLines}</div>`:'';
+  banner.innerHTML=`<div><div class="trolley-total-label">Running total · ${count} item${count!==1?'s':''} in trolley</div><div class="trolley-total-mxn">$${totalMXN.toFixed(2)} <span style="font-size:0.9rem;font-weight:400;opacity:0.7">MXN</span></div>${usdStr}${catsHtml}</div><button class="trolley-finish-btn" onclick="finishTrolleyMode()">✓ Finish Shopping</button>`;
+}
+function updateCatSubtotals(){
+  // recalculate per-category totals and update the span in each category label
+  const cats={};
+  for(const item of Object.values(trolleyItems)){const c=item.cat||'Other';cats[c]=(cats[c]||0)+(item.price||0);}
+  document.querySelectorAll('.shop-category-label').forEach(lbl=>{
+    const span=lbl.querySelector('.cat-subtotal');if(!span)return;
+    const catName=lbl.childNodes[0]?(lbl.childNodes[0].textContent||'').trim():lbl.textContent.trim();
+    const total=cats[catName]||0;
+    span.textContent=total>0?`$${total.toFixed(2)}`:'';
+  });
+}
 /* ── END TROLLEY MODE ─────────────────────────── */
 function showAddLinkForm(ingId,btn){const row=document.getElementById(`shop-row-${ingId}`);if(!row)return;btn.style.display='none';const formDiv=document.createElement('div');formDiv.className='add-link-form';formDiv.id=`link-form-${ingId}`;formDiv.innerHTML=`<input class="add-link-input" id="link-input-${ingId}" placeholder="Paste La Comer URL..." type="url"><button class="save-link-btn" onclick="saveLink('${ingId}')">Save</button><button class="cancel-link-btn" onclick="cancelLink('${ingId}')">Cancel</button>`;row.appendChild(formDiv);}
 function cancelLink(ingId){document.getElementById(`link-form-${ingId}`)?.remove();const row=document.getElementById(`shop-row-${ingId}`);if(row){const addBtn=row.querySelector('.add-link-btn');if(addBtn)addBtn.style.display='';}}
