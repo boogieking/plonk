@@ -1422,33 +1422,172 @@ async function checkHibernationWakeUps(){
 }
 let currentView='dashboard';
 function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){renderRecipeListView();}else if(view==='products'){renderProductsView();}}
-let recipeFilterTier='all',recipeFilterSearch='',recipeShowHibernated=false,allRecipesCache=null;
+let recipeFilterTier='all',recipeFilterSearch='',recipeShowHibernated=false,recipeShowDinners=false,allRecipesCache=null;
 async function renderRecipeListView(){
   const content=document.getElementById('dashboard-content');
   if(!allRecipesCache){const{data,error}=await sb.from('recipes').select('*, ingredients(id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit)').order('name_en');if(error){content.innerHTML=`<div class="fade-in"><div class="empty" style="color:#c44">Could not load recipes: ${error.message}</div></div>`;return;}allRecipesCache=data;}
-  const total=allRecipesCache.length;const withSteps=allRecipesCache.filter(r=>r.steps&&r.steps.trim()).length;const pct=total>0?Math.round((withSteps/total)*100):0;
+  const lunchCache=allRecipesCache.filter(r=>!r.is_dinner);
+  const total=lunchCache.length;const withSteps=lunchCache.filter(r=>r.steps&&r.steps.trim()).length;const pct=total>0?Math.round((withSteps/total)*100):0;
   const progressHtml=`<div class="steps-progress-bar"><span style="font-size:0.9rem">📋</span><div class="steps-progress-track"><div class="steps-progress-fill" style="width:${pct}%"></div></div><span class="steps-progress-count">${withSteps} of ${total}</span><span class="steps-progress-label">recipes have saved steps</span></div>`;
-  content.innerHTML=`<div class="fade-in" id="recipe-list-root"><div class="page-header"><h1>Recipes</h1><p>Browse and manage the full meal library</p></div>${progressHtml}<div class="recipes-toolbar"><input class="search-input" id="recipe-search" placeholder="Search recipes…" oninput="filterRecipes()" value="${recipeFilterSearch}"><button class="filter-pill ${recipeFilterTier==='all'?'active':''}" onclick="setTierFilter('all')">All</button><button class="filter-pill ${recipeFilterTier==='weekly'?'active':''}" onclick="setTierFilter('weekly')">Weekly</button><button class="filter-pill ${recipeFilterTier==='regular'?'active':''}" onclick="setTierFilter('regular')">Regular</button><button class="filter-pill ${recipeFilterTier==='occasional'?'active':''}" onclick="setTierFilter('occasional')">Occasional</button><button class="filter-pill ${recipeFilterTier==='rare'?'active':''}" onclick="setTierFilter('rare')">Rare</button><button class="filter-pill ${recipeShowHibernated?'active':''}" onclick="toggleHibernated()">💤 Hibernated</button></div><div id="recipe-grid-container"><div class="empty"><span class="empty-icon">🍳</span>Loading recipes…</div></div></div>`;
+  const tierPills=recipeShowDinners?'':`<button class="filter-pill ${recipeFilterTier==='all'?'active':''}" onclick="setTierFilter('all')">All</button><button class="filter-pill ${recipeFilterTier==='weekly'?'active':''}" onclick="setTierFilter('weekly')">Weekly</button><button class="filter-pill ${recipeFilterTier==='regular'?'active':''}" onclick="setTierFilter('regular')">Regular</button><button class="filter-pill ${recipeFilterTier==='occasional'?'active':''}" onclick="setTierFilter('occasional')">Occasional</button><button class="filter-pill ${recipeFilterTier==='rare'?'active':''}" onclick="setTierFilter('rare')">Rare</button><button class="filter-pill ${recipeShowHibernated?'active':''}" onclick="toggleHibernated()">💤 Hibernated</button>`;
+  const isAdmin=userProfile?.role==='admin';
+  const aiBtn=isAdmin?`<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px;margin-left:auto" onclick="openAIRecipeAssistant()">✨ AI Assistant</button>`:'';
+  content.innerHTML=`<div class="fade-in" id="recipe-list-root"><div class="page-header"><h1>Recipes</h1><p>Browse and manage the full meal library</p></div>${progressHtml}<div class="recipes-toolbar"><input class="search-input" id="recipe-search" placeholder="Search recipes…" oninput="filterRecipes()" value="${recipeFilterSearch}"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="filter-pill ${!recipeShowDinners?'active':''}" onclick="setDinnerView(false)">🍽 Lunches</button><button class="filter-pill ${recipeShowDinners?'active':''}" onclick="setDinnerView(true)" style="${recipeShowDinners?'background:var(--blue);color:white;border-color:var(--blue)':''}">🌙 Dinners</button></div>${tierPills}${aiBtn}</div><div id="recipe-grid-container"><div class="empty"><span class="empty-icon">🍳</span>Loading recipes…</div></div></div>`;
   renderFilteredRecipes();
 }
+function setDinnerView(showDinners){recipeShowDinners=showDinners;recipeShowHibernated=false;recipeFilterTier='all';renderRecipeListView();}
 function renderFilteredRecipes(){
   const container=document.getElementById('recipe-grid-container');if(!container||!allRecipesCache)return;
   const search=(document.getElementById('recipe-search')?.value||recipeFilterSearch).toLowerCase().trim();recipeFilterSearch=search;
-  const list=recipeShowHibernated
-    ?allRecipesCache.filter(r=>r.hibernated&&(!search||r.name_en.toLowerCase().includes(search)||(r.name_es||'').toLowerCase().includes(search)))
-    :allRecipesCache.filter(r=>{if(r.hibernated)return false;if(recipeFilterTier!=='all'&&r.frequency_tier!==recipeFilterTier)return false;if(search&&!r.name_en.toLowerCase().includes(search)&&!(r.name_es||'').toLowerCase().includes(search))return false;return true;});
+  const sourceList=recipeShowDinners?allRecipesCache.filter(r=>r.is_dinner):allRecipesCache.filter(r=>!r.is_dinner);
+  const list=recipeShowDinners
+    ?sourceList.filter(r=>!search||r.name_en.toLowerCase().includes(search)||(r.name_es||'').toLowerCase().includes(search))
+    :recipeShowHibernated
+      ?sourceList.filter(r=>r.hibernated&&(!search||r.name_en.toLowerCase().includes(search)||(r.name_es||'').toLowerCase().includes(search)))
+      :sourceList.filter(r=>{if(r.hibernated)return false;if(recipeFilterTier!=='all'&&r.frequency_tier!==recipeFilterTier)return false;if(search&&!r.name_en.toLowerCase().includes(search)&&!(r.name_es||'').toLowerCase().includes(search))return false;return true;});
   if(list.length===0){container.innerHTML=`<div class="empty"><span class="empty-icon">🔍</span>No recipes match</div>`;return;}
-  const isAdmin=userProfile?.role==='admin';container.innerHTML=`<div class="recipe-grid">${list.map(r=>recipeRowHtml(r,isAdmin)).join('')}</div>`;
+  const isAdmin=userProfile?.role==='admin';container.innerHTML=`<div class="recipe-grid">${list.map(r=>recipeRowHtml(r,isAdmin,recipeShowDinners)).join('')}</div>`;
 }
-function recipeRowHtml(r,isAdmin){
-  const tier=r.hibernated?'hibernated':(r.frequency_tier||'regular');const stars=r.avg_rating?`⭐ ${parseFloat(r.avg_rating).toFixed(1)}`:'—';const time=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);
+function recipeRowHtml(r,isAdmin,isDinner){
+  const time=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);
   const stepsTag=r.steps&&r.steps.trim()?`<span class="tag tag-green" style="font-size:0.65rem;padding:2px 7px">📋 steps saved</span>`:'';
+  if(isDinner){
+    return`<div class="recipe-row" onclick="openRecipeDetail('${r.id}')"><div class="recipe-main"><div class="recipe-title">${r.name_en}</div>${r.name_es?`<div class="recipe-title-es">${r.name_es}</div>`:''}<div class="recipe-meta-row">${time>0?`<span class="recipe-meta-item">⏱ ${time} min</span>`:''}<span class="tag" style="font-size:0.65rem;padding:2px 7px;background:rgba(46,95,138,0.12);color:var(--blue)">🌙 dinner</span>${stepsTag}</div></div></div>`;
+  }
+  const tier=r.hibernated?'hibernated':(r.frequency_tier||'regular');const stars=r.avg_rating?`⭐ ${parseFloat(r.avg_rating).toFixed(1)}`:'—';
   const adminActions=isAdmin?`<button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;" onclick="event.stopPropagation();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Tier</button><button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;" onclick="event.stopPropagation();openHibernateModal('${r.id}','${r.name_en.replace(/'/g,"\\'")}')"> ${r.hibernated?'Wake':'Sleep'}</button>`:'';
   return`<div class="recipe-row${r.hibernated?' hibernated-row':''}" onclick="openRecipeDetail('${r.id}')"><div class="recipe-main"><div class="recipe-title">${r.name_en}</div>${r.name_es?`<div class="recipe-title-es">${r.name_es}</div>`:''}<div class="recipe-meta-row">${time>0?`<span class="recipe-meta-item">⏱ ${time} min</span>`:''}${r.advance_prep_required?`<span class="tag tag-amber">prep ahead</span>`:''} ${r.hibernated&&r.hibernate_until?`<span class="recipe-meta-item">🌙 until ${new Date(r.hibernate_until).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}</span>`:''} ${stepsTag}</div></div><div class="recipe-badges"><span class="stars-display">${stars}</span><span class="tier-badge tier-${tier}${r.frequency_override?' tier-locked':''}">${TIER_LABELS[tier]||tier}</span></div>${isAdmin?`<div class="recipe-actions">${adminActions}</div>`:''}</div>`;
 }
 function filterRecipes(){renderFilteredRecipes();}
 function setTierFilter(tier){recipeFilterTier=tier;recipeShowHibernated=false;renderRecipeListView();}
 function toggleHibernated(){recipeShowHibernated=!recipeShowHibernated;recipeFilterTier='all';renderRecipeListView();}
+
+// ── AI RECIPE ASSISTANT ──────────────────────────────────────────────────────
+function openAIRecipeAssistant(){
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="modal" style="max-width:560px;max-height:85vh;overflow-y:auto">
+    <h3>✨ AI Recipe Assistant</h3>
+    <div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:14px">
+      <button id="ai-tab-find" class="filter-pill active" onclick="switchAITab('find')">🔍 Find a recipe</button>
+      <button id="ai-tab-generate" class="filter-pill" onclick="switchAITab('generate')">✨ Generate new</button>
+      <button id="ai-tab-pairing" class="filter-pill" onclick="switchAITab('pairing')">🍽 Dinner pairings</button>
+    </div>
+    <div id="ai-panel-find">
+      <p style="font-size:0.85rem;color:var(--mid);margin-bottom:12px">Describe what you're looking for and I'll search the existing recipe library.</p>
+      <textarea id="ai-find-input" placeholder="e.g. something with chicken and pineapple, or a quick pasta dish…" rows="3" style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:'DM Sans',sans-serif;font-size:0.88rem;resize:vertical;outline:none"></textarea>
+      <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="runAIFind()">🔍 Search</button>
+      </div>
+      <div id="ai-find-result" style="margin-top:14px"></div>
+    </div>
+    <div id="ai-panel-generate" style="display:none">
+      <p style="font-size:0.85rem;color:var(--mid);margin-bottom:12px">Describe a meal and I'll generate a full recipe with ingredients and quantities for 3 people.</p>
+      <textarea id="ai-gen-input" placeholder="e.g. a crispy baked chicken thigh dish with roasted vegetables and a honey glaze…" rows="3" style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:'DM Sans',sans-serif;font-size:0.88rem;resize:vertical;outline:none"></textarea>
+      <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="runAIGenerate()">✨ Generate</button>
+      </div>
+      <div id="ai-gen-result" style="margin-top:14px"></div>
+    </div>
+    <div id="ai-panel-pairing" style="display:none">
+      <p style="font-size:0.85rem;color:var(--mid);margin-bottom:12px">Pick a lunch recipe and I'll suggest 3 dinner options using the family pairing rules.</p>
+      <select id="ai-pairing-lunch" style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white;color:var(--dark)">
+        <option value="">— Select a lunch recipe —</option>
+        ${(allRecipesCache||[]).filter(r=>!r.is_dinner).sort((a,b)=>a.name_en.localeCompare(b.name_en)).map(r=>`<option value="${r.id}" data-name="${r.name_en.replace(/"/g,'&quot;')}">${r.name_en}</option>`).join('')}
+      </select>
+      <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="runAIPairing()">🍽 Suggest pairings</button>
+      </div>
+      <div id="ai-pairing-result" style="margin-top:14px"></div>
+    </div>
+  </div>`;
+  document.body.appendChild(el);el.addEventListener('click',e=>{if(e.target===el)closeModal();});
+}
+function switchAITab(tab){
+  ['find','generate','pairing'].forEach(t=>{
+    document.getElementById(`ai-panel-${t}`).style.display=t===tab?'block':'none';
+    document.getElementById(`ai-tab-${t}`).classList.toggle('active',t===tab);
+  });
+}
+async function runAIFind(){
+  const query=(document.getElementById('ai-find-input')?.value||'').trim();
+  if(!query)return;
+  const resultDiv=document.getElementById('ai-find-result');
+  resultDiv.innerHTML=`<div style="color:var(--mid);font-size:0.85rem">🤔 Searching recipes…</div>`;
+  const recipeNames=(allRecipesCache||[]).filter(r=>!r.is_dinner).map(r=>`${r.name_en}${r.name_es?' / '+r.name_es:''}`).join(', ');
+  const prompt=`You are a helpful assistant for a family meal planning app. The family is Australian, living in Celaya Mexico. Here is their full lunch recipe library: ${recipeNames}. The user is looking for: "${query}". List any matching recipes from the library (by exact name). If nothing matches well, say so and suggest 1-2 new ideas that would fit the library style. Keep your response concise and friendly.`;
+  try{
+    const res=await fetch('https://claude-proxy.cameronjohnking.workers.dev',{method:'POST',headers:{'Content-Type':'application/json','x-proxy-secret':'Oreo-Ginger-Neo-Ella_11!!'},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:500,messages:[{role:'user',content:prompt}]})});
+    const data=await res.json();const text=data.content?.[0]?.text||'No response';
+    resultDiv.innerHTML=`<div style="background:rgba(200,103,74,0.06);border:1px solid rgba(200,103,74,0.2);border-radius:10px;padding:14px;font-size:0.88rem;line-height:1.6;white-space:pre-wrap">${text}</div>`;
+  }catch(e){resultDiv.innerHTML=`<div style="color:#c44;font-size:0.85rem">Error: ${e.message}</div>`;}
+}
+async function runAIGenerate(){
+  const query=(document.getElementById('ai-gen-input')?.value||'').trim();
+  if(!query)return;
+  const resultDiv=document.getElementById('ai-gen-result');
+  resultDiv.innerHTML=`<div style="color:var(--mid);font-size:0.85rem">🍳 Generating recipe…</div>`;
+  const prompt=`You are a recipe generator for a family meal planning app. The family is Australian, living in Celaya Mexico. They shop at La Comer. Generate a recipe for: "${query}". Scale ingredients for 3 people. Return ONLY valid JSON in this exact format, no extra text:
+{"name_en":"Recipe Name","name_es":"Nombre en Español","prep_time_minutes":15,"cook_time_minutes":30,"advance_prep_required":false,"advance_prep_description":"","same_day_cookable":true,"ingredients":[{"name_en":"Ingredient","name_es":"Ingrediente","quantity":400,"unit":"g","lacomer_category":"Meats & Eggs"}]}
+Units must be one of: g, kg, ml, l, tsp, tbsp, cup, pcs. lacomer_category must be one of: Dairy, Meats & Eggs, Produce, Grains & Pasta, Canned & Packaged, Herbs & Condiments, Frozen, Bakery, Other.`;
+  try{
+    const res=await fetch('https://claude-proxy.cameronjohnking.workers.dev',{method:'POST',headers:{'Content-Type':'application/json','x-proxy-secret':'Oreo-Ginger-Neo-Ella_11!!'},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+    const data=await res.json();const raw=data.content?.[0]?.text||'';
+    let recipe;try{recipe=JSON.parse(raw.replace(/```json|```/g,'').trim());}catch{resultDiv.innerHTML=`<div style="color:#c44;font-size:0.85rem">Couldn't parse AI response. Try again.</div>`;return;}
+    resultDiv.innerHTML=`<div style="background:rgba(74,124,89,0.06);border:1px solid rgba(74,124,89,0.25);border-radius:10px;padding:14px">
+      <div style="font-weight:600;font-size:1rem;margin-bottom:4px">${recipe.name_en}</div>
+      <div style="font-size:0.82rem;color:var(--mid);margin-bottom:10px">${recipe.name_es||''} · ⏱ ${(recipe.prep_time_minutes||0)+(recipe.cook_time_minutes||0)} min total</div>
+      <div style="font-size:0.82rem;font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;color:var(--mid)">Ingredients</div>
+      <div style="font-size:0.85rem;line-height:1.7">${(recipe.ingredients||[]).map(i=>`<div>• ${i.name_en} <span style="color:var(--mid)">(${i.name_es||''}) — ${i.quantity} ${i.unit||''}</span></div>`).join('')}</div>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn-ghost" onclick="document.getElementById('ai-gen-result').innerHTML=''">Discard</button>
+        <button class="btn-primary" onclick="saveAIGeneratedRecipe(${JSON.stringify(recipe).replace(/"/g,'&quot;')})">💾 Save to recipes</button>
+      </div>
+    </div>`;
+  }catch(e){resultDiv.innerHTML=`<div style="color:#c44;font-size:0.85rem">Error: ${e.message}</div>`;}
+}
+async function saveAIGeneratedRecipe(recipe){
+  showToast('Saving recipe…');
+  const{data:newRecipe,error:recipeError}=await sb.from('recipes').insert({name_en:recipe.name_en,name_es:recipe.name_es||null,prep_time_minutes:recipe.prep_time_minutes||0,cook_time_minutes:recipe.cook_time_minutes||0,advance_prep_required:recipe.advance_prep_required||false,advance_prep_description:recipe.advance_prep_description||null,same_day_cookable:recipe.same_day_cookable!==false,is_dinner:false,frequency_tier:'occasional',hibernated:false}).select().single();
+  if(recipeError){showToast('Error saving recipe: '+recipeError.message,'error');return;}
+  const ingredients=(recipe.ingredients||[]).map(i=>({recipe_id:newRecipe.id,name_en:i.name_en,name_es:i.name_es||null,quantity:i.quantity||null,unit:i.unit||null,lacomer_category:i.lacomer_category||'Other'}));
+  if(ingredients.length>0){const{error:ingError}=await sb.from('ingredients').insert(ingredients);if(ingError){showToast('Recipe saved but ingredients failed: '+ingError.message,'error');return;}}
+  allRecipesCache=null;closeModal();showToast(`"${recipe.name_en}" added to recipes ✓`);await renderRecipeListView();
+}
+async function runAIPairing(){
+  const sel=document.getElementById('ai-pairing-lunch');
+  const lunchId=sel?.value;const lunchName=sel?.options[sel.selectedIndex]?.dataset?.name||sel?.options[sel.selectedIndex]?.text;
+  if(!lunchId){showToast('Please select a lunch recipe first','error');return;}
+  const resultDiv=document.getElementById('ai-pairing-result');
+  resultDiv.innerHTML=`<div style="color:var(--mid);font-size:0.85rem">🌙 Thinking up dinner pairings…</div>`;
+  const dinnerNames=(allRecipesCache||[]).filter(r=>r.is_dinner).map(r=>r.name_en).join(', ');
+  const{data:existing}=await sb.from('dinner_pairings').select('dinner_recipe_id, recipes!dinner_pairings_dinner_recipe_id_fkey(name_en)').eq('lunch_recipe_id',lunchId);
+  const existingNames=(existing||[]).map(p=>p.recipes?.name_en).filter(Boolean);
+  const prompt=`You are a dinner pairing assistant for an Australian family living in Celaya, Mexico. They eat their main meal at lunch. Dinner is light and served at 7:30pm (bedtime 10:30pm). Prefer cheap options. The lunch is: "${lunchName}". Available dinner recipes: ${dinnerNames}. Rules: 1) No cheese on high-iron dinners. 2) Prefer variety — avoid repeating the same dinner across the week. 3) Dinners should be light. 4) Cheap is better. 5) Sienna likes: Buldak carbonara (spicy is fine for this one), pasta, simple Asian dishes. 6) Sienna dislikes: strong fish smell, very spicy food (except Buldak). Existing pairings for this lunch already in the system: ${existingNames.length>0?existingNames.join(', '):'none'}. Suggest exactly 3 dinner recipes from the available list that pair well with this lunch. Return ONLY valid JSON, no extra text: [{"name":"Exact Dinner Name","reason":"one sentence why it pairs well"}]`;
+  try{
+    const res=await fetch('https://claude-proxy.cameronjohnking.workers.dev',{method:'POST',headers:{'Content-Type':'application/json','x-proxy-secret':'Oreo-Ginger-Neo-Ella_11!!'},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:600,messages:[{role:'user',content:prompt}]})});
+    const data=await res.json();const raw=data.content?.[0]?.text||'';
+    let suggestions;try{suggestions=JSON.parse(raw.replace(/```json|```/g,'').trim());}catch{resultDiv.innerHTML=`<div style="color:#c44;font-size:0.85rem">Couldn't parse AI response. Try again.</div>`;return;}
+    const dinnerRecipes=allRecipesCache.filter(r=>r.is_dinner);
+    const matched=suggestions.map(s=>{const recipe=dinnerRecipes.find(r=>r.name_en.toLowerCase()===s.name.toLowerCase());return{...s,recipe_id:recipe?.id,found:!!recipe};});
+    const allFound=matched.every(m=>m.found);
+    resultDiv.innerHTML=`<div style="background:rgba(46,95,138,0.06);border:1px solid rgba(46,95,138,0.2);border-radius:10px;padding:14px">
+      <div style="font-size:0.82rem;font-weight:600;margin-bottom:10px;color:var(--blue)">Suggested dinners for ${lunchName}</div>
+      ${matched.map((m,i)=>`<div style="padding:8px 0;border-bottom:1px solid var(--border);last-child:border:none"><div style="font-size:0.88rem;font-weight:500">${i+1}. ${m.name} ${m.found?'':'<span style="color:#c44;font-size:0.75rem">(not found in DB)</span>'}</div><div style="font-size:0.8rem;color:var(--mid);margin-top:2px">${m.reason}</div></div>`).join('')}
+      ${allFound?`<div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button class="btn-ghost" onclick="document.getElementById('ai-pairing-result').innerHTML=''">Discard</button><button class="btn-primary" onclick="saveAIPairings('${lunchId}',${JSON.stringify(matched).replace(/"/g,'&quot;')})">💾 Save pairings</button></div>`:`<div style="margin-top:10px;font-size:0.8rem;color:#c44">⚠ Some dinners not found — cannot save. Try regenerating.</div>`}
+    </div>`;
+  }catch(e){resultDiv.innerHTML=`<div style="color:#c44;font-size:0.85rem">Error: ${e.message}</div>`;}
+}
+async function saveAIPairings(lunchId,pairings){
+  showToast('Saving pairings…');
+  await sb.from('dinner_pairings').delete().eq('lunch_recipe_id',lunchId);
+  const rows=pairings.map(p=>({lunch_recipe_id:lunchId,dinner_recipe_id:p.recipe_id}));
+  const{error}=await sb.from('dinner_pairings').insert(rows);
+  if(error){showToast('Error saving pairings: '+error.message,'error');return;}
+  closeModal();showToast('Dinner pairings saved ✓');
+}
 async function openRecipeDetail(recipeId){
   const r=allRecipesCache?.find(x=>x.id===recipeId);if(!r)return;
   const isAdmin=userProfile?.role==='admin';const tier=r.hibernated?'hibernated':(r.frequency_tier||'regular');
@@ -1567,7 +1706,7 @@ async function saveRecipeSteps(recipeId){
   const stepsContainer=document.getElementById(`steps-container-${recipeId}`);if(stepsContainer){stepsContainer.dataset.loaded='false';renderSavedSteps(recipeId,stepsText);}
   const badge=document.querySelector('#recipe-detail-overlay .steps-saved-badge');if(!badge){const meta=document.querySelector('.recipe-modal-meta');if(meta){const b=document.createElement('span');b.className='steps-saved-badge';b.textContent='📋 Steps saved';meta.appendChild(b);}}
   const stepsBtn=document.getElementById(`steps-btn-${recipeId}`);if(stepsBtn)stepsBtn.textContent='▲ Hide steps';
-  if(currentView==='recipes'){const total=allRecipesCache?.length||0;const withSteps=allRecipesCache?.filter(r=>r.steps&&r.steps.trim()).length||0;const pct=total>0?Math.round((withSteps/total)*100):0;const fill=document.querySelector('.steps-progress-fill');const count=document.querySelector('.steps-progress-count');if(fill)fill.style.width=pct+'%';if(count)count.textContent=`${withSteps} of ${total}`;}
+  if(currentView==='recipes'){const lunches=allRecipesCache?.filter(r=>!r.is_dinner)||[];const total=lunches.length;const withSteps=lunches.filter(r=>r.steps&&r.steps.trim()).length;const pct=total>0?Math.round((withSteps/total)*100):0;const fill=document.querySelector('.steps-progress-fill');const count=document.querySelector('.steps-progress-count');if(fill)fill.style.width=pct+'%';if(count)count.textContent=`${withSteps} of ${total}`;}
 }
 
 
