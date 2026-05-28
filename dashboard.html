@@ -313,6 +313,11 @@
     .in-trolley-price-input:focus{border-color:var(--green);}
     .trolley-uncheck-btn{background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--mid);padding:2px 6px;border-radius:5px;transition:background 0.12s;white-space:nowrap;}
     .trolley-uncheck-btn:hover{background:var(--light);color:var(--dark);}
+    .not-found-btn{background:none;border:1.5px solid var(--border);cursor:pointer;font-size:0.72rem;color:var(--mid);padding:3px 8px;border-radius:5px;transition:all 0.12s;white-space:nowrap;margin-left:4px;}
+    .not-found-btn:hover{border-color:var(--clay);color:var(--clay);}
+    .not-found-btn.not-found-active{background:rgba(200,103,74,0.08);border-color:var(--clay);color:var(--clay);}
+    .not-found-row{opacity:0.45;}
+    .not-found-row .shop-name-en{text-decoration:line-through;}
     .cat-subtotal{font-size:0.7rem;font-weight:500;color:var(--clay);margin-left:auto;padding-left:8px;white-space:nowrap;}
     .trolley-banner-cats{font-size:0.72rem;color:rgba(255,255,255,0.55);margin-top:4px;line-height:1.6;}
     .receipt-modal{background:white;border-radius:var(--radius);padding:28px 24px;max-width:400px;width:90%;max-height:80vh;overflow-y:auto;}
@@ -1043,7 +1048,7 @@ async function fetchExchangeRate(){if(usdRate)return usdRate;try{const r=await f
 async function startTrolleyMode(){trolleyMode=true;trolleyItems={};await fetchExchangeRate();const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');if(genBtn)genBtn.style.display='none';if(ssBtn)ssBtn.style.display='none';renderTrolleyUI();showToast('Shopping mode on — tick items as you add them 🛒');}
 async function finishTrolleyMode(){
   // Save prices to household_products for all items that have a price
-  const itemsWithPrice=Object.entries(trolleyItems).filter(([,v])=>v.price>0);
+  const itemsWithPrice=Object.entries(trolleyItems).filter(([,v])=>v.price>0&&!v.notFound);
   let savedCount=0;
   if(itemsWithPrice.length>0){
     for(const[ingId,item]of itemsWithPrice){
@@ -1053,9 +1058,8 @@ async function finishTrolleyMode(){
       }catch(e){console.warn('Price save failed for',ingId,e.message);}
     }
   }
-  // Show receipt modal before clearing state
   const snapshot={...trolleyItems};
-  const snapTotal=Object.values(snapshot).reduce((s,i)=>s+(i.price||0),0);
+  const snapTotal=Object.values(snapshot).filter(i=>!i.notFound).reduce((s,i)=>s+(i.price||0),0);
   showReceiptModal(snapshot,snapTotal,savedCount);
   // Clear trolley UI
   trolleyMode=false;trolleyItems={};
@@ -1068,16 +1072,21 @@ async function finishTrolleyMode(){
   document.querySelectorAll('.trolley-check-wrap').forEach(el=>el.remove());
   document.querySelectorAll('.trolley-price-wrap').forEach(el=>el.remove());
   document.querySelectorAll('.shop-cat-subtotal').forEach(el=>el.remove());
-  document.querySelectorAll('.shop-row').forEach(row=>{row.classList.remove('in-trolley');});
+  document.querySelectorAll('.shop-row').forEach(row=>{row.classList.remove('in-trolley','not-found-row');});
+  document.querySelectorAll('.not-found-btn').forEach(el=>el.remove());
 }
 function showReceiptModal(items,totalMXN,savedCount){
   const now=new Date();
   const dateStr=now.toLocaleDateString('en-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  // group by category
+  // Separate found vs not-found
+  const foundItems={},notFoundItems={};
+  for(const[id,item]of Object.entries(items)){
+    if(item.notFound)notFoundItems[id]=item;else foundItems[id]=item;
+  }
+  // group found by category
   const cats={};
-  for(const[,item]of Object.entries(items)){
-    const c=item.cat||'Other';if(!cats[c])cats[c]=[];
-    cats[c].push(item);
+  for(const[,item]of Object.entries(foundItems)){
+    const c=item.cat||'Other';if(!cats[c])cats[c]=[];cats[c].push(item);
   }
   let catHtml='';
   for(const[cat,catItems]of Object.entries(cats).sort(([a],[b])=>a.localeCompare(b))){
@@ -1088,6 +1097,15 @@ function showReceiptModal(items,totalMXN,savedCount){
     }
     if(catTotal>0)catHtml+=`<div class="receipt-cat-total"><span>Subtotal</span><span>$${catTotal.toFixed(2)} MXN</span></div>`;
   }
+  // Not found section
+  let notFoundHtml='';
+  const notFoundList=Object.values(notFoundItems);
+  if(notFoundList.length>0){
+    notFoundHtml=`<div class="receipt-cat" style="color:var(--clay);margin-top:14px">⚠ Not found at store</div>`;
+    for(const item of notFoundList){
+      notFoundHtml+=`<div class="receipt-row"><span class="receipt-item-name" style="color:var(--clay)">${item.name}</span><span class="receipt-item-price" style="color:var(--clay)">—</span></div>`;
+    }
+  }
   const usdLine=usdRate&&totalMXN>0?`<div class="receipt-grand-usd">≈ USD $${(totalMXN*usdRate).toFixed(2)}</div>`:'';
   const savedNote=savedCount>0?`<div class="receipt-saved-note">✓ ${savedCount} price${savedCount!==1?'s':''} saved to product list</div>`:'';
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
@@ -1095,6 +1113,7 @@ function showReceiptModal(items,totalMXN,savedCount){
     <div class="receipt-title">🛒 Shopping Receipt</div>
     <div class="receipt-date">${dateStr}</div>
     ${catHtml}
+    ${notFoundHtml}
     <div class="receipt-grand">
       <span class="receipt-grand-label">Total</span>
       <div style="text-align:right"><div class="receipt-grand-mxn">$${totalMXN.toFixed(2)} MXN</div>${usdLine}</div>
@@ -1134,6 +1153,9 @@ function renderTrolleyUI(){
     const priceWrap=document.createElement('div');priceWrap.className='trolley-price-wrap';
     priceWrap.innerHTML=`<input class="trolley-price-input" type="number" min="0" step="0.01" placeholder="0.00" oninput="trolleyPriceInput(this,'${itemId}')">`;
     row.appendChild(priceWrap);
+    // Not Found button
+    const notFoundBtn=document.createElement('button');notFoundBtn.className='not-found-btn';notFoundBtn.id=`notfound-btn-${itemId}`;notFoundBtn.textContent='✗ Not found';notFoundBtn.title='Mark as not available at this store';notFoundBtn.onclick=function(){markNotFound(itemId,itemName,row,this);};
+    row.appendChild(notFoundBtn);
   });
   // Add subtotal span to each category label
   document.querySelectorAll('.shop-category-label').forEach(lbl=>{
@@ -1150,6 +1172,24 @@ function renderTrolleyUI(){
     content.appendChild(sec);
   }
 }
+function markNotFound(itemId,itemName,row,btn){
+  if(trolleyItems[itemId]?.notFound){
+    // Toggle off
+    delete trolleyItems[itemId];
+    row.classList.remove('not-found-row');
+    btn.textContent='✗ Not found';btn.classList.remove('not-found-active');
+  }else{
+    // Mark as not found — remove from trolley if it was ticked
+    if(trolleyItems[itemId]){uncheckTrolleyItem(itemId);}
+    const chk=row.querySelector('.trolley-check');if(chk)chk.checked=false;
+    let cat='Other';let el=row.previousElementSibling;
+    while(el){if(el.classList.contains('shop-category-label')){cat=el.textContent.trim();break;}el=el.previousElementSibling;}
+    trolleyItems[itemId]={name:itemName,price:0,cat,notFound:true};
+    row.classList.add('not-found-row');
+    btn.textContent='↩ Undo';btn.classList.add('not-found-active');
+  }
+  updateTrolleyBanner();
+}
 function inTrolleyPriceInput(input,itemId){if(trolleyItems[itemId]){trolleyItems[itemId].price=parseFloat(input.value)||0;updateTrolleyBanner();updateCatSubtotals();const origInput=document.querySelector(`#shop-row-${itemId} .trolley-price-input`);if(origInput)origInput.value=input.value;}}
 function trolleyPriceInput(input,itemId){if(trolleyItems[itemId]){trolleyItems[itemId].price=parseFloat(input.value)||0;updateTrolleyBanner();updateCatSubtotals();updateInTrolleyRow(itemId);}}
 function tickTrolleyItem(chk,row,itemId,itemName){
@@ -1165,7 +1205,7 @@ function tickTrolleyItem(chk,row,itemId,itemName){
   }
   updateTrolleyBanner();updateCatSubtotals();
 }
-function addInTrolleyRow(itemId,itemName,price){const list=document.getElementById('in-trolley-list');if(!list)return;const div=document.createElement('div');div.className='in-trolley-row';div.id=`introlley-row-${itemId}`;div.innerHTML=`<span class="in-trolley-name">${itemName}</span><input class="in-trolley-price-input" type="number" min="0" step="0.01" placeholder="0.00" value="${price>0?price:''}" oninput="inTrolleyPriceInput(this,'${itemId}')"><button class="trolley-uncheck-btn" onclick="uncheckTrolleyItem('${itemId}')">↑ Put back</button>`;list.appendChild(div);const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
+function addInTrolleyRow(itemId,itemName,price){const list=document.getElementById('in-trolley-list');if(!list)return;const div=document.createElement('div');div.className='in-trolley-row';div.id=`introlley-row-${itemId}`;div.innerHTML=`<span class="in-trolley-name">${itemName}</span><input id="introlley-price-${itemId}" class="in-trolley-price-input" type="number" min="0" step="0.01" placeholder="0.00" value="${price>0?price:''}" oninput="inTrolleyPriceInput(this,'${itemId}')"><button class="trolley-uncheck-btn" onclick="uncheckTrolleyItem('${itemId}')">↑ Put back</button>`;list.appendChild(div);const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
 function updateInTrolleyRow(itemId){const priceEl=document.getElementById(`introlley-price-${itemId}`);if(priceEl&&trolleyItems[itemId]){const p=trolleyItems[itemId].price;priceEl.textContent=p>0?'$'+p.toFixed(2):'—';}}
 function removeInTrolleyRow(itemId){document.getElementById(`introlley-row-${itemId}`)?.remove();const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
 function uncheckTrolleyItem(itemId){const origRow=document.getElementById(`shop-row-${itemId}`);if(origRow){const chk=origRow.querySelector('.trolley-check');if(chk)chk.checked=false;origRow.classList.remove('in-trolley');}delete trolleyItems[itemId];removeInTrolleyRow(itemId);updateTrolleyBanner();}
