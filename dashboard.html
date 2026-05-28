@@ -833,7 +833,7 @@ async function handleRequest(requestId,type,decision){
       if(recipe_id&&replace_recipe_id){
         const planMeal=currentMeals.find(m=>m.recipe_id===recipe_id);
         if(planMeal){await sb.from('weekly_plan_meals').delete().eq('id',planMeal.id);}
-        await sb.from('weekly_plan_meals').insert({plan_id:currentPlan.id,recipe_id:replace_recipe_id,cooked:false});
+        await sb.from('weekly_plan_meals').insert({plan_id:currentPlan.id,recipe_id:replace_recipe_id,cooked:false,is_dinner:false});
         document.getElementById(`req-${requestId}`)?.remove();
         const container=document.getElementById('requests-container');const countEl=document.getElementById('pending-count');
         if(countEl&&container){const remaining=container.querySelectorAll('.request-item').length;countEl.textContent=remaining;if(remaining===0)container.innerHTML=`<div class="empty"><span class="empty-icon">📋</span>No pending requests from Sienna or Karen</div>`;}
@@ -1153,7 +1153,7 @@ function tickTrolleyItem(chk,row,itemId,itemName){
   }
   updateTrolleyBanner();updateCatSubtotals();
 }
-function addInTrolleyRow(itemId,itemName,price){const list=document.getElementById('in-trolley-list');if(!list)return;const div=document.createElement('div');div.className='in-trolley-row';div.id=`introlley-row-${itemId}`;div.innerHTML=`<span class="in-trolley-name">${itemName}</span><input class="in-trolley-price-input" type="number" min="0" step="0.01" placeholder="0.00" value="${price>0?price:''}" oninput="inTrolleyPriceInput(this,'${itemId}')"><button class="trolley-uncheck-btn" onclick="uncheckTrolleyItem('${itemId}')">↑ Put back</button>`;list.appendChild(div);const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
+function addInTrolleyRow(itemId,itemName,price){const list=document.getElementById('in-trolley-list');if(!list)return;const div=document.createElement('div');div.className='in-trolley-row';div.id=`introlley-row-${itemId}`;div.innerHTML=`<span class="in-trolley-name">${itemName}</span><input id="introlley-price-${itemId}" class="in-trolley-price-input" type="number" min="0" step="0.01" placeholder="0.00" value="${price>0?price:''}" oninput="inTrolleyPriceInput(this,'${itemId}')"><button class="trolley-uncheck-btn" onclick="uncheckTrolleyItem('${itemId}')">↑ Put back</button>`;list.appendChild(div);const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
 function updateInTrolleyRow(itemId){const priceEl=document.getElementById(`introlley-price-${itemId}`);if(priceEl&&trolleyItems[itemId]){const p=trolleyItems[itemId].price;priceEl.textContent=p>0?'$'+p.toFixed(2):'—';}}
 function removeInTrolleyRow(itemId){document.getElementById(`introlley-row-${itemId}`)?.remove();const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
 function uncheckTrolleyItem(itemId){const origRow=document.getElementById(`shop-row-${itemId}`);if(origRow){const chk=origRow.querySelector('.trolley-check');if(chk)chk.checked=false;origRow.classList.remove('in-trolley');}delete trolleyItems[itemId];removeInTrolleyRow(itemId);updateTrolleyBanner();}
@@ -1501,7 +1501,7 @@ async function openDinnerSwapModal(planMealId,lunchRecipeId,currentDinnerRecipeI
   const options=dinnerRecipes.filter(r=>r.id!==currentDinnerRecipeId);
   if(options.length===0){showToast('No other options available for this pairing','error');return;}
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-    const optionBtns=options.map(function(r){var b=document.createElement('button');b.className='btn-secondary';b.setAttribute('style','text-align:left;padding:12px 16px;font-size:0.88rem;width:100%');b.textContent='ἱ9 '+r.name_en;b.onclick=function(){swapDinner(planMealId,r.id);};return b.outerHTML;}).join('');
+    const optionBtns=options.map(function(r){var b=document.createElement('button');b.className='btn-secondary';b.setAttribute('style','text-align:left;padding:12px 16px;font-size:0.88rem;width:100%');b.textContent=r.name_en;b.onclick=function(){swapDinner(planMealId,r.id);};return b.outerHTML;}).join('');
   el.innerHTML='<div class="modal" style="max-width:400px"><h3>Swap this dinner</h3><p>Pick a different option from the paired choices for this lunch.</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">'+optionBtns+'</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>';
   document.body.appendChild(el);
 }
