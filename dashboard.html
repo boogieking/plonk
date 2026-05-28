@@ -335,7 +335,7 @@
     .in-trolley-price-input:focus{border-color:var(--green);}
     .trolley-uncheck-btn{background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--mid);padding:2px 6px;border-radius:5px;transition:background 0.12s;white-space:nowrap;}
     .trolley-uncheck-btn:hover{background:var(--light);color:var(--dark);}
-    .not-found-btn{background:none;border:1.5px solid var(--border);cursor:pointer;font-size:0.72rem;color:var(--mid);padding:3px 8px;border-radius:5px;transition:all 0.12s;white-space:nowrap;display:inline-block;margin-top:5px;}
+    .not-found-btn{background:none;border:1.5px solid var(--border);cursor:pointer;font-size:0.72rem;color:var(--mid);padding:3px 8px;border-radius:5px;transition:all 0.12s;white-space:nowrap;margin-left:4px;}
     .not-found-btn:hover{border-color:var(--clay);color:var(--clay);}
     .not-found-btn.not-found-active{background:rgba(200,103,74,0.08);border-color:var(--clay);color:var(--clay);}
     .not-found-row{opacity:0.45;}
@@ -544,7 +544,7 @@ function renderCameron(recipes,name){
     </div>
     <div class="section-label">Shopping list</div>
     <div class="card" id="cameron-shopping-card">
-      <div class="card-header"><div class="card-title">La Comer + Casa King</div><div style="display:flex;gap:8px;align-items:center"><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
+      <div class="card-header" style="flex-wrap:wrap;gap:10px"><div class="card-title" style="flex:0 0 100%">La Comer + Casa King</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
       <div id="shopping-list-content"><div class="empty"><span class="empty-icon">🛍️</span>${hasInventory?'Click Generate list to build your shopping list':'Complete inventory check first to generate the shopping list'}</div></div>
     </div>
     <div class="section-label">Leftovers & open packets</div>
@@ -1185,7 +1185,7 @@ function renderTrolleyUI(){
     row.appendChild(priceWrap);
     // Not Found button
     const notFoundBtn=document.createElement('button');notFoundBtn.className='not-found-btn';notFoundBtn.id=`notfound-btn-${itemId}`;notFoundBtn.textContent='✗ Not found';notFoundBtn.title='Mark as not available at this store';notFoundBtn.onclick=function(){markNotFound(itemId,itemName,row,this);};
-    const namesDiv=row.querySelector('.shop-names');if(namesDiv){namesDiv.appendChild(notFoundBtn);}else{row.appendChild(notFoundBtn);}
+    row.appendChild(notFoundBtn);
   });
   // Add subtotal span to each category label
   document.querySelectorAll('.shop-category-label').forEach(lbl=>{
