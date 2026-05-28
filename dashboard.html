@@ -92,6 +92,9 @@
     .shop-link:hover{background:var(--clay);color:white;border-color:var(--clay)}
     .add-link-btn{font-size:0.72rem;font-weight:500;color:var(--mid);background:transparent;border:1.5px dashed var(--border);border-radius:999px;padding:4px 10px;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;transition:all 0.15s;flex-shrink:0;}
     .add-link-btn:hover{border-color:var(--clay);color:var(--clay)}
+    .find-link-btn{font-size:0.72rem;font-weight:500;color:white;background:var(--clay);border:none;border-radius:999px;padding:4px 10px;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;transition:background 0.15s;flex-shrink:0;}
+    .find-link-btn:hover{background:var(--clay-dark);}
+    .link-btn-group{display:flex;gap:5px;align-items:center;flex-shrink:0;}
     .add-link-form{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap;}
     .add-link-input{flex:1;min-width:180px;padding:5px 10px;border:1.5px solid var(--clay);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.78rem;outline:none;color:var(--dark);}
     .save-link-btn{padding:5px 12px;font-size:0.75rem;font-weight:500;background:var(--clay);color:white;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;transition:background 0.15s;}
@@ -1013,7 +1016,7 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems){
     html+=`<div class="shop-category-label">${cat}</div>`;
     for(const ing of groups[cat]){
       if(ing._type==='karen'){html+=`<div class="shop-row"><div class="shop-names"><div class="shop-name-en">${ing.name_en}</div><div class="shop-name-es" style="color:var(--blue);font-size:0.7rem">Karen's addition</div></div><span style="font-size:0.72rem;color:var(--mid)">—</span></div>`;}
-      else{const linkIcon=ing.lacomer_url?`<a href="${ing.lacomer_url}" target="_blank" title="View on La Comer" style="text-decoration:none;font-size:0.85rem;margin-left:5px;opacity:0.7;vertical-align:middle;line-height:1" onclick="event.stopPropagation()">🔗</a>`:'';const addLinkBtn=!ing.lacomer_url&&isAdmin?`<button class="add-link-btn" onclick="showAddLinkForm('${ing.id}',this)">+ Add link</button>`:'';html+=`<div class="shop-row" id="shop-row-${ing.id}"><div class="shop-names"><div class="shop-name-en">${ing.name_en}${ing._qtyStr?`<span class="shop-qty"> · ${ing._qtyStr}</span>`:''}${linkIcon}</div><div class="shop-name-es">${ing.name_es||''}</div></div>${addLinkBtn}</div>`;}
+      else{const linkIcon=ing.lacomer_url?`<a href="${ing.lacomer_url}" target="_blank" title="View on La Comer" style="text-decoration:none;font-size:0.85rem;margin-left:5px;opacity:0.7;vertical-align:middle;line-height:1" onclick="event.stopPropagation()">🔗</a>`:'';const addLinkBtns=!ing.lacomer_url&&isAdmin?`<div class="link-btn-group"><button class="find-link-btn" onclick="findOnLaComer('${ing.id}','${(ing.name_es||ing.name_en).replace(/'/g,"\\'").replace(/"/g,'&quot;')}',this)">🔍 Find</button><button class="add-link-btn" onclick="showAddLinkForm('${ing.id}',this)">+ Paste</button></div>`:'';html+=`<div class="shop-row" id="shop-row-${ing.id}"><div class="shop-names"><div class="shop-name-en">${ing.name_en}${ing._qtyStr?`<span class="shop-qty"> · ${ing._qtyStr}</span>`:''}${linkIcon}</div><div class="shop-name-es">${ing.name_es||''}</div></div>${addLinkBtns}</div>`;}
     }
   }
   if(isAdmin&&ckItems.length>0){const unitOpts=UNITS.map(u=>`<option value="${u}">${u}</option>`).join('');html+=`<div class="casa-king-section" id="ck-pre-consolidate"><div class="casa-king-header"><div class="card-title">Household items</div><span class="casa-king-badge">Casa King</span></div><div style="font-size:0.78rem;color:var(--mid);margin-bottom:12px">Add quantities then hit Consolidate ↑</div>`;for(const item of ckItems){html+=`<div class="ck-item-row" id="ck-row-${item.id}"><div class="ck-item-text" style="flex:1">${item.text}</div><input type="number" min="0" step="any" id="ck-qty-${item.id}" placeholder="qty" style="width:60px;border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:0.82rem;margin-right:4px"><select id="ck-unit-${item.id}" style="border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:0.82rem;margin-right:8px">${unitOpts}</select><button class="ck-done-btn ${item.done?'done':''}" onclick="tickCKItem('${item.id}',this)">${item.done?'Done ✓':'Got it'}</button></div>`;}html+=`</div>`;}
@@ -1259,9 +1262,51 @@ function updateCatSubtotals(){
   });
 }
 /* ── END TROLLEY MODE ─────────────────────────── */
-function showAddLinkForm(ingId,btn){const row=document.getElementById(`shop-row-${ingId}`);if(!row)return;btn.style.display='none';const formDiv=document.createElement('div');formDiv.className='add-link-form';formDiv.id=`link-form-${ingId}`;formDiv.innerHTML=`<input class="add-link-input" id="link-input-${ingId}" placeholder="Paste La Comer URL..." type="url"><button class="save-link-btn" onclick="saveLink('${ingId}')">Save</button><button class="cancel-link-btn" onclick="cancelLink('${ingId}')">Cancel</button>`;row.appendChild(formDiv);}
-function cancelLink(ingId){document.getElementById(`link-form-${ingId}`)?.remove();const row=document.getElementById(`shop-row-${ingId}`);if(row){const addBtn=row.querySelector('.add-link-btn');if(addBtn)addBtn.style.display='';}}
-async function saveLink(ingId){const url=document.getElementById('link-input-'+ingId)?.value?.trim();if(!url){showToast('Please paste a URL first','error');return;}const{error}=await sb.from('ingredients').update({lacomer_url:url}).eq('id',ingId);if(error){showToast('Error saving: '+error.message,'error');return;}const row=document.getElementById('shop-row-'+ingId);if(row){document.getElementById('link-form-'+ingId)?.remove();const addBtn=row.querySelector('.add-link-btn');if(addBtn)addBtn.remove();const nameEl=row.querySelector('.shop-name-en');if(nameEl){const icon=document.createElement('a');icon.href=url;icon.target='_blank';icon.title='View on La Comer';icon.textContent='🔗';icon.style.cssText='text-decoration:none;font-size:0.85rem;margin-left:5px;opacity:0.7;vertical-align:middle;line-height:1';icon.onclick=function(e){e.stopPropagation();};nameEl.appendChild(icon);}}showToast('Link saved \u2713');}
+function findOnLaComer(ingId,nameEs,btn){
+  // Open La Comer search for this ingredient in Celaya store (succId=317)
+  const searchTerm=encodeURIComponent(nameEs.toLowerCase());
+  const url=`https://www.lacomer.com.mx/lacomer/#!/busqueda/${searchTerm}/317`;
+  window.open(url,'_blank');
+  // After they come back, auto-open the paste form
+  const row=document.getElementById(`shop-row-${ingId}`);
+  if(!row)return;
+  const btnGroup=btn?.closest('.link-btn-group');
+  // Show paste form immediately so it's ready when they return
+  setTimeout(()=>{
+    if(btnGroup)btnGroup.style.display='none';
+    const formDiv=document.createElement('div');formDiv.className='add-link-form';formDiv.id=`link-form-${ingId}`;
+    const isCK=String(ingId).startsWith('ck-new-');
+    const saveCall=isCK?`saveCKLink('${ingId}','${nameEs.replace(/'/g,"\\'")}')`:` saveLink('${ingId}')`;
+    formDiv.innerHTML=`<input class="add-link-input" id="link-input-${ingId}" placeholder="Paste La Comer URL..." type="url"><button class="save-link-btn" onclick="${saveCall}">Save</button><button class="cancel-link-btn" onclick="cancelLinkGroup('${ingId}')">Cancel</button>`;
+    row.appendChild(formDiv);
+    // Try auto-paste from clipboard
+    if(navigator.clipboard?.readText){
+      navigator.clipboard.readText().then(text=>{
+        if(text&&text.includes('lacomer.com.mx')&&text.includes('detarticulo')){
+          const inp=document.getElementById(`link-input-${ingId}`);
+          if(inp){inp.value=text;inp.style.borderColor='var(--green)';}
+        }
+      }).catch(()=>{});
+    }
+    document.getElementById(`link-input-${ingId}`)?.focus();
+  },100);
+}
+function cancelLinkGroup(ingId){
+  document.getElementById(`link-form-${ingId}`)?.remove();
+  const row=document.getElementById(`shop-row-${ingId}`);
+  if(row){const grp=row.querySelector('.link-btn-group');if(grp)grp.style.display='';}
+}
+function showAddLinkForm(ingId,btn){
+  const row=document.getElementById(`shop-row-${ingId}`);if(!row)return;
+  const btnGroup=btn?.closest('.link-btn-group');
+  if(btnGroup)btnGroup.style.display='none';
+  else btn.style.display='none';
+  const formDiv=document.createElement('div');formDiv.className='add-link-form';formDiv.id=`link-form-${ingId}`;
+  formDiv.innerHTML=`<input class="add-link-input" id="link-input-${ingId}" placeholder="Paste La Comer URL..." type="url"><button class="save-link-btn" onclick="saveLink('${ingId}')">Save</button><button class="cancel-link-btn" onclick="cancelLinkGroup('${ingId}')">Cancel</button>`;
+  row.appendChild(formDiv);
+  document.getElementById(`link-input-${ingId}`)?.focus();
+}
+async function saveLink(ingId){const url=document.getElementById('link-input-'+ingId)?.value?.trim();if(!url){showToast('Please paste a URL first','error');return;}const{error}=await sb.from('ingredients').update({lacomer_url:url}).eq('id',ingId);if(error){showToast('Error saving: '+error.message,'error');return;}const row=document.getElementById('shop-row-'+ingId);if(row){document.getElementById('link-form-'+ingId)?.remove();const grp=row.querySelector('.link-btn-group');if(grp)grp.remove();const addBtn=row.querySelector('.add-link-btn');if(addBtn)addBtn.remove();const nameEl=row.querySelector('.shop-name-en');if(nameEl){const icon=document.createElement('a');icon.href=url;icon.target='_blank';icon.title='View on La Comer';icon.textContent='🔗';icon.style.cssText='text-decoration:none;font-size:0.85rem;margin-left:5px;opacity:0.7;vertical-align:middle;line-height:1';icon.onclick=function(e){e.stopPropagation();};nameEl.appendChild(icon);}}showToast('Link saved \u2713');}
 async function tickCKItem(itemId,btn){try{await ckFetch(`ck_items?id=eq.${itemId}`,{method:'PATCH',prefer:'return=minimal',body:JSON.stringify({done:true})});const row=document.getElementById(`ck-row-${itemId}`);if(row){row.classList.add('ticked');btn.classList.add('done');btn.textContent='Done ✓';}showToast('Item ticked off ✓');}catch(err){showToast('Error: '+err.message,'error');}}
 function checkPrepBeforeCook(recipeId,planMealId,onConfirm){const meal=currentMeals.find(m=>m.recipe_id===recipeId);const recipe=meal?.recipes;if(!recipe){onConfirm();return;}if(userProfile.role==='reviewer'){onConfirm();return;}if(recipe.advance_prep_required&&recipe.same_day_cookable===false){const desc=recipe.advance_prep_description||'Advance preparation is required for this meal.';const alternatives=currentMeals.filter(m=>m.recipe_id!==recipeId&&!m.cooked).map(m=>m.recipes).filter(r=>r&&r.same_day_cookable!==false);showPrepWarningModal(recipe.name_en,desc,alternatives,onConfirm);return;}onConfirm();}
 let _prepWarningCallback=null;
@@ -1455,7 +1500,7 @@ function consolidateList(){
   const ckParsed=[];ckSection.querySelectorAll('.ck-item-row').forEach(row=>{const id=row.id.replace('ck-row-','');const text=row.querySelector('.ck-item-text')?.textContent?.trim()||'';const qty=parseFloat(document.getElementById(`ck-qty-${id}`)?.value)||0;const unit=document.getElementById(`ck-unit-${id}`)?.value||'';ckParsed.push({text,qty,unit,id});});
   const content=document.getElementById('shopping-list-content');const mealMap={};
   content.querySelectorAll('.shop-row[id^="shop-row-"]').forEach(row=>{const nameEl=row.querySelector('.shop-name-en');if(!nameEl)return;const qtySpan=nameEl.querySelector('.shop-qty');const qtyText=qtySpan?qtySpan.textContent.replace(' · ','').trim():'';const name=nameEl.textContent.replace(qtySpan?.textContent||'','').trim();mealMap[name.toLowerCase()]={name,qtyText,row};});
-  for(const ck of ckParsed){if(!ck.text)continue;const key=ck.text.toLowerCase().trim();const qtyStr=ck.qty?`${ck.qty}${ck.unit?' '+ck.unit:''}`:'' ;let matched=false;for(const[mKey,mVal]of Object.entries(mealMap)){if(mKey===key){const nameEl=mVal.row.querySelector('.shop-name-en');if(nameEl){let existing=nameEl.querySelector('.shop-qty');if(!existing){const span=document.createElement('span');span.className='shop-qty';nameEl.appendChild(span);existing=span;}const combined=mVal.qtyText&&qtyStr?`${mVal.qtyText} + ${qtyStr} (meal+household)`:qtyStr?`${qtyStr} (household)`:mVal.qtyText;existing.textContent=combined?` · ${combined}`:''; }matched=true;break;}}if(!matched){let gs=document.getElementById('consolidated-general');if(!gs){gs=document.createElement('div');gs.id='consolidated-general';gs.innerHTML=`<div class="shop-category-label">General</div>`;content.appendChild(gs);}const tempId='ck-new-'+ck.id;const div=document.createElement('div');div.className='shop-row';div.id=`shop-row-${tempId}`;div.innerHTML=`<div class="shop-names"><div class="shop-name-en">${ck.text}${qtyStr?`<span class="shop-qty"> · ${qtyStr}</span>`:''}</div><div class="shop-name-es" style="color:var(--blue);font-size:0.7rem">Household item</div></div><button class="add-link-btn" onclick="showCKLinkForm('${tempId}','${ck.text.replace(/'/g,"\\'")}',this)">+ Add link</button>`;gs.appendChild(div);}}
+  for(const ck of ckParsed){if(!ck.text)continue;const key=ck.text.toLowerCase().trim();const qtyStr=ck.qty?`${ck.qty}${ck.unit?' '+ck.unit:''}`:'' ;let matched=false;for(const[mKey,mVal]of Object.entries(mealMap)){if(mKey===key){const nameEl=mVal.row.querySelector('.shop-name-en');if(nameEl){let existing=nameEl.querySelector('.shop-qty');if(!existing){const span=document.createElement('span');span.className='shop-qty';nameEl.appendChild(span);existing=span;}const combined=mVal.qtyText&&qtyStr?`${mVal.qtyText} + ${qtyStr} (meal+household)`:qtyStr?`${qtyStr} (household)`:mVal.qtyText;existing.textContent=combined?` · ${combined}`:''; }matched=true;break;}}if(!matched){let gs=document.getElementById('consolidated-general');if(!gs){gs=document.createElement('div');gs.id='consolidated-general';gs.innerHTML=`<div class="shop-category-label">General</div>`;content.appendChild(gs);}const tempId='ck-new-'+ck.id;const div=document.createElement('div');div.className='shop-row';div.id=`shop-row-${tempId}`;div.innerHTML=`<div class="shop-names"><div class="shop-name-en">${ck.text}${qtyStr?`<span class="shop-qty"> · ${qtyStr}</span>`:''}</div><div class="shop-name-es" style="color:var(--blue);font-size:0.7rem">Household item</div></div><div class="link-btn-group"><button class="find-link-btn" onclick="findOnLaComer('${tempId}','${ck.text.replace(/'/g,"\\'").replace(/"/g,'&quot;')}',this)">🔍 Find</button><button class="add-link-btn" onclick="showCKLinkForm('${tempId}','${ck.text.replace(/'/g,"\\'")}',this)">+ Paste</button></div>`;gs.appendChild(div);}}
   ckSection.remove();document.getElementById('consolidate-btn')?.closest('div')?.remove();
 }
 function showCKLinkForm(tempId,itemName,btn){const row=document.getElementById(`shop-row-${tempId}`);if(!row)return;btn.style.display='none';const formDiv=document.createElement('div');formDiv.className='add-link-form';formDiv.id=`link-form-${tempId}`;formDiv.innerHTML=`<input class="add-link-input" id="link-input-${tempId}" placeholder="Paste La Comer URL..." type="url"><button class="save-link-btn" onclick="saveCKLink('${tempId}','${itemName.replace(/'/g,"\\'")}')">Save</button><button class="cancel-link-btn" onclick="cancelLink('${tempId}')">Cancel</button>`;row.appendChild(formDiv);}
