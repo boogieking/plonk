@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-  <meta name="apple-mobile-web-app-title" content="Plonk"/>
+  <meta name="apple-mobile-web-app-title" content="Forknight"/>
   <link rel="manifest" href="manifest.json"/>
   <link rel="apple-touch-icon" href="icon-192.png"/>
   <title>Forknight — Dashboard</title>
@@ -1009,7 +1009,7 @@ async function loadKarenShoppingPreview(){
 function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems){
   const UNITS=['g','kg','ml','L','units','pcs','tbsp','tsp'];
   const groups={};
-  for(const ing of mealItems){const cat=ing.lacomer_category||'Other';if(!groups[cat])groups[cat]=[];const qty=ing._combinedQty||( ing.quantity?`${ing.quantity}${ing.unit?' '+ing.unit:''}`:'' );groups[cat].push({...ing,_type:'ingredient',_qtyStr:qty});}
+  for(const ing of mealItems){const cat=ing.lacomer_category||'Other';if(!groups[cat])groups[cat]=[];const qty=ing.quantity?`${ing.quantity}${ing.unit?' '+ing.unit:''}`:'' ;groups[cat].push({...ing,_type:'ingredient',_qtyStr:qty});}
   if(karenItems&&karenItems.length>0){const existingNames=new Set(mealItems.map(i=>i.name_en.toLowerCase()));for(const ka of karenItems){if(!existingNames.has(ka.name_en.toLowerCase())){const cat=ka.lacomer_category||'Other';if(!groups[cat])groups[cat]=[];groups[cat].push({...ka,_type:'karen',_qtyStr:''});}}}
   let html='';
   for(const cat of Object.keys(groups).sort()){
@@ -1061,22 +1061,7 @@ async function generateShoppingList(){
     const needIds=Object.entries(inventory).filter(([id,s])=>s==='need'&&validIds.has(id)).map(([id])=>id);
     if(needIds.length===0){content.innerHTML=`<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;btn.textContent='Generate list';btn.disabled=false;return;}
     const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;
-    // Deduplicate by name — sum quantities if same unit, show both if different units
-    const dedupMap={};
-    for(const ing of ingredients){
-      const key=ing.name_en.toLowerCase();
-      if(!dedupMap[key]){dedupMap[key]={...ing};}
-      else{
-        const existing=dedupMap[key];
-        if(!existing.lacomer_url&&ing.lacomer_url){existing.lacomer_url=ing.lacomer_url;}
-        if(ing.quantity){
-          if(!existing.quantity){existing.quantity=ing.quantity;existing.unit=ing.unit;}
-          else if((existing.unit||'').toLowerCase()===(ing.unit||'').toLowerCase()){existing.quantity=parseFloat(existing.quantity)+parseFloat(ing.quantity);}
-          else{const a=`${existing.quantity}${existing.unit?' '+existing.unit:''}`;const b=`${ing.quantity}${ing.unit?' '+ing.unit:''}`;existing._combinedQty=existing._combinedQty?`${existing._combinedQty} + ${b}`:`${a} + ${b}`;existing.quantity=null;existing.unit=null;}
-        }
-      }
-    }
-    const deduped=dedupMap;
+    const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();if(!deduped[key]||(!deduped[key].lacomer_url&&ing.lacomer_url))deduped[key]=ing;}
     const linkedIngredients=await applyProductLinks(Object.values(deduped));
     const mealItems=linkedIngredients.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));
     let ckItems=[];try{ckItems=await ckFetch('ck_items?cat=eq.shopping&done=eq.false&select=id,text,done&order=text.asc');}catch(e){console.warn('Casa King fetch failed:',e.message);}
