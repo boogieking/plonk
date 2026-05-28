@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-  <meta name="apple-mobile-web-app-title" content="Forknight"/>
+  <meta name="apple-mobile-web-app-title" content="Plonk"/>
   <link rel="manifest" href="manifest.json"/>
   <link rel="apple-touch-icon" href="icon-192.png"/>
   <title>Forknight — Dashboard</title>
@@ -1084,8 +1084,9 @@ async function finishTrolleyMode(){
   if(itemsWithPrice.length>0){
     for(const[ingId,item]of itemsWithPrice){
       try{
-        await sb.from('household_products').update({last_price_mxn:item.price}).eq('ingredient_id',ingId);
-        savedCount++;
+        const{error}=await sb.from('household_products').upsert({ingredient_id:ingId,last_price_mxn:item.price,name_en:item.name,name_es:item.name,store:'La Comer',added_by:userProfile?.id||null},{onConflict:'ingredient_id',ignoreDuplicates:false});
+        if(!error)savedCount++;
+        else console.warn('Price save failed for',ingId,error.message);
       }catch(e){console.warn('Price save failed for',ingId,e.message);}
     }
   }
