@@ -249,7 +249,26 @@
     .prep-flag-icon{font-size:1rem;flex-shrink:0;margin-top:1px}
     .recipe-modal-footer{padding:16px 28px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0;flex-wrap:wrap;}
     .shop-qty{color:var(--clay);font-size:0.82rem;font-weight:400;}
-    /* Trolley mode */
+    /* Leftover tracking */
+    .leftover-review-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+    .leftover-review-item:last-child{border-bottom:none;}
+    .leftover-name{flex:1;font-size:0.88rem;font-weight:500;}
+    .leftover-amount{font-size:0.82rem;color:var(--clay);font-weight:600;white-space:nowrap;}
+    .leftover-storage-select{border:1.5px solid var(--border);border-radius:8px;padding:5px 8px;font-family:'DM Sans',sans-serif;font-size:0.8rem;background:white;color:var(--dark);outline:none;cursor:pointer;}
+    .leftover-storage-select:focus{border-color:var(--clay);}
+    .leftover-card-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(200,180,160,0.15);}
+    .leftover-card-row:last-child{border-bottom:none;}
+    .leftover-card-name{flex:1;font-size:0.85rem;}
+    .leftover-card-amount{font-size:0.8rem;font-weight:600;color:var(--clay);white-space:nowrap;}
+    .leftover-card-storage{font-size:0.72rem;padding:2px 8px;border-radius:999px;font-weight:500;}
+    .storage-fridge{background:rgba(74,124,89,0.12);color:#2d6b40;}
+    .storage-freezer{background:rgba(46,95,138,0.12);color:#1a4a7a;}
+    .storage-pantry{background:rgba(180,140,60,0.12);color:#7a5a10;}
+    .storage-cupboard{background:rgba(120,90,60,0.12);color:#5a3a10;}
+    .leftover-used-btn{background:none;border:1px solid var(--border);border-radius:6px;padding:3px 9px;font-size:0.72rem;color:var(--mid);cursor:pointer;transition:all 0.15s;}
+    .leftover-used-btn:hover{border-color:var(--green);color:var(--green);}
+    .leftover-move-btn{background:none;border:none;font-size:0.72rem;color:var(--mid);cursor:pointer;padding:2px 6px;border-radius:5px;}
+    .leftover-move-btn:hover{background:var(--light);}
     .trolley-banner{position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--dark);color:white;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 -4px 24px rgba(26,22,18,0.3);}
     .trolley-total-label{font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:rgba(255,255,255,0.55);}
     .trolley-total-mxn{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;color:white;line-height:1.1;}
@@ -459,7 +478,7 @@ async function loadRecipes(){const{data}=await sb.from('recipes').select('*').eq
 async function renderDashboard(){
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
   await loadKarenAdditions();await loadPendingIdeaRatings();
-  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);await loadPendingRequests();if(currentPlan?.status==='approved')await loadInventory();}
+  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);await loadPendingRequests();if(currentPlan?.status==='approved')await loadInventory();loadLeftovers();}
   else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);await loadInventory();}
   else{content.innerHTML=renderKaren(recipes,userProfile.name);renderKarenAdditionsList();await loadInventory();loadKarenShoppingPreview();}
 }
@@ -524,6 +543,14 @@ function renderCameron(recipes,name){
     <div class="card" id="cameron-shopping-card">
       <div class="card-header"><div class="card-title">La Comer + Casa King</div><div style="display:flex;gap:8px;align-items:center"><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
       <div id="shopping-list-content"><div class="empty"><span class="empty-icon">🛍️</span>${hasInventory?'Click Generate list to build your shopping list':'Complete inventory check first to generate the shopping list'}</div></div>
+    </div>
+    <div class="section-label">Leftovers & open packets</div>
+    <div class="card" id="leftovers-card" style="margin-bottom:20px">
+      <div class="card-header">
+        <div class="card-title">In fridge / freezer / pantry</div>
+        <button class="btn-secondary" style="font-size:0.78rem;padding:5px 12px" onclick="openAddLeftoverModal()">+ Add manually</button>
+      </div>
+      <div id="leftovers-list"><div class="empty"><span class="empty-icon">📦</span>No leftovers tracked yet — they appear here after receipt scanning</div></div>
     </div>
   </div>`;
 }
@@ -2185,13 +2212,264 @@ async function saveReceiptItems(){
     }catch(e){errors++;console.warn('Receipt save error:',e.message);}
   }
 
+  // Collect saved items that have a matched ingredient and weight for leftover calc
+  const savedForLeftovers=[];
+  for(let i=0;i<receiptItems.length;i++){
+    const check=document.getElementById(`rcheck-${i}`);
+    if(!check?.checked)continue;
+    const item=receiptItems[i];
+    if(item.matchedIngredient&&item.weight_or_qty)savedForLeftovers.push(item);
+  }
+
+  // Calculate leftovers
+  const leftovers=await calculateLeftovers(savedForLeftovers);
+
+  if(leftovers.length>0){
+    // Show leftover review step instead of closing immediately
+    if(btn){btn.disabled=false;btn.textContent='Save leftovers ✓';}
+    const msg=`${updated} price${updated!==1?'s':''} updated, ${added} new product${added!==1?'s':''} added${errors?`, ${errors} errors`:''}`;
+    showToast('Products saved — review leftovers below');
+    showLeftoverReviewStep(leftovers, async (confirmed)=>{await saveLeftovers(confirmed);});
+    productsCache=null;
+    return;
+  }
+
   closeReceiptScanner();
   productsCache=null;
   await loadAndRenderProducts();
   const msg=`Receipt saved — ${updated} price${updated!==1?'s':''} updated, ${added} new product${added!==1?'s':''} added${errors?`, ${errors} errors`:''}`;
   showToast(msg);
 }
-/* ── END RECEIPT SCANNER ───────────────────────── */
+/* ── LEFTOVER TRACKING ────────────────────────── */
+const STORAGE_LABELS={fridge:'🧊 Fridge',freezer:'❄️ Freezer',pantry:'🗄 Pantry',cupboard:'🚪 Cupboard'};
+const STORAGE_CLASSES={fridge:'storage-fridge',freezer:'storage-freezer',pantry:'storage-pantry',cupboard:'storage-cupboard'};
+
+// Parse "1.456 kg" / "330 ml" / "2 pcs" → {amount, unit} in base units (g / ml / pcs)
+function parseWeightOrQty(str){
+  if(!str)return null;
+  const m=str.match(/([\d.,]+)\s*([a-zA-Z]+)/);
+  if(!m)return null;
+  const num=parseFloat(m[1].replace(',','.'));
+  const rawUnit=m[2].toLowerCase();
+  if(rawUnit==='kg')return{amount:num*1000,unit:'g'};
+  if(rawUnit==='g')return{amount:num,unit:'g'};
+  if(rawUnit==='l'||rawUnit==='lt'||rawUnit==='ltr')return{amount:num*1000,unit:'ml'};
+  if(rawUnit==='ml')return{amount:num,unit:'ml'};
+  return{amount:num,unit:rawUnit};
+}
+
+// Convert ingredient quantity+unit to base units matching above
+function toBaseUnit(qty,unit){
+  if(!qty)return null;
+  const u=(unit||'').toLowerCase();
+  if(u==='kg')return{amount:qty*1000,unit:'g'};
+  if(u==='g')return{amount:qty,unit:'g'};
+  if(u==='l'||u==='lt'||u==='ltr')return{amount:qty*1000,unit:'ml'};
+  if(u==='ml')return{amount:qty,unit:'ml'};
+  return{amount:qty,unit:u||'pcs'};
+}
+
+function formatAmount(amount,unit){
+  if(unit==='g'&&amount>=1000)return`${(amount/1000).toFixed(2).replace(/\.?0+$/,'')} kg`;
+  if(unit==='ml'&&amount>=1000)return`${(amount/1000).toFixed(2).replace(/\.?0+$/,'')} L`;
+  return`${parseFloat(amount.toFixed(1))} ${unit}`;
+}
+
+async function calculateLeftovers(savedItems){
+  // savedItems = array of {name_en, matchedIngredient, weight_or_qty, price_mxn}
+  const leftovers=[];
+  if(!currentPlan||!savedItems.length)return leftovers;
+
+  // Get all ingredient needs for this week's plan
+  const{data:planMeals}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id).neq('is_dinner',true);
+  if(!planMeals?.length)return leftovers;
+  const recipeIds=planMeals.map(m=>m.recipe_id);
+  const{data:allIngs}=await sb.from('ingredients').select('id,name_en,quantity,unit').in('recipe_id',recipeIds);
+
+  for(const item of savedItems){
+    if(!item.matchedIngredient||!item.weight_or_qty)continue;
+    const bought=parseWeightOrQty(item.weight_or_qty);
+    if(!bought)continue;
+
+    // Sum all recipe needs for this ingredient this week
+    const matchingIngs=(allIngs||[]).filter(i=>i.id===item.matchedIngredient.id);
+    let totalNeeded=0;
+    for(const ing of matchingIngs){
+      const base=toBaseUnit(ing.quantity,ing.unit);
+      if(base&&base.unit===bought.unit)totalNeeded+=base.amount;
+    }
+    if(totalNeeded<=0)continue;
+
+    const leftoverAmount=bought.amount-totalNeeded;
+    if(leftoverAmount>0.01){
+      leftovers.push({
+        ingredient_id:item.matchedIngredient.id,
+        name_en:item.name_en||item.matchedIngredient.name_en,
+        bought:bought.amount,
+        needed:totalNeeded,
+        leftover:leftoverAmount,
+        unit:bought.unit,
+      });
+    }
+  }
+  return leftovers;
+}
+
+let _pendingLeftovers=[];
+function showLeftoverReviewStep(leftovers, onConfirm){
+  _pendingLeftovers=leftovers;
+  const overlay=document.getElementById('receipt-overlay');if(!overlay)return;
+  const resultEl=document.getElementById('receipt-result');if(!resultEl)return;
+  resultEl.innerHTML=`
+    <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:4px">Leftovers to track</div>
+    <div style="font-size:0.78rem;color:var(--mid);margin-bottom:14px">These were bought but not fully needed this week. Set where you're storing them.</div>
+    <div id="leftover-review-list">
+      ${leftovers.map((l,i)=>`
+        <div class="leftover-review-item">
+          <div style="flex:1">
+            <div class="leftover-name">${l.name_en}</div>
+            <div style="font-size:0.75rem;color:var(--mid)">Bought ${formatAmount(l.bought,l.unit)} · needed ${formatAmount(l.needed,l.unit)}</div>
+          </div>
+          <span class="leftover-amount">${formatAmount(l.leftover,l.unit)} left</span>
+          <select class="leftover-storage-select" id="leftover-storage-${i}">
+            <option value="pantry">🗄 Pantry</option>
+            <option value="fridge">🧊 Fridge</option>
+            <option value="freezer">❄️ Freezer</option>
+            <option value="cupboard">🚪 Cupboard</option>
+          </select>
+        </div>`).join('')}
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn-ghost" onclick="saveLeftovers([])">Skip</button>
+      <button class="btn-primary" style="flex:1" onclick="confirmLeftovers()">Save leftovers ✓</button>
+    </div>`;
+}
+
+async function confirmLeftovers(){
+  const leftovers=_pendingLeftovers;
+  for(let i=0;i<leftovers.length;i++){
+    const storage=document.getElementById(`leftover-storage-${i}`)?.value||'pantry';
+    leftovers[i].storage=storage;
+  }
+  await saveLeftovers(leftovers);
+}
+
+async function saveLeftovers(leftovers){
+  if(!leftovers.length){closeReceiptScanner();productsCache=null;await loadAndRenderProducts();return;}
+  let saved=0;
+  for(const l of leftovers){
+    if(!l.storage)continue;
+    try{
+      await sb.from('leftovers').insert({
+        plan_id:currentPlan?.id||null,
+        ingredient_id:l.ingredient_id||null,
+        name_en:l.name_en,
+        amount:parseFloat(l.leftover.toFixed(3)),
+        unit:l.unit,
+        storage:l.storage,
+        used:false,
+        created_at:new Date().toISOString()
+      });
+      saved++;
+    }catch(e){console.warn('Leftover save error:',e.message);}
+  }
+  closeReceiptScanner();
+  productsCache=null;
+  await loadAndRenderProducts();
+  if(saved>0){showToast(`${saved} leftover${saved!==1?'s':''} tracked ✓`);loadLeftovers();}
+}
+
+async function loadLeftovers(){
+  const el=document.getElementById('leftovers-list');if(!el)return;
+  try{
+    const{data,error}=await sb.from('leftovers').select('*').eq('used',false).order('created_at',{ascending:false});
+    if(error)throw error;
+    if(!data?.length){el.innerHTML=`<div class="empty"><span class="empty-icon">📦</span>No leftovers tracked yet — they appear here after receipt scanning</div>`;return;}
+    // Group by storage
+    const groups={fridge:[],freezer:[],pantry:[],cupboard:[]};
+    for(const l of data){(groups[l.storage]||groups.pantry).push(l);}
+    let html='';
+    for(const[storage,items]of Object.entries(groups)){
+      if(!items.length)continue;
+      html+=`<div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--mid);margin:12px 0 6px">${STORAGE_LABELS[storage]}</div>`;
+      for(const l of items){
+        html+=`<div class="leftover-card-row">
+          <div style="flex:1">
+            <div class="leftover-card-name">${l.name_en}</div>
+          </div>
+          <span class="leftover-card-amount">${formatAmount(l.amount,l.unit)}</span>
+          <span class="leftover-card-storage ${STORAGE_CLASSES[storage]}">${STORAGE_LABELS[storage]}</span>
+          <div style="display:flex;gap:4px">
+            <button class="leftover-move-btn" onclick="openMoveLeftoverModal('${l.id}','${l.name_en}','${l.storage}')" title="Move to different location">↗</button>
+            <button class="leftover-used-btn" onclick="markLeftoverUsed('${l.id}',this)">Used ✓</button>
+          </div>
+        </div>`;
+      }
+    }
+    el.innerHTML=html;
+  }catch(e){el.innerHTML=`<div class="empty" style="color:#c44">Error loading leftovers: ${e.message}</div>`;}
+}
+
+async function markLeftoverUsed(id,btn){
+  btn.disabled=true;btn.textContent='Saving…';
+  const{error}=await sb.from('leftovers').update({used:true,used_at:new Date().toISOString()}).eq('id',id);
+  if(error){showToast('Error: '+error.message,'error');btn.disabled=false;btn.textContent='Used ✓';return;}
+  showToast('Marked as used ✓');
+  const row=btn.closest('.leftover-card-row');if(row)row.remove();
+  const el=document.getElementById('leftovers-list');
+  if(el&&!el.querySelector('.leftover-card-row')){el.innerHTML=`<div class="empty"><span class="empty-icon">📦</span>No leftovers tracked yet — they appear here after receipt scanning</div>`;}
+}
+
+function openMoveLeftoverModal(id,name,currentStorage){
+  const opts=Object.entries(STORAGE_LABELS).filter(([k])=>k!==currentStorage).map(([k,v])=>`<button class="btn-secondary" style="width:100%;margin-bottom:8px;text-align:left" onclick="moveLeftover('${id}','${k}')">${v}</button>`).join('');
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="modal" style="max-width:320px"><div class="modal-header"><div class="modal-title">Move ${name}</div><button class="modal-close" onclick="closeModal()">✕</button></div><div style="padding:16px">${opts}<button class="btn-ghost" style="width:100%" onclick="closeModal()">Cancel</button></div></div>`;
+  document.body.appendChild(el);
+}
+
+async function moveLeftover(id,newStorage){
+  const{error}=await sb.from('leftovers').update({storage:newStorage}).eq('id',id);
+  closeModal();
+  if(error){showToast('Error: '+error.message,'error');return;}
+  showToast(`Moved to ${STORAGE_LABELS[newStorage]} ✓`);
+  loadLeftovers();
+}
+
+function openAddLeftoverModal(){
+  const storageOpts=Object.entries(STORAGE_LABELS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="modal" style="max-width:360px">
+    <div class="modal-header"><div class="modal-title">Add leftover manually</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div><label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Item name</label><input id="manual-leftover-name" class="modal-input" placeholder="e.g. Coconut Milk" style="width:100%"></div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1"><label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Amount</label><input id="manual-leftover-amount" class="modal-input" type="number" min="0" step="any" placeholder="110"></div>
+        <div><label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Unit</label><input id="manual-leftover-unit" class="modal-input" placeholder="ml" style="width:70px"></div>
+      </div>
+      <div><label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Storage</label><select id="manual-leftover-storage" class="leftover-storage-select" style="width:100%">${storageOpts}</select></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" style="flex:1" onclick="saveManualLeftover()">Add ✓</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+async function saveManualLeftover(){
+  const name=document.getElementById('manual-leftover-name')?.value.trim();
+  const amount=parseFloat(document.getElementById('manual-leftover-amount')?.value)||0;
+  const unit=document.getElementById('manual-leftover-unit')?.value.trim()||'pcs';
+  const storage=document.getElementById('manual-leftover-storage')?.value||'pantry';
+  if(!name){showToast('Please enter an item name','error');return;}
+  if(amount<=0){showToast('Please enter an amount','error');return;}
+  const{error}=await sb.from('leftovers').insert({plan_id:currentPlan?.id||null,name_en:name,amount,unit,storage,used:false,created_at:new Date().toISOString()});
+  closeModal();
+  if(error){showToast('Error: '+error.message,'error');return;}
+  showToast(`${name} added to leftovers ✓`);
+  loadLeftovers();
+}
+/* ── END LEFTOVER TRACKING ────────────────────── */
 
 init();
 </script>
