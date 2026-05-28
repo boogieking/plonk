@@ -623,9 +623,17 @@ async function doReshuffle(btn){
     const allRecipes=await loadRecipes();
     const homeMeals=Math.max(0,7-(currentPlan.eating_out_days?.length||0));
     const beforeNames=currentMeals.map(m=>m.recipes?.name_en||'').filter(Boolean);
+    const oldMealRows=currentMeals.map(m=>({plan_id:currentPlan.id,recipe_id:m.recipe_id,cooked:m.cooked||false,is_dinner:false}));
     const picked=await selectMealsForWeek(allRecipes,homeMeals);
     const{error:delError}=await sb.from('weekly_plan_meals').delete().eq('plan_id',currentPlan.id);if(delError)throw delError;
-    if(picked.length>0){const{error:insError}=await sb.from('weekly_plan_meals').insert(picked.map(r=>({plan_id:currentPlan.id,recipe_id:r.id,cooked:false,is_dinner:false})));if(insError)throw insError;}
+    if(picked.length>0){
+      const{error:insError}=await sb.from('weekly_plan_meals').insert(picked.map(r=>({plan_id:currentPlan.id,recipe_id:r.id,cooked:false,is_dinner:false})));
+      if(insError){
+        // Rollback: restore original meals
+        await sb.from('weekly_plan_meals').insert(oldMealRows).catch(()=>{});
+        throw insError;
+      }
+    }
     const afterNames=picked.map(r=>r.name_en);
     const removed=beforeNames.filter(n=>!afterNames.includes(n));
     const added=afterNames.filter(n=>!beforeNames.includes(n));
@@ -680,6 +688,10 @@ async function submitRequest(type){
   if(type==='hibernate'){const recipeId=document.getElementById('modal-recipe-select')?.value;if(!recipeId){showToast('Please pick a meal to hibernate.','error');return;}meta={recipe_id:recipeId};}
  if(type==='swap'){const recipeId=document.getElementById('modal-recipe-select')?.value;if(!recipeId){showToast('Please pick the meal you want removed.','error');return;}const replaceId=document.getElementById('modal-replace-select')?.value;if(!replaceId){showToast('Please pick a replacement meal.','error');return;}const meal=currentMeals.find(m=>m.recipe_id===recipeId);const{data:replaceRecipe}=await sb.from('recipes').select('name_en').eq('id',replaceId).single();meta={recipe_id:recipeId,meal_name:meal?.recipes?.name_en||recipeId,replace_recipe_id:replaceId,replace_meal_name:replaceRecipe?.name_en||replaceId};}
   if(type==='new'){const mealName=document.getElementById('modal-meal-name')?.value.trim();if(!mealName){showToast('Please enter the meal name.','error');return;}meta={name_en:mealName};}
+  if(type==='swap'&&meta?.recipe_id){
+    const{data:existing}=await sb.from('requests').select('id').eq('request_type','swap').eq('status','pending').eq('requested_by',userProfile.id).filter('meta->>recipe_id','eq',meta.recipe_id).maybeSingle();
+    if(existing){showToast('You already have a pending swap request for this meal.','error');return;}
+  }
   const{error}=await sb.from('requests').insert({request_type:type,reason:text,requested_by:userProfile.id,status:'pending',meta:meta,created_at:new Date().toISOString()});
   if(error)showToast('Error sending request: '+error.message,'error');
   else{closeModal();showToast('Request sent to Cameron ✓');await sendEmail('swap_requested',{requestedBy:userProfile.name||userProfile.email});}
@@ -833,7 +845,7 @@ async function handleRequest(requestId,type,decision){
       if(recipe_id&&replace_recipe_id){
         const planMeal=currentMeals.find(m=>m.recipe_id===recipe_id);
         if(planMeal){await sb.from('weekly_plan_meals').delete().eq('id',planMeal.id);}
-        await sb.from('weekly_plan_meals').insert({plan_id:currentPlan.id,recipe_id:replace_recipe_id,cooked:false,is_dinner:false});
+        await sb.from('weekly_plan_meals').insert({plan_id:currentPlan.id,recipe_id:replace_recipe_id,cooked:false});
         document.getElementById(`req-${requestId}`)?.remove();
         const container=document.getElementById('requests-container');const countEl=document.getElementById('pending-count');
         if(countEl&&container){const remaining=container.querySelectorAll('.request-item').length;countEl.textContent=remaining;if(remaining===0)container.innerHTML=`<div class="empty"><span class="empty-icon">📋</span>No pending requests from Sienna or Karen</div>`;}
@@ -945,7 +957,7 @@ function mealRowKaren(m){
   const ratingHtml=ratingWindowOpen&&!myRating?ratingPromptHTML(r.id):'';
   const ratedHtml=myRating?`<div class="rating-submitted">Your rating: ${'★'.repeat(myRating)}${'☆'.repeat(5-myRating)}</div>`:'';
   const actionHtml=!isCooked?cookedBtn(r.id,planMeal.id,true):'<span class="tag tag-green">Cooked ✓</span>';
-  return`<div class="meal-item ${isCooked?'cooked':''}"><div style="flex:1"><div class="meal-name">${r.name_en}</div><div class="meal-meta">${r.prep_time_minutes||'—'} min prep${avgStr}</div>${r.default_side_en?`<div class="meal-side">🍽 With: <span>${r.default_side_en}</span>${r.default_side_es?' · <em>'+r.default_side_es+'</em>':''}${!isCooked?`<button class="side-swap-btn" onclick="openSideSwapModal('${r.id}','${(r.default_side_en||'').replace(/'/g,"\\'")}')">⇄ Swap side</button>`:''}`:''}</div>${ratingHtml}${ratedHtml}</div><div class="meal-actions">${actionHtml}</div></div>`;
+  return`<div class="meal-item ${isCooked?'cooked':''}"><div style="flex:1"><div class="meal-name">${r.name_en}</div><div class="meal-meta">${r.prep_time_minutes||'—'} min prep${avgStr}</div>${r.default_side_en?`<div class="meal-side">🍽 With: <span>${r.default_side_en}</span>${r.default_side_es?' · <em>'+r.default_side_es+'</em>':''}${!isCooked?`<button class="side-swap-btn" onclick="openSideSwapModal('${r.id}','${(r.default_side_en||'').replace(/'/g,"\\'")}')">⇄ Swap side</button>`:''}</div>`:''}${ratingHtml}${ratedHtml}</div><div class="meal-actions">${actionHtml}</div></div>`;
 }
 async function loadKarenShoppingPreview(){
   const el=document.getElementById('karen-shopping-preview');if(!el)return;
@@ -1153,7 +1165,7 @@ function tickTrolleyItem(chk,row,itemId,itemName){
   }
   updateTrolleyBanner();updateCatSubtotals();
 }
-function addInTrolleyRow(itemId,itemName,price){const list=document.getElementById('in-trolley-list');if(!list)return;const div=document.createElement('div');div.className='in-trolley-row';div.id=`introlley-row-${itemId}`;div.innerHTML=`<span class="in-trolley-name">${itemName}</span><input id="introlley-price-${itemId}" class="in-trolley-price-input" type="number" min="0" step="0.01" placeholder="0.00" value="${price>0?price:''}" oninput="inTrolleyPriceInput(this,'${itemId}')"><button class="trolley-uncheck-btn" onclick="uncheckTrolleyItem('${itemId}')">↑ Put back</button>`;list.appendChild(div);const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
+function addInTrolleyRow(itemId,itemName,price){const list=document.getElementById('in-trolley-list');if(!list)return;const div=document.createElement('div');div.className='in-trolley-row';div.id=`introlley-row-${itemId}`;div.innerHTML=`<span class="in-trolley-name">${itemName}</span><input class="in-trolley-price-input" type="number" min="0" step="0.01" placeholder="0.00" value="${price>0?price:''}" oninput="inTrolleyPriceInput(this,'${itemId}')"><button class="trolley-uncheck-btn" onclick="uncheckTrolleyItem('${itemId}')">↑ Put back</button>`;list.appendChild(div);const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
 function updateInTrolleyRow(itemId){const priceEl=document.getElementById(`introlley-price-${itemId}`);if(priceEl&&trolleyItems[itemId]){const p=trolleyItems[itemId].price;priceEl.textContent=p>0?'$'+p.toFixed(2):'—';}}
 function removeInTrolleyRow(itemId){document.getElementById(`introlley-row-${itemId}`)?.remove();const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
 function uncheckTrolleyItem(itemId){const origRow=document.getElementById(`shop-row-${itemId}`);if(origRow){const chk=origRow.querySelector('.trolley-check');if(chk)chk.checked=false;origRow.classList.remove('in-trolley');}delete trolleyItems[itemId];removeInTrolleyRow(itemId);updateTrolleyBanner();}
@@ -1501,7 +1513,7 @@ async function openDinnerSwapModal(planMealId,lunchRecipeId,currentDinnerRecipeI
   const options=dinnerRecipes.filter(r=>r.id!==currentDinnerRecipeId);
   if(options.length===0){showToast('No other options available for this pairing','error');return;}
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-    const optionBtns=options.map(function(r){var b=document.createElement('button');b.className='btn-secondary';b.setAttribute('style','text-align:left;padding:12px 16px;font-size:0.88rem;width:100%');b.textContent=r.name_en;b.onclick=function(){swapDinner(planMealId,r.id);};return b.outerHTML;}).join('');
+    const optionBtns=options.map(function(r){var b=document.createElement('button');b.className='btn-secondary';b.setAttribute('style','text-align:left;padding:12px 16px;font-size:0.88rem;width:100%');b.textContent='ἱ9 '+r.name_en;b.onclick=function(){swapDinner(planMealId,r.id);};return b.outerHTML;}).join('');
   el.innerHTML='<div class="modal" style="max-width:400px"><h3>Swap this dinner</h3><p>Pick a different option from the paired choices for this lunch.</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">'+optionBtns+'</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>';
   document.body.appendChild(el);
 }
