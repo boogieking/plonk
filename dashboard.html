@@ -2009,13 +2009,15 @@ async function processReceiptImage(input){
             {type:'image',source:{type:'base64',media_type:file.type||'image/jpeg',data:base64}},
             {type:'text',text:`This is a La Comer supermarket receipt from Mexico. Extract all purchased items.
 Return ONLY a JSON array, no other text, no markdown:
-[{"name_es":"Spanish product name from receipt","price_mxn":99.99,"quantity":1}]
+[{"name_es":"exact Spanish name from receipt","name_en":"English translation","price_mxn":99.99,"unit_price_mxn":99.99,"weight_or_qty":"1.456 kg","category_guess":"Meats & Eggs"}]
 Rules:
-- Use the exact Spanish name as printed on the receipt
-- price_mxn is the TOTAL price paid for that line (not unit price)
-- Skip non-product lines (IVA, totals, store info, payment info, DOBLE VALOR TIMBRE)
-- For weighted items like "0.864 PECHUGA" use the total line price
-- quantity is the number printed before the item name (default 1 if not shown)`}
+- name_es: exact Spanish product name as printed (clean up abbreviations where obvious e.g. "PECHUGA PO SIN HUES" → "Pechuga de Pollo Sin Hueso")
+- name_en: translate name_es to clear English (e.g. "Boneless Chicken Breast")
+- price_mxn: TOTAL price paid for that line
+- unit_price_mxn: unit/kg price if shown, otherwise same as price_mxn
+- weight_or_qty: the amount purchased (e.g. "1.456 kg", "2 pcs", "500 ml") — null if not shown
+- category_guess: one of: Meats & Eggs, Dairy, Produce, Grains Pasta & Bakery, Canned & Packaged Foods, Herbs Vinegar & Condiments, Frozen, Beverages, Household / Cleaning, Other
+- Skip non-product lines (IVA, totals, store info, payment info, DOBLE VALOR TIMBRE, OFERTAS Y DESCUENTOS)`}
           ]
         }]
       })
@@ -2037,35 +2039,57 @@ async function renderReceiptResults(items){
     return;
   }
 
-  // Match against existing products
+  // Load ingredients for auto-linking
+  const{data:allIngs}=await sb.from('ingredients').select('id,name_en,name_es').order('name_en');
+  const ingList=allIngs||[];
+
+  // Match against existing products AND ingredients
   const existing=productsCache||[];
   const matched=items.map(item=>{
-    const nameLower=item.name_es.toLowerCase();
-    const match=existing.find(p=>{
+    const nameLower=(item.name_es||'').toLowerCase();
+    const nameEnLower=(item.name_en||'').toLowerCase();
+
+    // Try to match existing household_product
+    const matchProduct=existing.find(p=>{
       const pName=(p.name_es||p.name_en||'').toLowerCase();
-      // Check if receipt name contains key words from product name
       const words=pName.split(' ').filter(w=>w.length>3);
-      return words.length>0&&words.filter(w=>nameLower.includes(w)).length>=Math.ceil(words.length*0.5);
+      return words.length>0&&words.filter(w=>nameLower.includes(w)||nameEnLower.includes(w)).length>=Math.ceil(words.length*0.5);
     });
-    return{...item,existingProduct:match||null};
+
+    // Try to auto-link to an ingredient by name_en similarity
+    const matchIngredient=ingList.find(ing=>{
+      const ingName=(ing.name_en||'').toLowerCase();
+      const ingNameEs=(ing.name_es||'').toLowerCase();
+      const words=ingName.split(' ').filter(w=>w.length>3);
+      const wordsEs=ingNameEs.split(' ').filter(w=>w.length>3);
+      const enMatch=words.length>0&&words.filter(w=>nameEnLower.includes(w)||nameLower.includes(w)).length>=Math.ceil(words.length*0.6);
+      const esMatch=wordsEs.length>0&&wordsEs.filter(w=>nameLower.includes(w)).length>=Math.ceil(wordsEs.length*0.6);
+      return enMatch||esMatch;
+    });
+
+    return{...item,existingProduct:matchProduct||null,matchedIngredient:matchIngredient||null};
   });
 
   receiptItems=matched;
 
   resultEl.innerHTML=`
-    <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:10px">${items.length} items found — untick any to skip</div>
+    <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:10px">${items.length} item${items.length!==1?'s':''} found — untick any to skip</div>
     <div id="receipt-items-list">
       ${matched.map((item,i)=>`
         <div class="receipt-item-row">
           <input type="checkbox" class="receipt-item-check" id="rcheck-${i}" checked>
           <div class="receipt-item-info">
-            <div class="receipt-item-name">${item.name_es}</div>
+            <div class="receipt-item-name">${item.name_en||item.name_es}</div>
+            <div style="font-size:0.75rem;color:var(--mid)">${item.name_es}${item.weight_or_qty?` · ${item.weight_or_qty}`:''}</div>
             <div class="receipt-item-sub">${item.existingProduct
-              ?`Updates: ${item.existingProduct.name_es||item.existingProduct.name_en}`
-              :'Will be added as new product'}</div>
+              ?`Updates: ${item.existingProduct.name_en||item.existingProduct.name_es}`
+              :item.matchedIngredient
+                ?`Links to: ${item.matchedIngredient.name_en}`
+                :'New product — no ingredient match'}</div>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
             <span class="receipt-item-price">$${item.price_mxn?.toFixed(2)||'?'}</span>
+            ${item.unit_price_mxn&&item.unit_price_mxn!==item.price_mxn?`<span style="font-size:0.7rem;color:var(--mid)">$${item.unit_price_mxn?.toFixed(2)}/unit</span>`:''}
             <span class="${item.existingProduct?'receipt-status-update':'receipt-status-new'}">${item.existingProduct?'update':'new'}</span>
           </div>
         </div>`).join('')}
@@ -2089,25 +2113,36 @@ async function saveReceiptItems(){
 
     try{
       if(item.existingProduct){
-        // Update price on existing product
-        await sb.from('household_products').update({last_price_mxn:item.price_mxn}).eq('id',item.existingProduct.id);
+        // Update price (and fill in name_en/category if missing)
+        const updates={last_price_mxn:item.price_mxn};
+        if(!item.existingProduct.name_en&&item.name_en)updates.name_en=item.name_en;
+        if(!item.existingProduct.category&&item.category_guess)updates.category=item.category_guess;
+        if(!item.existingProduct.ingredient_id&&item.matchedIngredient)updates.ingredient_id=item.matchedIngredient.id;
+        await sb.from('household_products').update(updates).eq('id',item.existingProduct.id);
         updated++;
       }else{
-        // Add as new product
+        // Build notes: include weight/qty and unit price if available
+        const noteParts=[];
+        if(item.weight_or_qty)noteParts.push(item.weight_or_qty);
+        if(item.unit_price_mxn&&item.unit_price_mxn!==item.price_mxn)noteParts.push(`$${item.unit_price_mxn.toFixed(2)}/unit`);
+        noteParts.push('From receipt');
+        const isComplete=!!(item.name_en&&item.category_guess&&item.matchedIngredient);
+        if(!isComplete)noteParts.push('incomplete');
         await sb.from('household_products').insert({
           name_es:item.name_es,
-          name_en:null,
+          name_en:item.name_en||null,
           store:'La Comer',
-          category:null,
+          category:item.category_guess||null,
           last_price_mxn:item.price_mxn,
           is_preferred_lacomer:true,
-          notes:'From receipt | incomplete',
+          ingredient_id:item.matchedIngredient?.id||null,
+          notes:noteParts.join(' | '),
           added_by:userProfile.id,
           created_at:new Date().toISOString()
         });
         added++;
       }
-    }catch(e){errors++;}
+    }catch(e){errors++;console.warn('Receipt save error:',e.message);}
   }
 
   closeReceiptScanner();
