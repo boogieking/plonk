@@ -1716,7 +1716,8 @@ function productRowHtml(p){
   const prefLaComer=p.is_preferred_lacomer?`<span class="product-pref-tag">★ La Comer</span>`:'';
   const prefCity=p.is_preferred_citymarket?`<span class="product-pref-tag">★ City Market</span>`:'';
   const foodCats=['Meats & Eggs','Dairy','Produce','Grains, Pasta & Bakery','Canned & Packaged Foods','Herbs, Vinegar & Condiments','Frozen','Beverages','Grains Pasta & Bakery','Canned & Packaged'];
-  const isFoodCat=!p.category||foodCats.some(c=>p.category.toLowerCase().includes(c.toLowerCase().split(' ')[0]));
+  const nonFoodCats=['Household','Cleaning','Personal Care','Baby','Pet','Office','Garden'];
+  const isFoodCat=p.category&&!nonFoodCats.some(c=>p.category.toLowerCase().includes(c.toLowerCase()))&&foodCats.some(c=>p.category.toLowerCase().includes(c.toLowerCase().split(' ')[0]));
   const unlinked=!linkedIng&&isFoodCat?`<span class="unlinked-badge">⚠ unlinked ingredient</span>`:'';
   const isIncomplete=p.notes?.includes('incomplete')||(!p.name_en||!p.category);
   const incompleteBadge=isIncomplete?`<span class="incomplete-badge">⚠ incomplete</span>`:'';
@@ -1747,9 +1748,8 @@ function setProductStoreFilter(store){productFilterStore=store;renderProductsVie
 function filterProducts(){renderFilteredProducts();}
 
 async function openAddProductModal(prefill={}){
-  const{data:ingredients,error:ingErr}=await sb.from('ingredients').select('id,name_en').not('recipe_id','is',null).not('name_en','is',null).order('name_en');
-  if(ingErr)console.warn('ingredient dropdown fetch failed:',ingErr.message);
-  const seenNames=new Set();const dedupedIngs=(ingredients||[]).filter(i=>{if(!i.name_en||seenNames.has(i.name_en.toLowerCase()))return false;seenNames.add(i.name_en.toLowerCase());return true;});
+  const{data:ingredients}=await sb.from('ingredients').select('id,name_en').order('name_en');
+  const seenNames=new Set();const dedupedIngs=(ingredients||[]).filter(i=>{if(seenNames.has(i.name_en.toLowerCase()))return false;seenNames.add(i.name_en.toLowerCase());return true;});
   const ingOptions=dedupedIngs.map(i=>`<option value="${i.id}" ${prefill.ingredient_id===i.id?'selected':''}>${i.name_en}</option>`).join('');
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
   el.innerHTML=`<div class="modal" style="max-width:480px;max-height:90vh;overflow-y:auto">
