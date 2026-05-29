@@ -1808,25 +1808,26 @@ async function openEditProductModal(productId){
   const h=document.querySelector('#modal-overlay h3');if(h)h.textContent='Edit product';
 }
 
-async function openQuickLink(productId, btn){
-  // Remove any existing quick-link forms
+async function openQuickLink(productId,btn){
   document.querySelectorAll('.quick-link-form').forEach(el=>el.remove());
-  document.querySelectorAll('.quick-link-btn').forEach(el=>{el.textContent='🔗 Link';el.disabled=false;});
-  btn.textContent='Cancel';btn.onclick=()=>{btn.closest('.quick-link-form')?.remove();btn.textContent='🔗 Link';btn.onclick=()=>openQuickLink(productId,btn);};
-  // Fetch ingredients for dropdown
+  const origText='🔗 Link';
+  if(btn.textContent!==origText){btn.textContent=origText;return;}
+  btn.textContent='✕ Cancel';
   const{data:ings}=await sb.from('ingredients').select('id,name_en').not('recipe_id','is',null).not('name_en','is',null).order('name_en');
   const seen=new Set();const deduped=(ings||[]).filter(i=>{if(seen.has(i.name_en.toLowerCase()))return false;seen.add(i.name_en.toLowerCase());return true;});
   const opts=deduped.map(i=>`<option value="${i.id}">${i.name_en}</option>`).join('');
   const form=document.createElement('div');form.className='quick-link-form';
-  form.innerHTML=`<select class="quick-link-select" id="ql-select-${productId}"><option value="">— pick ingredient —</option>${opts}</select><button class="quick-link-save" onclick="saveQuickLink('${productId}',this)">Save</button><button class="quick-link-cancel" onclick="this.closest('.quick-link-form').remove();document.querySelector('[onclick*=\'openQuickLink\\(\'${productId}\'\']')">Cancel</button>`;
+  form.innerHTML=`<select class="quick-link-select" id="ql-select-${productId}"><option value="">— pick ingredient —</option>${opts}</select><button class="quick-link-save" onclick="saveQuickLink('${productId}')">Save</button><button class="quick-link-cancel" onclick="this.closest('.quick-link-form').remove();document.getElementById('ql-btn-${productId}').textContent='🔗 Link'">Cancel</button>`;
+  btn.id=`ql-btn-${productId}`;
   btn.closest('.product-meta').appendChild(form);
 }
-async function saveQuickLink(productId, btn){
+async function saveQuickLink(productId){
   const sel=document.getElementById(`ql-select-${productId}`);
   const ingId=sel?.value;if(!ingId){showToast('Pick an ingredient first','error');return;}
-  btn.disabled=true;btn.textContent='Saving...';
+  const saveBtn=sel.closest('.quick-link-form').querySelector('.quick-link-save');
+  saveBtn.disabled=true;saveBtn.textContent='Saving...';
   const{error}=await sb.from('household_products').update({ingredient_id:ingId}).eq('id',productId);
-  if(error){showToast('Error linking: '+error.message,'error');btn.disabled=false;btn.textContent='Save';return;}
+  if(error){showToast('Error linking: '+error.message,'error');saveBtn.disabled=false;saveBtn.textContent='Save';return;}
   showToast('Ingredient linked ✓');productsCache=null;await loadAndRenderProducts();
 }
 async function updateProduct(productId){
