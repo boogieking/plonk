@@ -388,6 +388,16 @@
     .product-pref-tag{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(74,124,89,0.1);color:var(--green);}
     .product-actions{display:flex;gap:6px;flex-shrink:0;}
     .unlinked-badge{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(200,103,74,0.12);color:var(--clay);}
+    .quick-link-btn{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;border:1px solid rgba(200,103,74,0.3);background:transparent;color:var(--clay);cursor:pointer;margin-left:4px;transition:all 0.15s;}
+    .quick-link-btn:hover{background:var(--clay);color:white;}
+    .quick-link-form{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap;}
+    .quick-link-select{padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;background:white;max-width:220px;}
+    .quick-link-save{font-size:0.78rem;padding:4px 12px;border-radius:8px;background:var(--clay);color:white;border:none;cursor:pointer;}
+    .quick-link-cancel{font-size:0.78rem;padding:4px 10px;border-radius:8px;background:transparent;color:var(--mid);border:1px solid var(--border);cursor:pointer;}
+    .shop-link-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;}
+    .shop-alts{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;}
+    .shop-alt-link{font-size:0.68rem;color:var(--mid);text-decoration:none;padding:2px 8px;border:1px solid var(--border);border-radius:999px;white-space:nowrap;transition:all 0.15s;background:transparent;}
+    .shop-alt-link:hover{background:var(--light);color:var(--dark);border-color:var(--mid)}
     .incomplete-badge{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(184,134,11,0.12);color:var(--amber);border:1px solid rgba(184,134,11,0.3);}
     .ai-fill-btn{display:inline-flex;align-items:center;gap:5px;font-size:0.75rem;font-weight:500;padding:5px 12px;border-radius:8px;background:rgba(200,103,74,0.08);border:1.5px solid rgba(200,103,74,0.25);color:var(--clay);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;white-space:nowrap;}
     .ai-fill-btn:hover{background:var(--clay);color:white;border-color:var(--clay);}
@@ -444,7 +454,7 @@ const KAREN_CATEGORY_RULES=[
 function guessKarenCategory(name){const lower=name.toLowerCase();for(const rule of KAREN_CATEGORY_RULES){if(rule.words.some(w=>lower.includes(w)))return rule.cat;}return'Other';}
 let karenAdditions=[];
 async function loadKarenAdditions(){if(!currentPlan){karenAdditions=[];return;}const{data,error}=await sb.from('karen_additions').select('*').eq('plan_id',currentPlan.id).order('added_at',{ascending:true});karenAdditions=(!error&&data)?data:[];}
-async function addKarenItem(){const input=document.getElementById('karen-add-input');if(!input)return;const name=input.value.trim();if(!name){showToast('Type an item first','error');return;}if(!currentPlan){showToast('No active plan','error');return;}if(karenAdditions.some(a=>a.name_en.toLowerCase()===name.toLowerCase())){showToast('That item is already on your additions list','error');return;}const mealIngNames=new Set((inventoryItems||[]).map(i=>i.name_en.toLowerCase()));if(mealIngNames.has(name.toLowerCase())){showToast(`"${name}" is already in this week's meal ingredients ✓`);return;}const cat=guessKarenCategory(name);const{data,error}=await sb.from('karen_additions').insert({plan_id:currentPlan.id,name_en:name,lacomer_category:cat,added_by:userProfile.id,added_at:new Date().toISOString()}).select().single();if(error){showToast('Error adding item: '+error.message,'error');return;}karenAdditions.push(data);input.value='';renderKarenAdditionsList();showToast(`"${name}" added to shopping list ✓`);}
+async function addKarenItem(){const input=document.getElementById('karen-add-input');if(!input)return;const name=input.value.trim();if(!name){showToast('Type an item first','error');return;}if(!currentPlan){showToast('No active plan','error');return;}if(karenAdditions.some(a=>a.name_en.toLowerCase()===name.toLowerCase())){showToast('That item is already on your additions list','error');return;}const{data:planMealIds}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id);const recipeIds=(planMealIds||[]).map(m=>m.recipe_id);let mealIngNames=new Set();if(recipeIds.length>0){const{data:ings}=await sb.from('ingredients').select('name_en').in('recipe_id',recipeIds);mealIngNames=new Set((ings||[]).map(i=>i.name_en.toLowerCase()));}if(mealIngNames.has(name.toLowerCase())){showToast(`"${name}" is already in this week's meal ingredients ✓`);return;}const cat=guessKarenCategory(name);const{data,error}=await sb.from('karen_additions').insert({plan_id:currentPlan.id,name_en:name,lacomer_category:cat,added_by:userProfile.id,added_at:new Date().toISOString()}).select().single();if(error){showToast('Error adding item: '+error.message,'error');return;}karenAdditions.push(data);input.value='';renderKarenAdditionsList();showToast(`"${name}" added to shopping list ✓`);}
 async function removeKarenItem(id){const{error}=await sb.from('karen_additions').delete().eq('id',id);if(error){showToast('Error removing item','error');return;}karenAdditions=karenAdditions.filter(a=>a.id!==id);renderKarenAdditionsList();}
 function renderKarenAdditionsList(){const el=document.getElementById('karen-additions-list');if(!el)return;if(karenAdditions.length===0){el.innerHTML=`<div style="font-size:0.82rem;color:var(--mid)">No items added yet</div>`;return;}el.innerHTML=karenAdditions.map(a=>`<div class="karen-addition-item"><span>${a.name_en} <em style="font-size:0.72rem;color:var(--mid)">· ${a.lacomer_category}</em></span><button class="karen-rm-btn" onclick="removeKarenItem('${a.id}')" title="Remove">✕</button></div>`).join('');}
 const roleColor={admin:'#C8674A',planner:'#4A7C59',reviewer:'#2E5F8A'};
@@ -664,8 +674,8 @@ async function doReshuffle(btn){
     if(picked.length>0){
       const{error:insError}=await sb.from('weekly_plan_meals').insert(picked.map(r=>({plan_id:currentPlan.id,recipe_id:r.id,cooked:false,is_dinner:false})));
       if(insError){
-        // Rollback: restore original meals
-        await sb.from('weekly_plan_meals').insert(oldMealRows).catch(()=>{});
+        const{error:rollbackErr}=await sb.from('weekly_plan_meals').insert(oldMealRows);
+        if(rollbackErr){showToast('⚠️ Reshuffle failed and rollback also failed — start a new plan to recover','error');btn.disabled=false;btn.textContent='🔀 Reshuffle';return;}
         throw insError;
       }
     }
@@ -675,7 +685,7 @@ async function doReshuffle(btn){
     const{error:updError}=await sb.from('weekly_plans').update({reshuffle_used:true,reshuffle_log:{removed,added,at:new Date().toISOString()}}).eq('id',currentPlan.id);if(updError)throw updError;
     await loadWeekData();await loadMyRatingsThisWeek();await renderDashboard();
     showToast('Meals reshuffled ✓ — reshuffle used for this week');
-  }catch(err){btn.disabled=false;btn.textContent='🔀 Reshuffle (1 remaining)';showToast('Something went wrong — '+err.message,'error');}
+  }catch(err){btn.disabled=false;btn.textContent='🔀 Reshuffle';showToast('Reshuffle failed — original meals restored. '+err.message,'error');}
 }
 const DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 let selectedEatingOutDays=[];
@@ -1016,34 +1026,43 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems){
     html+=`<div class="shop-category-label">${cat}</div>`;
     for(const ing of groups[cat]){
       if(ing._type==='karen'){html+=`<div class="shop-row"><div class="shop-names"><div class="shop-name-en">${ing.name_en}</div><div class="shop-name-es" style="color:var(--blue);font-size:0.7rem">Karen's addition</div></div><span style="font-size:0.72rem;color:var(--mid)">—</span></div>`;}
-      else{const linkIcon=ing.lacomer_url?`<a href="${ing.lacomer_url}" target="_blank" title="View on La Comer" style="text-decoration:none;font-size:0.85rem;margin-left:5px;opacity:0.7;vertical-align:middle;line-height:1" onclick="event.stopPropagation()">🔗</a>`:'';const addLinkBtns=!ing.lacomer_url&&isAdmin?`<div class="link-btn-group"><button class="find-link-btn" onclick="findOnLaComer('${ing.id}','${(ing.name_es||ing.name_en).replace(/'/g,"\\'").replace(/"/g,'&quot;')}',this)">🔍 Find</button><button class="add-link-btn" onclick="showAddLinkForm('${ing.id}',this)">+ Paste</button></div>`:'';html+=`<div class="shop-row" id="shop-row-${ing.id}"><div class="shop-names"><div class="shop-name-en">${ing.name_en}${ing._qtyStr?`<span class="shop-qty"> · ${ing._qtyStr}</span>`:''}${linkIcon}</div><div class="shop-name-es">${ing.name_es||''}</div></div>${addLinkBtns}</div>`;}
+      else{
+        let linkHtml='';
+        if(ing._products&&ing._products.length>0){
+          const pref=ing._preferredProduct||ing._products[0];
+          const alts=ing._products.filter(p=>p!==pref&&p.store_url);
+          const prefBadge=pref.is_preferred_lacomer?'★ ':'';
+          linkHtml=`<div class="shop-link-wrap"><a class="shop-link" href="${pref.store_url}" target="_blank">🛒 ${prefBadge}${pref.name_es||pref.name_en||'La Comer'}</a>${alts.length>0?`<div class="shop-alts">${alts.map(a=>`<a class="shop-alt-link" href="${a.store_url}" target="_blank">${a.name_es||a.name_en||'La Comer'}</a>`).join('')}</div>`:''}</div>`;
+        }else if(ing.lacomer_url){
+          linkHtml=`<div class="shop-link-wrap"><a class="shop-link" href="${ing.lacomer_url}" target="_blank">🛒 La Comer</a></div>`;
+        }
+        const addLinkBtns=!ing.lacomer_url&&(!ing._products||ing._products.length===0)&&isAdmin?`<div class="link-btn-group"><button class="find-link-btn" onclick="findOnLaComer('${ing.id}','${(ing.name_es||ing.name_en).replace(/'/g,"\'").replace(/"/g,'&quot;')}',this)">🔍 Find</button><button class="add-link-btn" onclick="showAddLinkForm('${ing.id}',this)">+ Paste</button></div>`:'';
+        html+=`<div class="shop-row" id="shop-row-${ing.id}"><div class="shop-names"><div class="shop-name-en">${ing.name_en}${ing._qtyStr?`<span class="shop-qty"> · ${ing._qtyStr}</span>`:''}</div><div class="shop-name-es">${ing.name_es||''}</div></div>${linkHtml}${addLinkBtns}</div>`;
+      }
     }
   }
   if(isAdmin&&ckItems.length>0){const unitOpts=UNITS.map(u=>`<option value="${u}">${u}</option>`).join('');html+=`<div class="casa-king-section" id="ck-pre-consolidate"><div class="casa-king-header"><div class="card-title">Household items</div><span class="casa-king-badge">Casa King</span></div><div style="font-size:0.78rem;color:var(--mid);margin-bottom:12px">Add quantities then hit Consolidate ↑</div>`;for(const item of ckItems){html+=`<div class="ck-item-row" id="ck-row-${item.id}"><div class="ck-item-text" style="flex:1">${item.text}</div><input type="number" min="0" step="any" id="ck-qty-${item.id}" placeholder="qty" style="width:60px;border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:0.82rem;margin-right:4px"><select id="ck-unit-${item.id}" style="border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:0.82rem;margin-right:8px">${unitOpts}</select><button class="ck-done-btn ${item.done?'done':''}" onclick="tickCKItem('${item.id}',this)">${item.done?'Done ✓':'Got it'}</button></div>`;}html+=`</div>`;}
   return html||`<div class="empty" style="color:var(--green)">✓ Nothing needed — you have everything!</div>`;
 }
 /* ── PRODUCT LINK OVERLAY ─────────────────────── */
-// Fetches household_products rows for the given ingredient IDs and overlays
-// store_url onto each ingredient object, replacing lacomer_url where available.
+// Fetches ALL household_products rows per ingredient; attaches preferred + alternatives.
 async function applyProductLinks(ingredients){
   if(!ingredients||ingredients.length===0)return ingredients;
   const ingIds=ingredients.map(i=>i.id).filter(Boolean);
   if(ingIds.length===0)return ingredients;
   try{
     const{data:products}=await sb.from('household_products')
-      .select('ingredient_id,store_url,name_es,name_en')
+      .select('ingredient_id,store_url,name_es,name_en,is_preferred_lacomer')
       .in('ingredient_id',ingIds)
       .not('store_url','is',null);
     if(!products||products.length===0)return ingredients;
-    const map={};for(const p of products){if(p.ingredient_id)map[p.ingredient_id]=p;}
+    const map={};
+    for(const p of products){if(!p.ingredient_id)continue;if(!map[p.ingredient_id])map[p.ingredient_id]=[];map[p.ingredient_id].push(p);}
     return ingredients.map(ing=>{
-      const p=map[ing.id];
-      if(!p)return ing;
-      return{
-        ...ing,
-        lacomer_url:p.store_url||ing.lacomer_url,
-        name_es:p.name_es||ing.name_es,
-      };
+      const prods=map[ing.id];
+      if(!prods||prods.length===0)return ing;
+      const preferred=prods.find(p=>p.is_preferred_lacomer)||prods[0];
+      return{...ing,lacomer_url:preferred.store_url||ing.lacomer_url,name_es:preferred.name_es||ing.name_es,_products:prods,_preferredProduct:preferred};
     });
   }catch(e){console.warn('household_products lookup failed:',e.message);return ingredients;}
 }
@@ -1510,7 +1529,7 @@ function consolidateList(){
   ckSection.remove();const consolidateBtn=document.getElementById('consolidate-btn');if(consolidateBtn)consolidateBtn.style.display='none';
 }
 function showCKLinkForm(tempId,itemName,btn){const row=document.getElementById(`shop-row-${tempId}`);if(!row)return;btn.style.display='none';const formDiv=document.createElement('div');formDiv.className='add-link-form';formDiv.id=`link-form-${tempId}`;formDiv.innerHTML=`<input class="add-link-input" id="link-input-${tempId}" placeholder="Paste La Comer URL..." type="url"><button class="save-link-btn" onclick="saveCKLink('${tempId}','${itemName.replace(/'/g,"\\'")}')">Save</button><button class="cancel-link-btn" onclick="cancelLink('${tempId}')">Cancel</button>`;row.appendChild(formDiv);}
-async function saveCKLink(tempId,itemName){const url=document.getElementById(`link-input-${tempId}`)?.value?.trim();if(!url){showToast('Please paste a URL first','error');return;}const{error}=await sb.from('household_products').insert({name_en:itemName,name_es:itemName,store:'La Comer',store_url:url,category:guessKarenCategory(itemName),added_by:userProfile?.id||null,created_at:new Date().toISOString()});if(error){showToast('Error saving: '+error.message,'error');return;}const row=document.getElementById(`shop-row-${tempId}`);if(row){document.getElementById(`link-form-${tempId}`)?.remove();const addBtn=row.querySelector('.add-link-btn');if(addBtn)addBtn.replaceWith(Object.assign(document.createElement('a'),{href:url,target:'_blank',className:'shop-link',textContent:'🛒 La Comer'}));}showToast(`"${itemName}" saved to products ✓`);}
+async function saveCKLink(tempId,itemName){const url=document.getElementById(`link-input-${tempId}`)?.value?.trim();if(!url){showToast('Please paste a URL first','error');return;}const{data:ingMatch}=await sb.from('ingredients').select('id').ilike('name_en',itemName).limit(1).maybeSingle();const ingredientId=ingMatch?.id||null;const{error}=await sb.from('household_products').insert({name_en:itemName,name_es:itemName,store:'La Comer',store_url:url,category:guessKarenCategory(itemName),ingredient_id:ingredientId,added_by:userProfile?.id||null,created_at:new Date().toISOString()});if(error){showToast('Error saving: '+error.message,'error');return;}const row=document.getElementById(`shop-row-${tempId}`);if(row){document.getElementById(`link-form-${tempId}`)?.remove();const addBtn=row.querySelector('.add-link-btn');if(addBtn)addBtn.replaceWith(Object.assign(document.createElement('a'),{href:url,target:'_blank',className:'shop-link',textContent:'🛒 La Comer'}));}showToast(`"${itemName}" linked ✓${ingredientId?'':' (no ingredient match — check spelling)'}`);}
 async function handleStepsBtn(recipeId){
   const r=allRecipesCache?.find(x=>x.id===recipeId);if(!r)return;
   const stepsContainer=document.getElementById(`steps-container-${recipeId}`);const stepsBtn=document.getElementById(`steps-btn-${recipeId}`);if(!stepsContainer||!stepsBtn)return;
@@ -1748,8 +1767,9 @@ function setProductStoreFilter(store){productFilterStore=store;renderProductsVie
 function filterProducts(){renderFilteredProducts();}
 
 async function openAddProductModal(prefill={}){
-  const{data:ingredients}=await sb.from('ingredients').select('id,name_en').order('name_en');
-  const seenNames=new Set();const dedupedIngs=(ingredients||[]).filter(i=>{if(seenNames.has(i.name_en.toLowerCase()))return false;seenNames.add(i.name_en.toLowerCase());return true;});
+  const{data:ingredients,error:ingErr}=await sb.from('ingredients').select('id,name_en').not('recipe_id','is',null).not('name_en','is',null).order('name_en');
+  if(ingErr)console.warn('ingredient dropdown fetch failed:',ingErr.message);
+  const seenNames=new Set();const dedupedIngs=(ingredients||[]).filter(i=>{if(!i.name_en||seenNames.has(i.name_en.toLowerCase()))return false;seenNames.add(i.name_en.toLowerCase());return true;});
   const ingOptions=dedupedIngs.map(i=>`<option value="${i.id}" ${prefill.ingredient_id===i.id?'selected':''}>${i.name_en}</option>`).join('');
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
   el.innerHTML=`<div class="modal" style="max-width:480px;max-height:90vh;overflow-y:auto">
@@ -1804,6 +1824,28 @@ async function openEditProductModal(productId){
   const h=document.querySelector('#modal-overlay h3');if(h)h.textContent='Edit product';
 }
 
+async function openQuickLink(productId,btn){
+  document.querySelectorAll('.quick-link-form').forEach(el=>el.remove());
+  const origText='🔗 Link';
+  if(btn.textContent!==origText){btn.textContent=origText;return;}
+  btn.textContent='✕ Cancel';
+  const{data:ings}=await sb.from('ingredients').select('id,name_en').not('recipe_id','is',null).not('name_en','is',null).order('name_en');
+  const seen=new Set();const deduped=(ings||[]).filter(i=>{if(seen.has(i.name_en.toLowerCase()))return false;seen.add(i.name_en.toLowerCase());return true;});
+  const opts=deduped.map(i=>`<option value="${i.id}">${i.name_en}</option>`).join('');
+  const form=document.createElement('div');form.className='quick-link-form';
+  form.innerHTML=`<select class="quick-link-select" id="ql-select-${productId}"><option value="">— pick ingredient —</option>${opts}</select><button class="quick-link-save" onclick="saveQuickLink('${productId}')">Save</button><button class="quick-link-cancel" onclick="this.closest('.quick-link-form').remove();document.getElementById('ql-btn-${productId}').textContent='🔗 Link'">Cancel</button>`;
+  btn.id=`ql-btn-${productId}`;
+  btn.closest('.product-meta').appendChild(form);
+}
+async function saveQuickLink(productId){
+  const sel=document.getElementById(`ql-select-${productId}`);
+  const ingId=sel?.value;if(!ingId){showToast('Pick an ingredient first','error');return;}
+  const saveBtn=sel.closest('.quick-link-form').querySelector('.quick-link-save');
+  saveBtn.disabled=true;saveBtn.textContent='Saving...';
+  const{error}=await sb.from('household_products').update({ingredient_id:ingId}).eq('id',productId);
+  if(error){showToast('Error linking: '+error.message,'error');saveBtn.disabled=false;saveBtn.textContent='Save';return;}
+  showToast('Ingredient linked ✓');productsCache=null;await loadAndRenderProducts();
+}
 async function updateProduct(productId){
   const name_es=document.getElementById('prod-name-es')?.value.trim();
   if(!name_es){showToast('Spanish name is required','error');return;}
