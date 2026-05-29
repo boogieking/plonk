@@ -388,6 +388,12 @@
     .product-pref-tag{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(74,124,89,0.1);color:var(--green);}
     .product-actions{display:flex;gap:6px;flex-shrink:0;}
     .unlinked-badge{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(200,103,74,0.12);color:var(--clay);}
+    .quick-link-btn{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;border:1px solid rgba(200,103,74,0.3);background:transparent;color:var(--clay);cursor:pointer;margin-left:4px;transition:all 0.15s;}
+    .quick-link-btn:hover{background:var(--clay);color:white;}
+    .quick-link-form{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap;}
+    .quick-link-select{padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;background:white;max-width:220px;}
+    .quick-link-save{font-size:0.78rem;padding:4px 12px;border-radius:8px;background:var(--clay);color:white;border:none;cursor:pointer;}
+    .quick-link-cancel{font-size:0.78rem;padding:4px 10px;border-radius:8px;background:transparent;color:var(--mid);border:1px solid var(--border);cursor:pointer;}
     .incomplete-badge{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(184,134,11,0.12);color:var(--amber);border:1px solid rgba(184,134,11,0.3);}
     .ai-fill-btn{display:inline-flex;align-items:center;gap:5px;font-size:0.75rem;font-weight:500;padding:5px 12px;border-radius:8px;background:rgba(200,103,74,0.08);border:1.5px solid rgba(200,103,74,0.25);color:var(--clay);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;white-space:nowrap;}
     .ai-fill-btn:hover{background:var(--clay);color:white;border-color:var(--clay);}
@@ -1718,7 +1724,7 @@ function productRowHtml(p){
   const foodCats=['Meats & Eggs','Dairy','Produce','Grains, Pasta & Bakery','Canned & Packaged Foods','Herbs, Vinegar & Condiments','Frozen','Beverages','Grains Pasta & Bakery','Canned & Packaged'];
   const nonFoodCats=['Household','Cleaning','Personal Care','Baby','Pet','Office','Garden'];
   const isFoodCat=p.category&&!nonFoodCats.some(c=>p.category.toLowerCase().includes(c.toLowerCase()))&&foodCats.some(c=>p.category.toLowerCase().includes(c.toLowerCase().split(' ')[0]));
-  const unlinked=!linkedIng&&isFoodCat?`<span class="unlinked-badge">⚠ unlinked ingredient</span>`:'';
+  const unlinked=!linkedIng&&isFoodCat?`<span class="unlinked-badge">⚠ unlinked ingredient</span><button class="quick-link-btn" onclick="openQuickLink('${p.id}',this)">🔗 Link</button>`:'';
   const isIncomplete=p.notes?.includes('incomplete')||(!p.name_en||!p.category);
   const incompleteBadge=isIncomplete?`<span class="incomplete-badge">⚠ incomplete</span>`:'';
   const urlBtn=p.store_url?`<a class="shop-link" href="${p.store_url}" target="_blank">🛒 View</a>`:'';
@@ -1802,6 +1808,27 @@ async function openEditProductModal(productId){
   const h=document.querySelector('#modal-overlay h3');if(h)h.textContent='Edit product';
 }
 
+async function openQuickLink(productId, btn){
+  // Remove any existing quick-link forms
+  document.querySelectorAll('.quick-link-form').forEach(el=>el.remove());
+  document.querySelectorAll('.quick-link-btn').forEach(el=>{el.textContent='🔗 Link';el.disabled=false;});
+  btn.textContent='Cancel';btn.onclick=()=>{btn.closest('.quick-link-form')?.remove();btn.textContent='🔗 Link';btn.onclick=()=>openQuickLink(productId,btn);};
+  // Fetch ingredients for dropdown
+  const{data:ings}=await sb.from('ingredients').select('id,name_en').not('recipe_id','is',null).not('name_en','is',null).order('name_en');
+  const seen=new Set();const deduped=(ings||[]).filter(i=>{if(seen.has(i.name_en.toLowerCase()))return false;seen.add(i.name_en.toLowerCase());return true;});
+  const opts=deduped.map(i=>`<option value="${i.id}">${i.name_en}</option>`).join('');
+  const form=document.createElement('div');form.className='quick-link-form';
+  form.innerHTML=`<select class="quick-link-select" id="ql-select-${productId}"><option value="">— pick ingredient —</option>${opts}</select><button class="quick-link-save" onclick="saveQuickLink('${productId}',this)">Save</button><button class="quick-link-cancel" onclick="this.closest('.quick-link-form').remove();document.querySelector('[onclick*=\'openQuickLink\\(\'${productId}\'\']')">Cancel</button>`;
+  btn.closest('.product-meta').appendChild(form);
+}
+async function saveQuickLink(productId, btn){
+  const sel=document.getElementById(`ql-select-${productId}`);
+  const ingId=sel?.value;if(!ingId){showToast('Pick an ingredient first','error');return;}
+  btn.disabled=true;btn.textContent='Saving...';
+  const{error}=await sb.from('household_products').update({ingredient_id:ingId}).eq('id',productId);
+  if(error){showToast('Error linking: '+error.message,'error');btn.disabled=false;btn.textContent='Save';return;}
+  showToast('Ingredient linked ✓');productsCache=null;await loadAndRenderProducts();
+}
 async function updateProduct(productId){
   const name_es=document.getElementById('prod-name-es')?.value.trim();
   if(!name_es){showToast('Spanish name is required','error');return;}
