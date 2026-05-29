@@ -388,12 +388,6 @@
     .product-pref-tag{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(74,124,89,0.1);color:var(--green);}
     .product-actions{display:flex;gap:6px;flex-shrink:0;}
     .unlinked-badge{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(200,103,74,0.12);color:var(--clay);}
-    .quick-link-btn{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;border:1px solid rgba(200,103,74,0.3);background:transparent;color:var(--clay);cursor:pointer;margin-left:4px;transition:all 0.15s;}
-    .quick-link-btn:hover{background:var(--clay);color:white;}
-    .quick-link-form{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap;}
-    .quick-link-select{padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;background:white;max-width:220px;}
-    .quick-link-save{font-size:0.78rem;padding:4px 12px;border-radius:8px;background:var(--clay);color:white;border:none;cursor:pointer;}
-    .quick-link-cancel{font-size:0.78rem;padding:4px 10px;border-radius:8px;background:transparent;color:var(--mid);border:1px solid var(--border);cursor:pointer;}
     .incomplete-badge{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(184,134,11,0.12);color:var(--amber);border:1px solid rgba(184,134,11,0.3);}
     .ai-fill-btn{display:inline-flex;align-items:center;gap:5px;font-size:0.75rem;font-weight:500;padding:5px 12px;border-radius:8px;background:rgba(200,103,74,0.08);border:1.5px solid rgba(200,103,74,0.25);color:var(--clay);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;white-space:nowrap;}
     .ai-fill-btn:hover{background:var(--clay);color:white;border-color:var(--clay);}
@@ -1724,7 +1718,7 @@ function productRowHtml(p){
   const foodCats=['Meats & Eggs','Dairy','Produce','Grains, Pasta & Bakery','Canned & Packaged Foods','Herbs, Vinegar & Condiments','Frozen','Beverages','Grains Pasta & Bakery','Canned & Packaged'];
   const nonFoodCats=['Household','Cleaning','Personal Care','Baby','Pet','Office','Garden'];
   const isFoodCat=p.category&&!nonFoodCats.some(c=>p.category.toLowerCase().includes(c.toLowerCase()))&&foodCats.some(c=>p.category.toLowerCase().includes(c.toLowerCase().split(' ')[0]));
-  const unlinked=!linkedIng&&isFoodCat?`<span class="unlinked-badge">⚠ unlinked ingredient</span><button class="quick-link-btn" onclick="openQuickLink('${p.id}',this)">🔗 Link</button>`:'';
+  const unlinked=!linkedIng&&!p.is_pantry_item&&isFoodCat?`<span class="unlinked-badge">⚠ unlinked ingredient</span><button class="quick-link-btn" onclick="openQuickLink('${p.id}',this)">🔗 Link</button>`:'';
   const isIncomplete=p.notes?.includes('incomplete')||(!p.name_en||!p.category);
   const incompleteBadge=isIncomplete?`<span class="incomplete-badge">⚠ incomplete</span>`:'';
   const urlBtn=p.store_url?`<a class="shop-link" href="${p.store_url}" target="_blank">🛒 View</a>`:'';
@@ -1769,6 +1763,7 @@ async function openAddProductModal(prefill={}){
       <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Store URL</label><input id="prod-url" class="search-input" placeholder="Paste La Comer product URL…" type="url" value="${prefill.store_url||''}" style="width:100%"></div>
       <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Links to ingredient</label><select id="prod-ingredient" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— No ingredient linked —</option>${ingOptions}</select></div>
       <div style="display:flex;gap:16px"><label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" id="prod-pref-lc" ${prefill.is_preferred_lacomer?'checked':''}> Preferred at La Comer</label><label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" id="prod-pref-cm" ${prefill.is_preferred_citymarket?'checked':''}> Preferred at City Market</label></div>
+      <div><label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" id="prod-pantry" ${prefill.is_pantry_item?'checked':''}> Not a recipe ingredient (pantry / household item)</label></div>
       <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Price at La Comer (MXN)</label><input id="prod-price" class="search-input" placeholder="e.g. 45.50" type="number" min="0" step="0.01" value="${prefill.last_price_mxn||''}" style="width:100%"></div>
       <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Notes (optional)</label><input id="prod-notes" class="search-input" placeholder="e.g. Only buy on sale" value="${prefill.notes||''}" style="width:100%"></div>
     </div>
@@ -1789,6 +1784,7 @@ async function saveNewProduct(){
     ingredient_id:document.getElementById('prod-ingredient')?.value||null,
     is_preferred_lacomer:document.getElementById('prod-pref-lc')?.checked||false,
     is_preferred_citymarket:document.getElementById('prod-pref-cm')?.checked||false,
+    is_pantry_item:document.getElementById('prod-pantry')?.checked||false,
     last_price_mxn:parseFloat(document.getElementById('prod-price')?.value)||null,
     notes:document.getElementById('prod-notes')?.value.trim()||null,
     added_by:userProfile.id,
@@ -1808,28 +1804,6 @@ async function openEditProductModal(productId){
   const h=document.querySelector('#modal-overlay h3');if(h)h.textContent='Edit product';
 }
 
-async function openQuickLink(productId,btn){
-  document.querySelectorAll('.quick-link-form').forEach(el=>el.remove());
-  const origText='🔗 Link';
-  if(btn.textContent!==origText){btn.textContent=origText;return;}
-  btn.textContent='✕ Cancel';
-  const{data:ings}=await sb.from('ingredients').select('id,name_en').not('recipe_id','is',null).not('name_en','is',null).order('name_en');
-  const seen=new Set();const deduped=(ings||[]).filter(i=>{if(seen.has(i.name_en.toLowerCase()))return false;seen.add(i.name_en.toLowerCase());return true;});
-  const opts=deduped.map(i=>`<option value="${i.id}">${i.name_en}</option>`).join('');
-  const form=document.createElement('div');form.className='quick-link-form';
-  form.innerHTML=`<select class="quick-link-select" id="ql-select-${productId}"><option value="">— pick ingredient —</option>${opts}</select><button class="quick-link-save" onclick="saveQuickLink('${productId}')">Save</button><button class="quick-link-cancel" onclick="this.closest('.quick-link-form').remove();document.getElementById('ql-btn-${productId}').textContent='🔗 Link'">Cancel</button>`;
-  btn.id=`ql-btn-${productId}`;
-  btn.closest('.product-meta').appendChild(form);
-}
-async function saveQuickLink(productId){
-  const sel=document.getElementById(`ql-select-${productId}`);
-  const ingId=sel?.value;if(!ingId){showToast('Pick an ingredient first','error');return;}
-  const saveBtn=sel.closest('.quick-link-form').querySelector('.quick-link-save');
-  saveBtn.disabled=true;saveBtn.textContent='Saving...';
-  const{error}=await sb.from('household_products').update({ingredient_id:ingId}).eq('id',productId);
-  if(error){showToast('Error linking: '+error.message,'error');saveBtn.disabled=false;saveBtn.textContent='Save';return;}
-  showToast('Ingredient linked ✓');productsCache=null;await loadAndRenderProducts();
-}
 async function updateProduct(productId){
   const name_es=document.getElementById('prod-name-es')?.value.trim();
   if(!name_es){showToast('Spanish name is required','error');return;}
@@ -1842,6 +1816,7 @@ async function updateProduct(productId){
     ingredient_id:document.getElementById('prod-ingredient')?.value||null,
     is_preferred_lacomer:document.getElementById('prod-pref-lc')?.checked||false,
     is_preferred_citymarket:document.getElementById('prod-pref-cm')?.checked||false,
+    is_pantry_item:document.getElementById('prod-pantry')?.checked||false,
     last_price_mxn:parseFloat(document.getElementById('prod-price')?.value)||null,
     notes:document.getElementById('prod-notes')?.value.trim()||null
   };
