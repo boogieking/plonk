@@ -671,8 +671,9 @@ async function doReshuffle(btn){
     if(picked.length>0){
       const{error:insError}=await sb.from('weekly_plan_meals').insert(picked.map(r=>({plan_id:currentPlan.id,recipe_id:r.id,cooked:false,is_dinner:false})));
       if(insError){
-        // Rollback: restore original meals
-        await sb.from('weekly_plan_meals').insert(oldMealRows).catch(()=>{});
+        // Rollback: restore original meals — surface any rollback failure clearly
+        const{error:rollbackErr}=await sb.from('weekly_plan_meals').insert(oldMealRows);
+        if(rollbackErr){showToast('⚠️ Reshuffle failed and rollback also failed — start a new plan to recover','error');btn.disabled=false;btn.textContent='🔀 Reshuffle';return;}
         throw insError;
       }
     }
@@ -682,7 +683,7 @@ async function doReshuffle(btn){
     const{error:updError}=await sb.from('weekly_plans').update({reshuffle_used:true,reshuffle_log:{removed,added,at:new Date().toISOString()}}).eq('id',currentPlan.id);if(updError)throw updError;
     await loadWeekData();await loadMyRatingsThisWeek();await renderDashboard();
     showToast('Meals reshuffled ✓ — reshuffle used for this week');
-  }catch(err){btn.disabled=false;btn.textContent='🔀 Reshuffle (1 remaining)';showToast('Something went wrong — '+err.message,'error');}
+  }catch(err){btn.disabled=false;btn.textContent='🔀 Reshuffle';showToast('Reshuffle failed — original meals restored. '+err.message,'error');}
 }
 const DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 let selectedEatingOutDays=[];
