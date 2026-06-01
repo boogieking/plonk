@@ -401,6 +401,27 @@
     .incomplete-badge{font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(184,134,11,0.12);color:var(--amber);border:1px solid rgba(184,134,11,0.3);}
     .ai-fill-btn{display:inline-flex;align-items:center;gap:5px;font-size:0.75rem;font-weight:500;padding:5px 12px;border-radius:8px;background:rgba(200,103,74,0.08);border:1.5px solid rgba(200,103,74,0.25);color:var(--clay);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;white-space:nowrap;}
     .ai-fill-btn:hover{background:var(--clay);color:white;border-color:var(--clay);}
+  /* ── PERMISSIONS ───────────────────────────── */
+  .perm-user-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px 24px;margin-bottom:20px;}
+  .perm-user-header{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
+  .perm-user-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.9rem;font-weight:600;color:white;flex-shrink:0;}
+  .perm-user-name{font-family:'Playfair Display',serif;font-size:1.05rem;font-weight:700;}
+  .perm-user-role{font-size:0.72rem;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;padding:2px 9px;border-radius:999px;color:white;margin-left:4px;}
+  .perm-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media(max-width:560px){.perm-grid{grid-template-columns:1fr;}}
+  .perm-row{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.6);border:1px solid var(--border);}
+  .perm-label{font-size:0.85rem;color:var(--dark);}
+  .perm-sublabel{font-size:0.72rem;color:var(--mid);margin-top:1px;}
+  .toggle-wrap{position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0;}
+  .toggle-wrap input{opacity:0;width:0;height:0;}
+  .toggle-slider{position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:999px;transition:background 0.2s;}
+  .toggle-slider:before{content:'';position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:transform 0.2s;}
+  .toggle-wrap input:checked+.toggle-slider{background:var(--clay);}
+  .toggle-wrap input:checked+.toggle-slider:before{transform:translateX(18px);}
+  .toggle-wrap input:disabled+.toggle-slider{opacity:0.4;cursor:not-allowed;}
+  .perm-saving{font-size:0.72rem;color:var(--mid);margin-left:8px;opacity:0;transition:opacity 0.3s;}
+  .perm-saving.visible{opacity:1;}
+  /* ── END PERMISSIONS ────────────────────────── */
   </style>
 </head>
 <body>
@@ -412,6 +433,7 @@
       <button class="nav-tab active" data-view="dashboard" onclick="switchView('dashboard')">This Week</button>
       <button class="nav-tab" data-view="recipes" onclick="switchView('recipes')">Recipes</button>
       <button class="nav-tab" data-view="products" onclick="switchView('products')" id="products-tab" style="display:none">Products</button>
+      <button class="nav-tab" data-view="permissions" onclick="switchView('permissions')" id="permissions-tab" style="display:none">Permissions</button>
     </div>
     <div class="nav-right">
       <div class="user-chip">
@@ -467,13 +489,14 @@ async function init(){
   const{data,error}=await sb.from('users').select('*').eq('id',currentUser.id).single();
   userProfile=(error||!data)?{id:currentUser.id,email:currentUser.email,name:currentUser.email.split('@')[0],role:'reviewer'}:data;
   renderNav();
+  try{ await loadPermissions(); }catch(e){ console.warn('loadPermissions failed:',e.message); }
   await loadWeekData();await loadMyRatingsThisWeek();await loadPendingIdeaRatings();
   await checkHibernationWakeUps();
   await renderDashboard();
   document.getElementById('loading').style.display='none';
   document.getElementById('app').classList.add('ready');
 }
-function renderNav(){const col=roleColor[userProfile.role]||'#888';const initials=(userProfile.name||'U').substring(0,1).toUpperCase();document.getElementById('nav-avatar').textContent=initials;document.getElementById('nav-avatar').style.background=col;document.getElementById('nav-name').textContent=userProfile.name;const roleEl=document.getElementById('nav-role-tag');roleEl.textContent=roleLabel[userProfile.role]||userProfile.role;roleEl.style.background=col;const productsTab=document.getElementById('products-tab');if(productsTab)productsTab.style.display=userProfile.role==='admin'?'':'none';}
+function renderNav(){const col=roleColor[userProfile.role]||'#888';const initials=(userProfile.name||'U').substring(0,1).toUpperCase();document.getElementById('nav-avatar').textContent=initials;document.getElementById('nav-avatar').style.background=col;document.getElementById('nav-name').textContent=userProfile.name;const roleEl=document.getElementById('nav-role-tag');roleEl.textContent=roleLabel[userProfile.role]||userProfile.role;roleEl.style.background=col;const productsTab=document.getElementById('products-tab');if(productsTab)productsTab.style.display=userProfile.role==='admin'?'':'none';const permissionsTab=document.getElementById('permissions-tab');if(permissionsTab)permissionsTab.style.display=userProfile.role==='admin'?'':'none';}
 async function signOut(){await sb.auth.signOut();window.location.href='index.html';}
 function planDateLabel(plan){if(!plan)return'';const d=new Date(plan.week_start+'T12:00:00');return d.toLocaleDateString('en-AU',{month:'long',day:'numeric',year:'numeric'});}
 function getTodayDate(){const now=new Date();return`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;}
@@ -547,10 +570,15 @@ function renderCameron(recipes,name){
       ${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowAdmin(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>No meals suggested yet — set eating-out days above</div>`}
       ${reshuffleLogHtml}
     </div>
-    <div class="section-label">Inventory check</div>
+    <div class="section-label" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between" onclick="toggleInventorySection(this)">
+      <span>Inventory check</span>
+      <span id="inv-section-chevron" style="font-size:0.8rem;color:var(--mid);transition:transform 0.2s">▼</span>
+    </div>
+    <div id="inv-section-body" style="display:none">
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">Fridge & freezer</div>${currentPlan?.status==='approved'?`<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`:`<span class="tag tag-gray">Submit plan first</span>`}</div>
       ${currentPlan?.status==='approved'?`<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`:`<div class="empty" style="padding:20px 0"><span class="empty-icon">🛒</span>Once the plan is approved, inventory check unlocks here</div>`}
+    </div>
     </div>
     <div class="section-label">Shopping list</div>
     <div class="card" id="cameron-shopping-card">
@@ -589,6 +617,15 @@ function mealRowAdmin(m){
 }
 let inventoryItems=[],inventoryState={};
 let trolleyMode=false,trolleyItems={},usdRate=null;
+function toggleInventorySection(labelEl){
+  const body=document.getElementById('inv-section-body');
+  const chevron=document.getElementById('inv-section-chevron');
+  if(!body)return;
+  const isOpen=body.style.display!=='none';
+  body.style.display=isOpen?'none':'block';
+  if(chevron)chevron.style.transform=isOpen?'':'rotate(180deg)';
+}
+
 async function loadInventory(){
   if(!currentPlan)return;inventoryState=currentPlan.inventory||{};
   const{data:planMeals,error:pmError}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id);
@@ -683,6 +720,11 @@ async function doReshuffle(btn){
     const removed=beforeNames.filter(n=>!afterNames.includes(n));
     const added=afterNames.filter(n=>!beforeNames.includes(n));
     const{error:updError}=await sb.from('weekly_plans').update({reshuffle_used:true,reshuffle_log:{removed,added,at:new Date().toISOString()}}).eq('id',currentPlan.id);if(updError)throw updError;
+    // Re-assign dinners to match the new lunches (reshuffle wiped the old ones)
+    if(currentPlan.status==='approved'){
+      const newLunchMeals=picked.map(r=>({recipe_id:r.id}));
+      await assignDinnersForPlan(currentPlan.id,newLunchMeals);
+    }
     await loadWeekData();await loadMyRatingsThisWeek();await renderDashboard();
     showToast('Meals reshuffled ✓ — reshuffle used for this week');
   }catch(err){btn.disabled=false;btn.textContent='🔀 Reshuffle';showToast('Reshuffle failed — original meals restored. '+err.message,'error');}
@@ -698,15 +740,62 @@ function openEatingOutModal(){
 function mealCountPreview(outCount){const home=Math.max(0,7-outCount);return`<span class="day-count">${home}</span> home meal${home!==1?'s':''} needed<span style="margin-left:8px;color:var(--mid);font-size:0.78rem">(7 days − ${outCount} eating out)</span>`;}
 function toggleDay(day,btn){if(selectedEatingOutDays.includes(day)){selectedEatingOutDays=selectedEatingOutDays.filter(d=>d!==day);btn.classList.remove('selected');}else{selectedEatingOutDays.push(day);btn.classList.add('selected');}document.getElementById('meal-count-preview').innerHTML=mealCountPreview(selectedEatingOutDays.length);}
 async function confirmEatingOut(){
-  const btn=document.getElementById('confirm-eating-out');btn.textContent='Saving...';btn.disabled=true;
-  const homeMeals=Math.max(0,7-selectedEatingOutDays.length);const allRecipes=await loadRecipes();const picked=await selectMealsForWeek(allRecipes,homeMeals);
+  const btn=document.getElementById('confirm-eating-out');btn.textContent='Checking...';btn.disabled=true;
+  const homeMeals=Math.max(0,7-selectedEatingOutDays.length);
+  // Check previous plan for uncooked meals
+  try{
+    const{data:prevPlans}=await sb.from('weekly_plans').select('id,week_start').eq('status','archived').order('created_at',{ascending:false}).limit(1);
+    if(prevPlans&&prevPlans.length>0){
+      const prevPlanId=prevPlans[0].id;
+      const{data:uncookedMeals}=await sb.from('weekly_plan_meals').select('recipe_id,recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',prevPlanId).eq('cooked',false).neq('is_dinner',true);
+      if(uncookedMeals&&uncookedMeals.length>0){
+        // Show carry-over modal step
+        showCarryOverModal(uncookedMeals,homeMeals);
+        return;
+      }
+    }
+  }catch(e){/* if check fails, proceed normally */}
+  await doCreateNewPlan(homeMeals,[]);
+}
+let _carryOverHomeMeals=0;
+function showCarryOverModal(uncookedMeals,homeMeals){
+  _carryOverHomeMeals=homeMeals;
+  const el=document.getElementById('modal-overlay');
+  if(el)el.innerHTML=`<div class="modal" style="max-width:480px">
+    <h3>Meals from last week</h3>
+    <p style="margin-bottom:14px">These meals weren't cooked last week. Tick any you'd like to carry over into this week.</p>
+    <div id="carryover-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+      ${uncookedMeals.map(m=>`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--cream);border-radius:10px;cursor:pointer;font-size:0.88rem">
+        <input type="checkbox" value="${m.recipe_id}" style="width:16px;height:16px;accent-color:var(--clay);cursor:pointer">
+        ${m.recipes?.name_en||m.recipe_id}
+      </label>`).join('')}
+    </div>
+    <div class="modal-btns">
+      <button class="btn-ghost" onclick="doCreateNewPlan(${homeMeals},[])">Skip — don't carry any over</button>
+      <button class="btn-primary" onclick="confirmCarryOver(${homeMeals})">Add selected &amp; continue</button>
+    </div>
+  </div>`;
+}
+async function confirmCarryOver(homeMeals){
+  const checkboxes=document.querySelectorAll('#carryover-list input[type=checkbox]:checked');
+  const carryOverIds=Array.from(checkboxes).map(cb=>cb.value);
+  await doCreateNewPlan(homeMeals,carryOverIds);
+}
+async function doCreateNewPlan(homeMeals,carryOverIds){
+  const allRecipes=await loadRecipes();const picked=await selectMealsForWeek(allRecipes,homeMeals);
   try{
     await sb.from('weekly_plans').update({status:'archived'}).not('status','eq','archived');
     const{data:newPlan,error:planError}=await sb.from('weekly_plans').insert({week_start:getTodayDate(),eating_out_days:selectedEatingOutDays,status:'suggested',reshuffle_used:false}).select().single();if(planError)throw planError;
     currentPlan=newPlan;
+    // Insert newly suggested meals
     if(picked.length>0){const{error:mealsError}=await sb.from('weekly_plan_meals').insert(picked.map(r=>({plan_id:currentPlan.id,recipe_id:r.id,cooked:false,is_dinner:false})));if(mealsError)throw mealsError;}
+    // Insert carried-over meals (skip any already in picked)
+    const pickedIds=new Set(picked.map(r=>r.id));
+    const toCarry=carryOverIds.filter(id=>!pickedIds.has(id));
+    if(toCarry.length>0){const{error:carryErr}=await sb.from('weekly_plan_meals').insert(toCarry.map(id=>({plan_id:currentPlan.id,recipe_id:id,cooked:false,is_dinner:false})));if(carryErr)throw carryErr;}
     closeModal();await loadWeekData();myRatingsThisWeek={};await loadMyRatingsThisWeek();await renderDashboard();
-  }catch(err){showToast('Something went wrong. Please try again.','error');btn.textContent='Suggest meals';btn.disabled=false;}
+    if(toCarry.length>0)showToast(`${toCarry.length} meal${toCarry.length!==1?'s':''} carried over ✓`);
+  }catch(err){showToast('Something went wrong. Please try again.','error');}
 }
 const modalTitles={swap:{h:'Request a meal swap',p:'Pick the meal to remove, choose a replacement, and tell Cameron why.'},hibernate:{h:'Request hibernation',p:'Which meal should be rested? It will be hibernated for 2 months.'},new:{h:'Suggest a new meal',p:'What meal would you like to add? Briefly explain why.'}};
 function openModal(type){
@@ -1098,14 +1187,28 @@ async function fetchExchangeRate(){if(usdRate)return usdRate;try{const r=await f
 async function startTrolleyMode(){trolleyMode=true;trolleyItems={};await fetchExchangeRate();const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');if(genBtn)genBtn.style.display='none';if(ssBtn)ssBtn.style.display='none';document.querySelectorAll('.link-btn-group').forEach(el=>el.style.display='none');renderTrolleyUI();showToast('Shopping mode on — tick items as you add them 🛒');}
 async function finishTrolleyMode(){
   // Save prices to household_products for all items that have a price
-  const itemsWithPrice=Object.entries(trolleyItems).filter(([,v])=>v.price>0&&!v.notFound);
+  const itemsWithPrice=Object.entries(trolleyItems).filter(([k,v])=>k&&v.price>0&&!v.notFound);
   let savedCount=0;
   if(itemsWithPrice.length>0){
     for(const[ingId,item]of itemsWithPrice){
       try{
-        const{error}=await sb.from('household_products').upsert({ingredient_id:ingId,last_price_mxn:item.price,name_en:item.name,name_es:item.name,store:'La Comer',added_by:userProfile?.id||null},{onConflict:'ingredient_id',ignoreDuplicates:false});
-        if(!error)savedCount++;
-        else console.warn('Price save failed for',ingId,error.message);
+        // Find existing products for this ingredient; prefer the preferred-La-Comer row
+        const{data:existing}=await sb.from('household_products').select('id,is_preferred_lacomer').eq('ingredient_id',ingId);
+        if(existing&&existing.length>0){
+          const target=existing.find(p=>p.is_preferred_lacomer)||existing[0];
+          const{error}=await sb.from('household_products').update({last_price_mxn:item.price}).eq('id',target.id);
+          if(!error){
+            savedCount++;
+            await sb.from('price_history').insert({product_id:target.id,price_mxn:item.price,plan_id:currentPlan?.id||null,added_by:userProfile?.id||null,recorded_at:new Date().toISOString()});
+          }else console.warn('Price update failed for',ingId,error.message);
+        }else{
+          // No product row yet — create one linked to this ingredient
+          const{data:newProd,error}=await sb.from('household_products').insert({ingredient_id:ingId,last_price_mxn:item.price,name_en:item.name,name_es:item.name,store:'La Comer',is_preferred_lacomer:true,added_by:userProfile?.id||null,created_at:new Date().toISOString()}).select('id').single();
+          if(!error&&newProd){
+            savedCount++;
+            await sb.from('price_history').insert({product_id:newProd.id,price_mxn:item.price,plan_id:currentPlan?.id||null,added_by:userProfile?.id||null,recorded_at:new Date().toISOString()});
+          }else if(!error)savedCount++;else console.warn('Price insert failed for',ingId,error.message);
+        }
       }catch(e){console.warn('Price save failed for',ingId,e.message);}
     }
   }
@@ -1299,7 +1402,7 @@ function findOnLaComer(ingId,nameEs,btn){
     const formDiv=document.createElement('div');formDiv.className='add-link-form';formDiv.id=`link-form-${ingId}`;
     const isCK=String(ingId).startsWith('ck-new-');
     const saveCall=isCK?`saveCKLink('${ingId}','${nameEs.replace(/'/g,"\\'")}')`:` saveLink('${ingId}')`;
-    formDiv.innerHTML=`<input class="add-link-input" id="link-input-${ingId}" placeholder="Paste La Comer URL..." type="url"><button class="save-link-btn" onclick="${saveCall}">Save</button><button class="cancel-link-btn" onclick="cancelLinkGroup('${ingId}')">Cancel</button>`;
+    formDiv.innerHTML=`<input class="add-link-input" id="link-input-${ingId}" placeholder="Paste La Comer URL..." type="url"><button class="save-link-btn" onclick="${saveCall}">Save</button><button class="cancel-link-btn" onclick="cancelLinkGroup('${ingId}')">Cancel</button>${getUsedInMealsContext(ingId)}`;
     row.appendChild(formDiv);
     // Try auto-paste from clipboard
     if(navigator.clipboard?.readText){
@@ -1318,13 +1421,25 @@ function cancelLinkGroup(ingId){
   const row=document.getElementById(`shop-row-${ingId}`);
   if(row){const grp=row.querySelector('.link-btn-group');if(grp)grp.style.display='';}
 }
+function getUsedInMealsContext(ingId){
+  // Find which meals this week use this ingredient
+  if(!currentMeals||!ingId||String(ingId).startsWith('ck-new-'))return '';
+  const meals=currentMeals.filter(m=>{
+    const r=m.recipes;
+    if(!r||!r.ingredients)return false;
+    return r.ingredients.some(i=>String(i.id)===String(ingId));
+  }).map(m=>(m.recipes?.name_en||''));
+  if(!meals.length)return '';
+  return `<div style="font-size:0.72rem;color:var(--mid);margin-top:4px">This week: ${meals.join(', ')}</div>`;
+}
+
 function showAddLinkForm(ingId,btn){
   const row=document.getElementById(`shop-row-${ingId}`);if(!row)return;
   const btnGroup=btn?.closest('.link-btn-group');
   if(btnGroup)btnGroup.style.display='none';
   else btn.style.display='none';
   const formDiv=document.createElement('div');formDiv.className='add-link-form';formDiv.id=`link-form-${ingId}`;
-  formDiv.innerHTML=`<input class="add-link-input" id="link-input-${ingId}" placeholder="Paste La Comer URL..." type="url"><button class="save-link-btn" onclick="saveLink('${ingId}')">Save</button><button class="cancel-link-btn" onclick="cancelLinkGroup('${ingId}')">Cancel</button>`;
+  formDiv.innerHTML=`<input class="add-link-input" id="link-input-${ingId}" placeholder="Paste La Comer URL..." type="url"><button class="save-link-btn" onclick="saveLink('${ingId}')">Save</button><button class="cancel-link-btn" onclick="cancelLinkGroup('${ingId}')">Cancel</button>${getUsedInMealsContext(ingId)}`;
   row.appendChild(formDiv);
   document.getElementById(`link-input-${ingId}`)?.focus();
 }
@@ -1443,7 +1558,7 @@ async function checkHibernationWakeUps(){
   wokenUp.forEach(r=>showToast(`🌅 ${r.name} is back! Restored to ${TIER_LABELS[r.tier]}`,'success'));
 }
 let currentView='dashboard';
-function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){renderRecipeListView();}else if(view==='products'){renderProductsView();}}
+function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){renderRecipeListView();}else if(view==='products'){renderProductsView();}else if(view==='permissions'){renderPermissionsView();}}
 let recipeFilterTier='all',recipeFilterSearch='',recipeShowHibernated=false,allRecipesCache=null,recipeFilterType='lunch';
 async function renderRecipeListView(){
   const content=document.getElementById('dashboard-content');
@@ -1757,10 +1872,36 @@ function productRowHtml(p){
     <div class="product-actions">
       ${urlBtn}
       ${isIncomplete?`<button class="ai-fill-btn" onclick="aiFillProduct('${p.id}')" title="Fill in missing details with AI">✨ Fill</button>`:''}
+      ${p.last_price_mxn?`<button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px" onclick="showPriceHistory('${p.id}','${(p.name_en||p.name_es).replace(/'/g,"\\'")}')">📈 $${p.last_price_mxn}</button>`:''}
       <button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px" onclick="openEditProductModal('${p.id}')">Edit</button>
       <button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;color:#c44;border-color:rgba(200,50,50,0.3)" onclick="deleteProduct('${p.id}','${(p.name_en||p.name_es).replace(/'/g,"\\'")}')">Delete</button>
     </div>
   </div>`;
+}
+
+async function showPriceHistory(productId,productName){
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="modal" style="max-width:380px"><div class="modal-header"><div class="modal-title">📈 ${productName}</div><button class="modal-close" onclick="closeModal()">✕</button></div><div style="padding:16px"><div class="empty">Loading...</div></div></div>`;
+  document.body.appendChild(el);
+  const{data,error}=await sb.from('price_history').select('price_mxn,recorded_at').eq('product_id',productId).order('recorded_at',{ascending:true});
+  const body=el.querySelector('.modal > div:last-child');
+  if(error||!data?.length){body.innerHTML=`<div style="padding:16px"><div class="empty">No price history yet — prices are recorded each time you finish shopping.</div></div>`;return;}
+  // Build trend display
+  const fmt=d=>new Date(d).toLocaleDateString('en-MX',{day:'numeric',month:'short'});
+  const trend=data.map((r,i)=>{
+    const prev=data[i-1];
+    const change=prev?r.price_mxn-prev.price_mxn:null;
+    const arrow=change===null?'':(change>0?`<span style="color:#c44">▲ $${change.toFixed(2)}</span>`:(change<0?`<span style="color:var(--green)">▼ $${Math.abs(change).toFixed(2)}</span>`:`<span style="color:var(--mid)">—</span>`));
+    return`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:0.8rem;color:var(--mid)">${fmt(r.recorded_at)}</span>
+      <span style="font-size:0.88rem;font-weight:600">$${r.price_mxn.toFixed(2)} MXN</span>
+      <span style="font-size:0.78rem;min-width:60px;text-align:right">${arrow}</span>
+    </div>`;
+  }).join('');
+  const first=data[0].price_mxn;const last=data[data.length-1].price_mxn;
+  const overallChange=last-first;
+  const overallHtml=data.length>1?`<div style="margin-top:12px;padding:10px;background:var(--light);border-radius:8px;font-size:0.82rem;color:var(--mid);text-align:center">${data.length} shops recorded · overall ${overallChange>0?`<span style="color:#c44">▲ $${overallChange.toFixed(2)}</span>`:overallChange<0?`<span style="color:var(--green)">▼ $${Math.abs(overallChange).toFixed(2)}</span>`:'<span>no change</span>'}</div>`:'';
+  body.innerHTML=`<div style="padding:16px">${trend}${overallHtml}</div>`;
 }
 
 function setProductStoreFilter(store){productFilterStore=store;renderProductsView();}
@@ -2036,6 +2177,7 @@ async function updateExistingProduct(productId){
   if(!price){showToast('Enter a price first','error');return;}
   const{error}=await sb.from('household_products').update({last_price_mxn:price}).eq('id',productId);
   if(error){showToast('Error updating: '+error.message,'error');return;}
+  await sb.from('price_history').insert({product_id:productId,price_mxn:price,plan_id:currentPlan?.id||null,added_by:userProfile?.id||null,recorded_at:new Date().toISOString()});
   closeBarcodeScanner();
   showToast('Price updated ✓');
   productsCache=null;
@@ -2290,6 +2432,7 @@ async function saveReceiptItems(){
         if(!item.existingProduct.category&&item.category_guess)updates.category=item.category_guess;
         if(!item.existingProduct.ingredient_id&&item.matchedIngredient)updates.ingredient_id=item.matchedIngredient.id;
         await sb.from('household_products').update(updates).eq('id',item.existingProduct.id);
+        await sb.from('price_history').insert({product_id:item.existingProduct.id,price_mxn:item.price_mxn,plan_id:currentPlan?.id||null,added_by:userProfile?.id||null,recorded_at:new Date().toISOString()});
         updated++;
       }else{
         // Build notes: include weight/qty and unit price if available
@@ -2299,7 +2442,7 @@ async function saveReceiptItems(){
         noteParts.push('From receipt');
         const isComplete=!!(item.name_en&&item.category_guess&&item.matchedIngredient);
         if(!isComplete)noteParts.push('incomplete');
-        await sb.from('household_products').insert({
+        const{data:newProd2}=await sb.from('household_products').insert({
           name_es:item.name_es,
           name_en:item.name_en||null,
           store:'La Comer',
@@ -2310,7 +2453,8 @@ async function saveReceiptItems(){
           notes:noteParts.join(' | '),
           added_by:userProfile.id,
           created_at:new Date().toISOString()
-        });
+        }).select('id').single();
+        if(newProd2?.id)await sb.from('price_history').insert({product_id:newProd2.id,price_mxn:item.price_mxn,plan_id:currentPlan?.id||null,added_by:userProfile?.id||null,recorded_at:new Date().toISOString()});
         added++;
       }
     }catch(e){errors++;console.warn('Receipt save error:',e.message);}
@@ -2505,6 +2649,8 @@ async function loadLeftovers(){
           <span class="leftover-card-storage ${STORAGE_CLASSES[storage]}">${STORAGE_LABELS[storage]}</span>
           <div style="display:flex;gap:4px">
             <button class="leftover-move-btn" onclick="openMoveLeftoverModal('${l.id}','${l.name_en}','${l.storage}')" title="Move to different location">↗</button>
+            <button class="leftover-move-btn" onclick="openEditLeftoverModal('${l.id}','${l.name_en.replace(/'/g,"\\'")}','${l.amount}','${l.unit}','${l.storage}')" title="Edit">✏️</button>
+            <button class="leftover-move-btn" style="color:#c44" onclick="deleteLeftover('${l.id}','${l.name_en.replace(/'/g,"\\'")}',this)" title="Delete">✕</button>
             <button class="leftover-used-btn" onclick="markLeftoverUsed('${l.id}',this)">Used ✓</button>
           </div>
         </div>`;
@@ -2539,7 +2685,54 @@ async function moveLeftover(id,newStorage){
   loadLeftovers();
 }
 
-function openAddLeftoverModal(){
+function openEditLeftoverModal(id,name,amount,unit,storage){
+  const storageOpts=Object.entries(STORAGE_LABELS).map(([k,v])=>`<option value="${k}"${k===storage?' selected':''}>${v}</option>`).join('');
+  const unitOpts=['g','kg','ml','L','pcs','tbsp','tsp','cups','slices'].map(u=>`<option value="${u}"${u===unit?' selected':''}>${u}</option>`).join('');
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="modal" style="max-width:360px">
+    <div class="modal-header"><div class="modal-title">Edit leftover</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div><label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Item name</label><input id="edit-leftover-name" class="modal-input" value="${name}" style="width:100%"></div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1"><label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Amount</label><input id="edit-leftover-amount" class="modal-input" type="number" min="0" step="any" value="${amount}"></div>
+        <div><label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Unit</label><select id="edit-leftover-unit" class="leftover-storage-select" style="width:80px">${unitOpts}</select></div>
+      </div>
+      <div><label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Storage</label><select id="edit-leftover-storage" class="leftover-storage-select" style="width:100%">${storageOpts}</select></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" style="flex:1" onclick="saveEditLeftover('${id}')">Save ✓</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+async function saveEditLeftover(id){
+  const name=document.getElementById('edit-leftover-name')?.value.trim();
+  const amount=parseFloat(document.getElementById('edit-leftover-amount')?.value)||0;
+  const unit=document.getElementById('edit-leftover-unit')?.value||'g';
+  const storage=document.getElementById('edit-leftover-storage')?.value||'fridge';
+  if(!name){showToast('Please enter an item name','error');return;}
+  if(amount<=0){showToast('Please enter an amount','error');return;}
+  const{error}=await sb.from('leftovers').update({name_en:name,amount,unit,storage}).eq('id',id);
+  closeModal();
+  if(error){showToast('Error: '+error.message,'error');return;}
+  showToast('Updated ✓');
+  loadLeftovers();
+}
+
+async function deleteLeftover(id,name,btn){
+  if(!confirm(`Remove "${name}" from leftovers?`))return;
+  btn.disabled=true;
+  const{error}=await sb.from('leftovers').delete().eq('id',id);
+  if(error){showToast('Error: '+error.message,'error');btn.disabled=false;return;}
+  showToast(`${name} removed ✓`);
+  const row=btn.closest('.leftover-card-row');if(row)row.remove();
+  const el=document.getElementById('leftovers-list');
+  if(el&&!el.querySelector('.leftover-card-row')){el.innerHTML=`<div class="empty"><span class="empty-icon">📦</span>No leftovers tracked yet — they appear here after receipt scanning</div>`;}
+}
+
+
   const storageOpts=Object.entries(STORAGE_LABELS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
   el.innerHTML=`<div class="modal" style="max-width:360px">
@@ -2548,7 +2741,7 @@ function openAddLeftoverModal(){
       <div><label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Item name</label><input id="manual-leftover-name" class="modal-input" placeholder="e.g. Coconut Milk" style="width:100%"></div>
       <div style="display:flex;gap:8px">
         <div style="flex:1"><label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Amount</label><input id="manual-leftover-amount" class="modal-input" type="number" min="0" step="any" placeholder="110"></div>
-        <div><label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Unit</label><input id="manual-leftover-unit" class="modal-input" placeholder="ml" style="width:70px"></div>
+        <div><label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Unit</label><select id="manual-leftover-unit" class="leftover-storage-select" style="width:80px"><option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="L">L</option><option value="pcs">pcs</option><option value="tbsp">tbsp</option><option value="tsp">tsp</option><option value="cups">cups</option><option value="slices">slices</option></select></div>
       </div>
       <div><label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Storage</label><select id="manual-leftover-storage" class="leftover-storage-select" style="width:100%">${storageOpts}</select></div>
       <div style="display:flex;gap:8px;margin-top:4px">
@@ -2563,7 +2756,7 @@ function openAddLeftoverModal(){
 async function saveManualLeftover(){
   const name=document.getElementById('manual-leftover-name')?.value.trim();
   const amount=parseFloat(document.getElementById('manual-leftover-amount')?.value)||0;
-  const unit=document.getElementById('manual-leftover-unit')?.value.trim()||'pcs';
+  const unit=document.getElementById('manual-leftover-unit')?.value||'g';
   const storage=document.getElementById('manual-leftover-storage')?.value||'pantry';
   if(!name){showToast('Please enter an item name','error');return;}
   if(amount<=0){showToast('Please enter an amount','error');return;}
@@ -2574,6 +2767,131 @@ async function saveManualLeftover(){
   loadLeftovers();
 }
 /* ── END LEFTOVER TRACKING ────────────────────── */
+
+/* ── PERMISSIONS ─────────────────────────────── */
+// All defined permissions with friendly labels
+const PERMISSION_DEFS = [
+  { key:'view_plan',         label:'View the plan',           sub:'See meals planned for the week' },
+  { key:'mark_cooked',       label:'Mark meals as cooked',    sub:'Tick off meals after cooking' },
+  { key:'submit_swap',       label:'Submit swap requests',    sub:'Request a meal be swapped out' },
+  { key:'reshuffle_plan',    label:'Reshuffle the plan',      sub:'Randomise the week\'s meals' },
+  { key:'carry_over_meals',  label:'Carry over uncooked meals', sub:'Bring meals forward from last week' },
+  { key:'manage_dinners',    label:'Manage dinners',          sub:'Choose or change dinner pairings' },
+  { key:'view_shopping',     label:'View shopping list',      sub:'See the generated shopping list' },
+  { key:'generate_shopping', label:'Generate shopping list',  sub:'Create and finalise shopping list' },
+  { key:'suggest_meals',     label:'Suggest new meals',       sub:'Propose new recipes for the rotation' },
+  { key:'approve_plan',      label:'Approve the plan',        sub:'Sign off the week\'s meal plan' },
+];
+
+// Default permissions per role (used when no DB row exists yet)
+const PERMISSION_DEFAULTS = {
+  planner: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true, carry_over_meals:false, manage_dinners:true, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false },
+  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false },
+};
+
+// Loaded at init — keyed by user_id
+let userPermissions = {};
+
+// IDs for Sienna and Karen (hardcoded — matches DB)
+const SIENNA_ID = 'ca779de4-2052-4bb4-89c6-59b67a5ad788';
+const KAREN_ID  = '60688390-f010-4e19-b7e9-bfbe2c35b04c';
+
+async function loadPermissions(){
+  try{
+    const { data, error } = await sb.from('user_permissions').select('*').in('user_id', [SIENNA_ID, KAREN_ID]);
+    if(error) throw error;
+    const rows = data || [];
+    userPermissions = {};
+    for(const row of rows){
+      if(!userPermissions[row.user_id]) userPermissions[row.user_id] = {};
+      userPermissions[row.user_id][row.permission_key] = row.granted;
+    }
+  }catch(e){ console.warn('Permissions load error:', e.message); }
+}
+
+// Check if a user has a given permission (falls back to role defaults)
+function hasPermission(userId, permKey){
+  if(!userId || !permKey) return false;
+  // Admin (Cameron) always has full access
+  const CAMERON_ID = '4581c8f1-042d-43a6-ba2d-6ec586dea301';
+  if(userId === CAMERON_ID) return true;
+  // Check loaded permissions first
+  if(userPermissions[userId] && userPermissions[userId][permKey] !== undefined){
+    return userPermissions[userId][permKey];
+  }
+  // Fall back to role default
+  const profile = userId === SIENNA_ID ? 'planner' : userId === KAREN_ID ? 'reviewer' : null;
+  if(profile && PERMISSION_DEFAULTS[profile]) return PERMISSION_DEFAULTS[profile][permKey] ?? false;
+  return false;
+}
+
+// Convenience: check permission for the current logged-in user
+function currentUserCan(permKey){
+  return hasPermission(userProfile?.id, permKey);
+}
+
+async function savePermission(userId, permKey, granted){
+  const savingEl = document.getElementById(`perm-saving-${userId}`);
+  if(savingEl){ savingEl.textContent = 'Saving…'; savingEl.classList.add('visible'); }
+  // Upsert using user_id + permission_key as unique constraint
+  const { error } = await sb.from('user_permissions').upsert(
+    { user_id: userId, permission_key: permKey, granted: granted, updated_by: userProfile.id, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id,permission_key' }
+  );
+  if(error){ showToast('Error saving permission: ' + error.message, 'error');
+    if(savingEl){ savingEl.textContent = 'Error'; setTimeout(()=>{ savingEl.textContent=''; savingEl.classList.remove('visible'); }, 2000); }
+    return;
+  }
+  // Update local cache
+  if(!userPermissions[userId]) userPermissions[userId] = {};
+  userPermissions[userId][permKey] = granted;
+  if(savingEl){ savingEl.textContent = 'Saved ✓'; setTimeout(()=>{ savingEl.textContent=''; savingEl.classList.remove('visible'); }, 1500); }
+}
+
+function renderPermissionsView(){
+  if(userProfile.role !== 'admin'){ showToast('Admin only','error'); switchView('dashboard'); return; }
+  const content = document.getElementById('content');
+  const users = [
+    { id: SIENNA_ID, name: 'Sienna', role: 'planner',  roleLabel: 'Planner',  color: '#7C5CBF' },
+    { id: KAREN_ID,  name: 'Karen',  role: 'reviewer',  roleLabel: 'Reviewer', color: '#2E5F8A' },
+  ];
+
+  const blocks = users.map(u => {
+    const rows = PERMISSION_DEFS.map(p => {
+      const granted = hasPermission(u.id, p.key);
+      return `<div class="perm-row">
+        <div><div class="perm-label">${p.label}</div><div class="perm-sublabel">${p.sub}</div></div>
+        <label class="toggle-wrap" title="${p.label}">
+          <input type="checkbox" ${granted ? 'checked' : ''} onchange="savePermission('${u.id}','${p.key}',this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>`;
+    }).join('');
+    return `<div class="perm-user-block">
+      <div class="perm-user-header">
+        <div class="perm-user-avatar" style="background:${u.color}">${u.name[0]}</div>
+        <div>
+          <span class="perm-user-name">${u.name}</span>
+          <span class="perm-user-role" style="background:${u.color}">${u.roleLabel}</span>
+        </div>
+        <span class="perm-saving" id="perm-saving-${u.id}"></span>
+      </div>
+      <div class="perm-grid">${rows}</div>
+    </div>`;
+  }).join('');
+
+  content.innerHTML = `<div class="fade-in">
+    <div class="page-header">
+      <h1>Permissions</h1>
+      <p>Control what Sienna and Karen can see and do. Cameron always has full access.</p>
+    </div>
+    <div style="background:rgba(200,103,74,0.08);border:1px solid rgba(200,103,74,0.25);border-radius:10px;padding:12px 16px;margin-bottom:24px;font-size:0.83rem;color:var(--clay-dark);">
+      ⚡ Changes save instantly. Enforcement is applied next time each user loads the app.
+    </div>
+    ${blocks}
+  </div>`;
+}
+/* ── END PERMISSIONS ─────────────────────────── */
 
 init();
 </script>
