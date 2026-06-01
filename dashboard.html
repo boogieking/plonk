@@ -2853,7 +2853,7 @@ async function savePermission(userId, permKey, granted){
 
 function renderPermissionsView(){
   if(userProfile.role !== 'admin'){ showToast('Admin only','error'); switchView('dashboard'); return; }
-  const content = document.getElementById('content');
+  const content = document.getElementById('dashboard-content');
   const users = [
     { id: SIENNA_ID, name: 'Sienna', role: 'planner',  roleLabel: 'Planner',  color: '#7C5CBF' },
     { id: KAREN_ID,  name: 'Karen',  role: 'reviewer',  roleLabel: 'Reviewer', color: '#2E5F8A' },
