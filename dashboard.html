@@ -422,6 +422,20 @@
   .perm-saving{font-size:0.72rem;color:var(--mid);margin-left:8px;opacity:0;transition:opacity 0.3s;}
   .perm-saving.visible{opacity:1;}
   /* ── END PERMISSIONS ────────────────────────── */
+
+  /* ── COLLAPSIBLE SECTIONS ───────────────────── */
+  .sec-header{display:flex;align-items:center;justify-content:space-between;cursor:pointer;margin:28px 0 0;padding:10px 14px 10px 0;border-bottom:1.5px solid var(--border);user-select:none;}
+  .sec-header:hover .sec-title{color:var(--dark);}
+  .sec-title{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--mid);transition:color 0.15s;}
+  .sec-chevron{width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:var(--mid);transition:transform 0.25s cubic-bezier(0.4,0,0.2,1);flex-shrink:0;}
+  .sec-chevron svg{width:14px;height:14px;stroke:currentColor;stroke-width:2.5;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  .sec-chevron.collapsed{transform:rotate(-90deg);}
+  .sec-body{margin-top:12px;overflow:hidden;transition:opacity 0.2s;}
+  .sec-body.collapsed{display:none;}
+  .collapse-controls{display:flex;justify-content:flex-end;gap:8px;margin:16px 0 4px;}
+  .collapse-btn{font-size:0.72rem;font-weight:500;color:var(--mid);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;transition:all 0.15s;}
+  .collapse-btn:hover{color:var(--dark);border-color:var(--mid);}
+  /* ── END COLLAPSIBLE SECTIONS ───────────────── */
   </style>
 </head>
 <body>
@@ -554,10 +568,15 @@ function renderCameron(recipes,name){
       <div class="card stat-tile"><div class="stat-num" id="pending-count">—</div><div class="stat-label">Pending requests</div></div>
       <div class="card stat-tile"><div class="stat-num">${hasPlan?mealCount:'—'}</div><div class="stat-label">Meals this plan</div></div>
     </div>
-    <div class="section-label">Pending requests</div>
+    <div class="collapse-controls">
+      <button class="collapse-btn" onclick="collapseAll(['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers'])">Collapse all</button>
+      <button class="collapse-btn" onclick="expandAll(['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers'])">Expand all</button>
+    </div>
+    ${sectionHeader('cam-requests','Pending requests')}
     <div class="card" style="margin-bottom:20px" id="requests-container"><div class="empty"><span class="empty-icon">📋</span>Loading requests...</div></div>
-    ${pendingIdeaRatings.length>0?`<div class="section-label">Idea ratings needed</div>${renderPendingIdeaRatingCards()}`:''}
-    <div class="section-label">This plan's meal pool</div>
+    ${sectionEnd()}
+    ${pendingIdeaRatings.length>0?sectionHeader('cam-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
+    ${sectionHeader('cam-meals',"This plan's meal pool")}
     ${renderPrepReminders()}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header">
@@ -570,22 +589,20 @@ function renderCameron(recipes,name){
       ${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowAdmin(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>No meals suggested yet — set eating-out days above</div>`}
       ${reshuffleLogHtml}
     </div>
-    <div class="section-label" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between" onclick="toggleInventorySection(this)">
-      <span>Inventory check</span>
-      <span id="inv-section-chevron" style="font-size:0.8rem;color:var(--mid);transition:transform 0.2s">▼</span>
-    </div>
-    <div id="inv-section-body" style="display:none">
+    ${sectionEnd()}
+    ${sectionHeader('cam-inventory','Inventory check', false)}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">Fridge & freezer</div>${currentPlan?.status==='approved'?`<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`:`<span class="tag tag-gray">Submit plan first</span>`}</div>
       ${currentPlan?.status==='approved'?`<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`:`<div class="empty" style="padding:20px 0"><span class="empty-icon">🛒</span>Once the plan is approved, inventory check unlocks here</div>`}
     </div>
-    </div>
-    <div class="section-label">Shopping list</div>
+    ${sectionEnd()}
+    ${sectionHeader('cam-shopping','Shopping list')}
     <div class="card" id="cameron-shopping-card">
       <div class="card-header" style="flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div class="card-title">La Comer + Casa King</div><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%"><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-secondary" id="consolidate-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="consolidateList()">🔀 Consolidate</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
       <div id="shopping-list-content"><div class="empty"><span class="empty-icon">🛍️</span>${hasInventory?'Click Generate list to build your shopping list':'Complete inventory check first to generate the shopping list'}</div></div>
     </div>
-    <div class="section-label">Leftovers & open packets</div>
+    ${sectionEnd()}
+    ${sectionHeader('cam-leftovers','Leftovers & open packets')}
     <div class="card" id="leftovers-card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">In fridge / freezer / pantry</div>
@@ -593,6 +610,7 @@ function renderCameron(recipes,name){
       </div>
       <div id="leftovers-list"><div class="empty"><span class="empty-icon">📦</span>No leftovers tracked yet — they appear here after receipt scanning</div></div>
     </div>
+    ${sectionEnd()}
   </div>`;
 }
 function cookedBtn(recipeId,planMealId,small){if(!currentUserCan('mark_cooked'))return'';const sz=small?'font-size:0.75rem;padding:4px 10px':'font-size:0.78rem;padding:5px 10px';return`<button class="btn-secondary" style="${sz}" onclick="markCooked('${recipeId}','${planMealId}')">✓ Cooked</button>`;}
@@ -617,14 +635,6 @@ function mealRowAdmin(m){
 }
 let inventoryItems=[],inventoryState={};
 let trolleyMode=false,trolleyItems={},usdRate=null;
-function toggleInventorySection(labelEl){
-  const body=document.getElementById('inv-section-body');
-  const chevron=document.getElementById('inv-section-chevron');
-  if(!body)return;
-  const isOpen=body.style.display!=='none';
-  body.style.display=isOpen?'none':'block';
-  if(chevron)chevron.style.transform=isOpen?'':'rotate(180deg)';
-}
 
 async function loadInventory(){
   if(!currentPlan)return;inventoryState=currentPlan.inventory||{};
@@ -1014,23 +1024,29 @@ function renderSienna(recipes,name){
       <div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px"><div class="status-dot" style="background:${hasPlan?'#4A7C59':'#C8674A'}"></div><div class="status-text">${hasPlan?`${mealCount} meal${mealCount!==1?'s':''} suggested · status: <strong>${planStatus}</strong>`:"Waiting for Cameron to start this week's plan"}</div></div></div>
       ${hasPlan?`<div style="display:flex;gap:10px;flex-wrap:wrap">${currentUserCan('reshuffle_plan')?`<button class="btn-secondary" ${reshuffleUsed||alreadySubmitted?'disabled':''} onclick="doReshuffle(this)">${reshuffleUsed?'🔀 Reshuffle used':'🔀 Reshuffle'}</button>`:''}<button class="btn-primary" id="submit-plan-btn" ${alreadySubmitted?'disabled style="opacity:0.6"':''} onclick="submitPlan(this)">${submitLabel}</button></div>`:''}
     </div>
-    <div class="section-label">This week's meals</div>
+    <div class="collapse-controls">
+      <button class="collapse-btn" onclick="collapseAll(['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping'])">Collapse all</button>
+      <button class="collapse-btn" onclick="expandAll(['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping'])">Expand all</button>
+    </div>
+    ${sectionHeader('sie-meals',"This week's meals")}
     ${renderPrepReminders()}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">Meal pool</div>${hasPlan?`<span class="tag tag-green">${mealCount} meals</span>`:''}</div>
       ${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowSienna(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>${hasPlan?'No meals in plan yet':'No plan yet this week'}</div>`}
     </div>
-   ${userProfile.role==='planner'&&currentPlan?.status==='approved'&&currentUserCan('manage_dinners')?`<div class="section-label">Dinners this week</div><div class="card" style="margin-bottom:20px" id="dinner-section"><div class="card-header"><div class="card-title">Tonight's options</div><button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all dinners</button></div><div id="dinner-list">${renderDinnerList()}</div></div>`:''}
-    <div class="section-label">Request from Cameron</div>
+    ${sectionEnd()}
+   ${userProfile.role==='planner'&&currentPlan?.status==='approved'&&currentUserCan('manage_dinners')?sectionHeader('sie-dinners','Dinners this week')+`<div class="card" style="margin-bottom:20px" id="dinner-section"><div class="card-header"><div class="card-title">Tonight\'s options</div><button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all dinners</button></div><div id="dinner-list">${renderDinnerList()}</div></div>`+sectionEnd():''}
+    ${sectionHeader('sie-requests','Requests')}
     <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Requests</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">${currentUserCan('submit_swap')?`<button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button>`:''}<button class="btn-secondary" onclick="openModal('hibernate')">😴 Request hibernation</button>${currentUserCan('suggest_meals')?`<button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button>`:''}</div></div>
-    ${pendingIdeaRatings.length>0?`<div class="section-label">Idea ratings needed</div>${renderPendingIdeaRatingCards()}`:''}
-    <div class="section-label">Inventory check</div>
+    ${pendingIdeaRatings.length>0?sectionHeader('sie-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
+    ${sectionEnd()}
+    ${sectionHeader('sie-inventory','Inventory check', false)}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">Fridge & freezer</div>${planStatus==='approved'?`<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`:''}</div>
       ${planStatus==='approved'?`<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`:`<div class="empty" style="padding:20px 0"><span class="empty-icon">🛒</span>Unlocks once Cameron approves the plan</div>`}
     </div>
-    ${currentUserCan('view_shopping')?`<div class="section-label">Shopping preview</div>
-    <div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer + Casa King</div><span class="tag tag-gray">View only · Cameron generates</span></div><div id="sienna-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`:''}
+    ${sectionEnd()}
+    ${currentUserCan('view_shopping')?sectionHeader('sie-shopping','Shopping preview')+`<div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer + Casa King</div><span class="tag tag-gray">View only · Cameron generates</span></div><div id="sienna-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`+sectionEnd():''}
   </div>`;
 }
 function mealRowSienna(m){
@@ -1075,15 +1091,18 @@ function renderKaren(recipes,name){
     ${showFinalBanner?`<div id="finalised-banner" style="background:rgba(74,124,89,0.1);border:1px solid rgba(74,124,89,0.3);border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px"><div style="display:flex;align-items:center;gap:12px"><span style="font-size:1.3rem">✅</span><div><div style="font-weight:600;color:#2d5a3d;font-size:0.92rem">This week's plan is finalised!</div><div style="font-size:0.82rem;color:#4A7C59;margin-top:2px">Cameron has approved the meal plan. See your meals below.</div></div></div><button onclick="sessionStorage.setItem('${bannerKey}','1');document.getElementById('finalised-banner').remove()" style="background:none;border:none;cursor:pointer;font-size:1.1rem;color:#4A7C59;padding:4px 8px" title="Dismiss">✕</button></div>`:''}
     <div class="page-header"><h1>Hi ${name} 👋</h1><p>${hasPlan?'Plan started '+planDateLabel(currentPlan):'No active plan yet'}</p></div>
     <div class="week-banner"><div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px"><div class="status-dot" style="background:${hasPlan?'#4A7C59':'#C8674A'}"></div><div class="status-text">${hasPlan?`${mealCount} meal${mealCount!==1?'s':''} this week · status: <strong>${currentPlan.status}</strong>`:'No active plan yet'}</div></div></div></div>
-    <div class="section-label">This week's meals</div>
+    <div class="collapse-controls">
+      <button class="collapse-btn" onclick="collapseAll(['kar-meals','kar-requests','kar-ratings','kar-shopping'])">Collapse all</button>
+      <button class="collapse-btn" onclick="expandAll(['kar-meals','kar-requests','kar-ratings','kar-shopping'])">Expand all</button>
+    </div>
+    ${sectionHeader('kar-meals',"This week's meals")}
     <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Meal pool</div>${hasPlan?`<span class="tag tag-blue">${mealCount} meals</span>`:''}</div>${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowKaren(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>No meals yet this week</div>`}</div>
-    <div class="section-label">Suggest a change</div>
+    ${sectionEnd()}
+    ${sectionHeader('kar-requests','Suggest a change')}
     <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Requests (require Cameron's approval)</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">${currentUserCan('submit_swap')?`<button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button>`:''  }${currentUserCan('suggest_meals')?`<button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button>`:''}</div></div>
-    ${pendingIdeaRatings.length>0?`<div class="section-label">Idea ratings needed</div>${renderPendingIdeaRatingCards()}`:''}
-    ${currentUserCan('view_shopping')?`<div class="section-label">Add to shopping list</div>
-    <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Your additions</div><span class="tag tag-blue">Mixed into the list</span></div><div class="karen-add-row"><input class="karen-add-input" id="karen-add-input" placeholder="e.g. olive oil, chocolate, shampoo..." onkeydown="if(event.key==='Enter')addKarenItem()"><button class="btn-primary" style="padding:8px 16px;font-size:0.85rem" onclick="addKarenItem()">Add</button></div><div id="karen-additions-list"><div style="font-size:0.82rem;color:var(--mid)">No items added yet</div></div></div>
-    <div class="section-label">Shopping list</div>
-    <div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer</div><span class="tag tag-gray">View only</span></div><div id="karen-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`:''}
+    ${pendingIdeaRatings.length>0?sectionHeader('kar-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
+    ${sectionEnd()}
+    ${currentUserCan('view_shopping')?sectionHeader('kar-shopping','Shopping list')+`<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Your additions</div><span class="tag tag-blue">Mixed into the list</span></div><div class="karen-add-row"><input class="karen-add-input" id="karen-add-input" placeholder="e.g. olive oil, chocolate, shampoo..." onkeydown="if(event.key==='Enter')addKarenItem()"><button class="btn-primary" style="padding:8px 16px;font-size:0.85rem" onclick="addKarenItem()">Add</button></div><div id="karen-additions-list"><div style="font-size:0.82rem;color:var(--mid)">No items added yet</div></div></div><div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer</div><span class="tag tag-gray">View only</span></div><div id="karen-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`+sectionEnd():''}
   </div>`;
 }
 function mealRowKaren(m){
@@ -1502,7 +1521,7 @@ function renderPrepReminders(){
   if(!currentPlan||currentPlan.status!=='approved')return'';if(userProfile.role==='reviewer')return'';
   const advancePrepMeals=currentMeals.filter(m=>m.recipes?.advance_prep_required&&!m.cooked);if(advancePrepMeals.length===0)return'';
   const rows=advancePrepMeals.map(m=>{const r=m.recipes;const dayLabel=m.assigned_day?` · scheduled ${dateToDayName(m.assigned_day)}`:'';return`<div class="prep-reminder-row"><div class="prep-reminder-icon">⏰</div><div><div class="prep-reminder-meal">${r.name_en}${dayLabel}</div><div class="prep-reminder-desc">${r.advance_prep_description||'Advance preparation required'}</div></div></div>`;}).join('');
-  return`<div class="section-label">Prep reminders</div><div class="prep-reminders-card"><div style="font-size:0.78rem;font-weight:500;color:var(--clay);margin-bottom:12px">🗒️ These meals need advance prep this week</div>${rows}</div>`;
+  return sectionHeader('prep-reminders','Prep reminders')+`<div class="prep-reminders-card"><div style="font-size:0.78rem;font-weight:500;color:var(--clay);margin-bottom:12px">🗒️ These meals need advance prep this week</div>${rows}</div>`;
 }
 function openSideSwapModal(recipeId,currentSideEn){
   const isKaren=userProfile.role==='reviewer';const isSienna=userProfile.role==='planner';if(!isKaren&&!isSienna)return;
@@ -2864,10 +2883,13 @@ function renderPermissionsView(){
       const granted = hasPermission(u.id, p.key);
       return `<div class="perm-row">
         <div><div class="perm-label">${p.label}</div><div class="perm-sublabel">${p.sub}</div></div>
-        <label class="toggle-wrap" title="${p.label}">
-          <input type="checkbox" ${granted ? 'checked' : ''} onchange="savePermission('${u.id}','${p.key}',this.checked)">
-          <span class="toggle-slider"></span>
-        </label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:0.7rem;font-weight:600;letter-spacing:0.05em;color:${granted?'var(--clay)':'var(--mid)'}" id="perm-lbl-${u.id}-${p.key}">${granted?'ON':'OFF'}</span>
+          <label class="toggle-wrap" title="${p.label}">
+            <input type="checkbox" ${granted ? 'checked' : ''} onchange="savePermission('${u.id}','${p.key}',this.checked);document.getElementById('perm-lbl-${u.id}-${p.key}').textContent=this.checked?'ON':'OFF';document.getElementById('perm-lbl-${u.id}-${p.key}').style.color=this.checked?'var(--clay)':'var(--mid)'">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
       </div>`;
     }).join('');
     return `<div class="perm-user-block">
@@ -2895,6 +2917,50 @@ function renderPermissionsView(){
   </div>`;
 }
 /* ── END PERMISSIONS ─────────────────────────── */
+
+/* ── COLLAPSIBLE SECTIONS ───────────────────── */
+const CHEVRON_SVG = `<svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+
+// Generate a collapsible section header + body wrapper
+function sectionHeader(id, label, defaultOpen=true){
+  const stored = localStorage.getItem('sec_'+id);
+  const isOpen = stored !== null ? stored === '1' : defaultOpen;
+  return `<div class="sec-header" onclick="toggleSection('${id}')">
+    <span class="sec-title">${label}</span>
+    <span class="sec-chevron${isOpen?'':' collapsed'}" id="chev-${id}">${CHEVRON_SVG}</span>
+  </div>
+  <div class="sec-body${isOpen?'':' collapsed'}" id="sec-${id}">`;
+}
+
+// Close the sec-body div
+function sectionEnd(){ return '</div>'; }
+
+function toggleSection(id){
+  const body = document.getElementById('sec-'+id);
+  const chev = document.getElementById('chev-'+id);
+  if(!body||!chev) return;
+  const isCollapsed = body.classList.contains('collapsed');
+  body.classList.toggle('collapsed', !isCollapsed);
+  chev.classList.toggle('collapsed', !isCollapsed);
+  localStorage.setItem('sec_'+id, isCollapsed?'1':'0');
+}
+
+function collapseAll(ids){
+  ids.forEach(id=>{
+    const body=document.getElementById('sec-'+id);
+    const chev=document.getElementById('chev-'+id);
+    if(body&&chev){body.classList.add('collapsed');chev.classList.add('collapsed');localStorage.setItem('sec_'+id,'0');}
+  });
+}
+
+function expandAll(ids){
+  ids.forEach(id=>{
+    const body=document.getElementById('sec-'+id);
+    const chev=document.getElementById('chev-'+id);
+    if(body&&chev){body.classList.remove('collapsed');chev.classList.remove('collapsed');localStorage.setItem('sec_'+id,'1');}
+  });
+}
+/* ── END COLLAPSIBLE SECTIONS ───────────────── */
 
 init();
 </script>
