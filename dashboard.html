@@ -2733,6 +2733,7 @@ async function deleteLeftover(id,name,btn){
 }
 
 
+function openManualLeftoverModal(){
   const storageOpts=Object.entries(STORAGE_LABELS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
   el.innerHTML=`<div class="modal" style="max-width:360px">
@@ -2774,13 +2775,13 @@ const PERMISSION_DEFS = [
   { key:'view_plan',         label:'View the plan',           sub:'See meals planned for the week' },
   { key:'mark_cooked',       label:'Mark meals as cooked',    sub:'Tick off meals after cooking' },
   { key:'submit_swap',       label:'Submit swap requests',    sub:'Request a meal be swapped out' },
-  { key:'reshuffle_plan',    label:'Reshuffle the plan',      sub:'Randomise the week\'s meals' },
+  { key:'reshuffle_plan',    label:'Reshuffle the plan',      sub:"Randomise the week's meals" },
   { key:'carry_over_meals',  label:'Carry over uncooked meals', sub:'Bring meals forward from last week' },
   { key:'manage_dinners',    label:'Manage dinners',          sub:'Choose or change dinner pairings' },
   { key:'view_shopping',     label:'View shopping list',      sub:'See the generated shopping list' },
   { key:'generate_shopping', label:'Generate shopping list',  sub:'Create and finalise shopping list' },
   { key:'suggest_meals',     label:'Suggest new meals',       sub:'Propose new recipes for the rotation' },
-  { key:'approve_plan',      label:'Approve the plan',        sub:'Sign off the week\'s meal plan' },
+  { key:'approve_plan',      label:'Approve the plan',        sub:"Sign off the week's meal plan" },
 ];
 
 // Default permissions per role (used when no DB row exists yet)
