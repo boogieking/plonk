@@ -551,6 +551,9 @@ async function removeKarenItem(id){const{error}=await sb.from('karen_additions')
 function renderKarenAdditionsList(){const el=document.getElementById('karen-additions-list');if(!el)return;if(karenAdditions.length===0){el.innerHTML=`<div style="font-size:0.82rem;color:var(--mid)">No items added yet</div>`;return;}el.innerHTML=karenAdditions.map(a=>`<div class="karen-addition-item"><span>${a.name_en} <em style="font-size:0.72rem;color:var(--mid)">· ${a.lacomer_category}</em></span><button class="karen-rm-btn" onclick="removeKarenItem('${a.id}')" title="Remove">✕</button></div>`).join('');}
 const roleColor={admin:'#C8674A',planner:'#4A7C59',reviewer:'#2E5F8A'};
 const roleLabel={admin:'Admin',planner:'Planner',reviewer:'Reviewer'};
+const SIENNA_ID='ca779de4-2052-4bb4-89c6-59b67a5ad788';
+const KAREN_ID='60688390-f010-4e19-b7e9-bfbe2c35b04c';
+const CAMERON_ID='4581c8f1-042d-43a6-ba2d-6ec586dea301';
 let currentUser=null,userProfile=null,currentPlan=null,currentMeals=[],currentDinners=[];
 async function init(){
   const{data:{session}}=await sb.auth.getSession();
@@ -568,7 +571,7 @@ async function init(){
 }
 function renderNav(){const col=roleColor[userProfile.role]||'#888';const initials=(userProfile.name||'U').substring(0,1).toUpperCase();document.getElementById('nav-avatar').textContent=initials;document.getElementById('nav-avatar').style.background=col;document.getElementById('nav-name').textContent=userProfile.name;const roleEl=document.getElementById('nav-role-tag');roleEl.textContent=roleLabel[userProfile.role]||userProfile.role;roleEl.style.background=col;const productsTab=document.getElementById('products-tab');if(productsTab)productsTab.style.display=userProfile.role==='admin'?'':'none';const historyTab=document.getElementById('history-tab');if(historyTab)historyTab.style.display=userProfile.role==='admin'?'':'none';const permissionsTab=document.getElementById('permissions-tab');if(permissionsTab)permissionsTab.style.display=userProfile.role==='admin'?'':'none';}
 async function signOut(){await sb.auth.signOut();window.location.href='index.html';}
-function planDateLabel(plan){if(!plan)return'';const d=new Date(plan.week_start+'T12:00:00');return d.toLocaleDateString('en-AU',{month:'long',day:'numeric',year:'numeric'});}
+function planDateLabel(plan){if(!plan)return'';const d=new Date(plan.week_start+'T12:00:00');return d.toLocaleDateString('en-MX',{month:'long',day:'numeric',year:'numeric'});}
 function getTodayDate(){const now=new Date();return`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;}
 async function loadWeekData(){
   const{data:planData}=await sb.from('weekly_plans').select('*').neq('status','archived').order('created_at',{ascending:false}).limit(1).maybeSingle();
@@ -586,7 +589,7 @@ async function renderDashboard(){
   await loadKarenAdditions();await loadPendingIdeaRatings();
   if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);await loadPendingRequests();if(currentPlan?.status==='approved')await loadInventory();loadLeftovers();restoreShoppingAndTrolleyState();}
   else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);await loadInventory();}
-  else{content.innerHTML=renderKaren(recipes,userProfile.name);renderKarenAdditionsList();await loadInventory();loadKarenShoppingPreview();}
+  else{content.innerHTML=renderKaren(recipes,userProfile.name);renderKarenAdditionsList();loadKarenShoppingPreview();}
 }
 function renderCameron(recipes,name){
   const hasPlan=currentPlan!==null;
@@ -1101,7 +1104,7 @@ async function loadPendingRequests(){
   if(requests.length===0){container.innerHTML=`<div class="empty"><span class="empty-icon">📋</span>No pending requests from Sienna or Karen</div>`;return;}
   container.innerHTML=requests.map(req=>{
     const fromName=req.requested_by==='4581c8f1-042d-43a6-ba2d-6ec586dea301'?'Cameron':req.requested_by==='ca779de4-2052-4bb4-89c6-59b67a5ad788'?'Sienna':req.requested_by==='60688390-f010-4e19-b7e9-bfbe2c35b04c'?'Karen':'Unknown';
-    const label=REQUEST_LABELS[req.request_type]||req.request_type;const date=new Date(req.created_at).toLocaleDateString('en-AU',{month:'short',day:'numeric'});
+    const label=REQUEST_LABELS[req.request_type]||req.request_type;const date=new Date(req.created_at).toLocaleDateString('en-MX',{month:'short',day:'numeric'});
     let sideSwapDetail='';if(req.request_type==='side_swap'&&req.meta){const recipe=currentMeals.find(m=>m.recipe_id===req.meta.recipe_id)?.recipes;sideSwapDetail=`<div style="font-size:0.78rem;color:var(--mid);margin-top:3px">${recipe?.name_en||'a meal'}: <em>${req.meta.current_side_en||'?'}</em> → <strong>${req.meta.new_side_en}</strong>${req.meta.new_side_es?' · '+req.meta.new_side_es:''}</div>`;}
     let swapDetail=req.request_type==='swap'&&req.meta?.meal_name?`<div style="font-size:0.78rem;color:var(--mid);margin-top:3px">Meal: <strong>${req.meta.meal_name}</strong></div>`:'';
     let newMealDetail=req.request_type==='new'&&req.meta?.name_en?`<div style="font-size:0.85rem;font-weight:500;color:var(--dark);margin-top:3px">🍽 "${req.meta.name_en}"</div>`:'';
@@ -1913,7 +1916,7 @@ function updateSchedCalc(totalMinutes){
   else{warnEl.style.display='none';}
 }
 function dayNameToDate(dayName){const dayIndex=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].indexOf(dayName);if(dayIndex===-1)return null;const now=new Date();const diff=((dayIndex-now.getDay())+7)%7;const target=new Date(now);target.setDate(now.getDate()+diff);return target.toISOString().substring(0,10);}
-function dateToDayName(dateStr){if(!dateStr)return'';return new Date(dateStr.substring(0,10)+'T12:00:00').toLocaleDateString('en-AU',{weekday:'long'});}
+function dateToDayName(dateStr){if(!dateStr)return'';return new Date(dateStr.substring(0,10)+'T12:00:00').toLocaleDateString('en-MX',{weekday:'long'});}
 async function confirmSchedule(planMealId,recipeId,totalMinutes){
   const dayName=document.getElementById('sched-day').value;const eatTime=document.getElementById('sched-time').value;
   if(!dayName){showToast('Please pick a day','error');return;}if(!eatTime){showToast('Please set an eat time','error');return;}
@@ -2019,7 +2022,7 @@ function recipeRowHtml(r,isAdmin){
   const tier=r.hibernated?'hibernated':(r.frequency_tier||'regular');const stars=r.avg_rating?`⭐ ${parseFloat(r.avg_rating).toFixed(1)}`:'—';const time=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);
   const stepsTag=r.steps&&r.steps.trim()?`<span class="tag tag-green" style="font-size:0.65rem;padding:2px 7px">📋 steps saved</span>`:'';
   const adminActions=isAdmin?`<button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;" onclick="event.stopPropagation();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Tier</button><button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;" onclick="event.stopPropagation();openHibernateModal('${r.id}','${r.name_en.replace(/'/g,"\\'")}')"> ${r.hibernated?'Wake':'Sleep'}</button>`:'';
-  return`<div class="recipe-row${r.hibernated?' hibernated-row':''}" onclick="openRecipeDetail('${r.id}')"><div class="recipe-main"><div class="recipe-title">${r.name_en}</div>${r.name_es?`<div class="recipe-title-es">${r.name_es}</div>`:''}<div class="recipe-meta-row">${time>0?`<span class="recipe-meta-item">⏱ ${time} min</span>`:''}${r.advance_prep_required?`<span class="tag tag-amber">prep ahead</span>`:''} ${r.hibernated&&r.hibernate_until?`<span class="recipe-meta-item">🌙 until ${new Date(r.hibernate_until).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}</span>`:''} ${stepsTag}</div></div><div class="recipe-badges"><span class="stars-display">${stars}</span><span class="tier-badge tier-${tier}${r.frequency_override?' tier-locked':''}">${TIER_LABELS[tier]||tier}</span></div>${isAdmin?`<div class="recipe-actions">${adminActions}</div>`:''}</div>`;
+  return`<div class="recipe-row${r.hibernated?' hibernated-row':''}" onclick="openRecipeDetail('${r.id}')"><div class="recipe-main"><div class="recipe-title">${r.name_en}</div>${r.name_es?`<div class="recipe-title-es">${r.name_es}</div>`:''}<div class="recipe-meta-row">${time>0?`<span class="recipe-meta-item">⏱ ${time} min</span>`:''}${r.advance_prep_required?`<span class="tag tag-amber">prep ahead</span>`:''} ${r.hibernated&&r.hibernate_until?`<span class="recipe-meta-item">🌙 until ${new Date(r.hibernate_until).toLocaleDateString('en-MX',{day:'numeric',month:'short'})}</span>`:''} ${stepsTag}</div></div><div class="recipe-badges"><span class="stars-display">${stars}</span><span class="tier-badge tier-${tier}${r.frequency_override?' tier-locked':''}">${TIER_LABELS[tier]||tier}</span></div>${isAdmin?`<div class="recipe-actions">${adminActions}</div>`:''}</div>`;
 }
 function filterRecipes(){renderFilteredRecipes();}
 function setRecipeType(type){recipeFilterType=type;recipeFilterTier='all';recipeShowHibernated=false;recipeFilterSearch='';allRecipesCache=null;renderRecipeListView();}
@@ -3420,10 +3423,6 @@ const PERMISSION_DEFAULTS = {
 // Loaded at init — keyed by user_id
 let userPermissions = {};
 
-// IDs for Sienna and Karen (hardcoded — matches DB)
-const SIENNA_ID = 'ca779de4-2052-4bb4-89c6-59b67a5ad788';
-const KAREN_ID  = '60688390-f010-4e19-b7e9-bfbe2c35b04c';
-
 async function loadPermissions(){
   try{
     const { data, error } = await sb.from('user_permissions').select('*').in('user_id', [SIENNA_ID, KAREN_ID]);
@@ -3441,7 +3440,6 @@ async function loadPermissions(){
 function hasPermission(userId, permKey){
   if(!userId || !permKey) return false;
   // Admin (Cameron) always has full access
-  const CAMERON_ID = '4581c8f1-042d-43a6-ba2d-6ec586dea301';
   if(userId === CAMERON_ID) return true;
   // Check loaded permissions first
   if(userPermissions[userId] && userPermissions[userId][permKey] !== undefined){
