@@ -645,7 +645,7 @@ function renderCameron(recipes,name){
       ${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowAdmin(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>No meals suggested yet — set eating-out days above</div>`}
       ${reshuffleLogHtml}
     </div>
-    ${currentUserCan('manage_dinners')&&currentDinners.length>0?`<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Dinners this week</div><button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all dinners</button></div><div id="dinner-list-cam">${renderDinnerList()}</div></div>`:''}
+    ${currentPlan?.status==='approved'?`<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Dinners this week</div><div style="display:flex;gap:8px;flex-wrap:wrap">${currentDinners.length>0?`<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all</button>`:''}<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="openAddDinnerModal()">+ Add dinner</button></div></div><div id="dinner-list-cam">${renderDinnerListAdmin()}</div></div>`:''}
     ${sectionEnd()}
     ${sectionHeader('cam-inventory','Inventory check', false)}
     <div class="card" style="margin-bottom:20px">
@@ -2217,6 +2217,96 @@ async function swapDinner(planMealId,newDinnerRecipeId){
   dinnerSwappedIds.add(planMealId);
   closeModal();showToast('Dinner swapped ✓ — swap used for this dinner');await loadWeekData();await renderDashboard();
 }
+// ── ADMIN DINNER MANAGEMENT ─────────────────────────────────────
+function renderDinnerListAdmin(){
+  if(!currentDinners||currentDinners.length===0)return'<div class="empty"><span class="empty-icon">🌙</span>No dinners assigned yet — use + Add dinner to assign one</div>';
+  return currentDinners.map(d=>{
+    const r=d.recipes||d;
+    const isCooked=d.cooked===true;
+    const pairedLunch=currentMeals.find(lm=>lm.recipe_id===d.lunch_recipe_id);
+    const pairedLabel=pairedLunch?.recipes?.name_en?`<span style="font-size:0.72rem;color:var(--mid)">paired with ${pairedLunch.recipes.name_en}</span>`:'';
+    const avgStr=r.avg_rating?` · ⭐ ${Number(r.avg_rating).toFixed(1)}`:'';
+    const cookedTag=isCooked?'<span class="tag tag-green">Cooked ✓</span>':'';
+    const adminBtns=!isCooked?`
+      <button class="btn-secondary" style="font-size:0.72rem;padding:4px 10px" onclick="openAdminDinnerReplaceModal('${d.id}','${d.lunch_recipe_id||''}','${r.id}')">⇄ Replace</button>
+      <button class="btn-secondary" style="font-size:0.72rem;padding:4px 10px;color:#c44;border-color:rgba(200,60,60,0.3)" onclick="adminRemoveDinner('${d.id}','${r.name_en}')">✕ Remove</button>
+    `:'';
+    return`<div class="meal-item ${isCooked?'cooked':''}">
+      <div style="flex:1">
+        <div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">🌙 ${r.name_en}</div>
+        <div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${(r.prep_time_minutes||'—')} min prep${avgStr} ${pairedLabel}</div>
+      </div>
+      <div class="meal-actions" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${cookedTag}${adminBtns}</div>
+    </div>`;
+  }).join('');
+}
+
+async function openAdminDinnerReplaceModal(planMealId,lunchRecipeId,currentDinnerRecipeId){
+  if(!lunchRecipeId){showToast('No lunch pairing found for this dinner','error');return;}
+  const{data:pairings}=await sb.from('dinner_pairings').select('dinner_recipe_id').eq('lunch_recipe_id',lunchRecipeId);
+  if(!pairings||pairings.length===0){showToast('No paired options found','error');return;}
+  const dinnerIds=pairings.map(p=>p.dinner_recipe_id);
+  const{data:dinnerRecipes}=await sb.from('recipes').select('id,name_en').in('id',dinnerIds);
+  if(!dinnerRecipes){showToast('Could not load options','error');return;}
+  const options=dinnerRecipes.filter(r=>String(r.id)!==String(currentDinnerRecipeId));
+  if(options.length===0){showToast('No other options available for this pairing','error');return;}
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="modal" style="max-width:400px"><h3>Replace dinner</h3><p>Choose a different dinner from the paired options for this lunch.</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">${options.map(r=>`<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem;width:100%" onclick="adminReplaceDinner('${planMealId}','${r.id}','${r.name_en}')">${r.name_en}</button>`).join('')}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
+  document.body.appendChild(el);el.addEventListener('click',e=>{if(e.target===el)closeModal();});
+}
+
+async function adminReplaceDinner(planMealId,newRecipeId,newName){
+  const{error}=await sb.from('weekly_plan_meals').update({recipe_id:newRecipeId}).eq('id',planMealId);
+  if(error){showToast('Error replacing dinner: '+error.message,'error');return;}
+  closeModal();showToast(`Dinner changed to ${newName} ✓`);await loadWeekData();await renderDashboard();
+}
+
+async function adminRemoveDinner(planMealId,name){
+  if(!confirm(`Remove "${name}" from this week's dinners?`))return;
+  const{error}=await sb.from('weekly_plan_meals').delete().eq('id',planMealId);
+  if(error){showToast('Error removing dinner: '+error.message,'error');return;}
+  showToast(`${name} removed ✓`);await loadWeekData();await renderDashboard();
+}
+
+async function openAddDinnerModal(){
+  if(!currentPlan){showToast('No active plan','error');return;}
+  // Find lunches that don't already have a dinner assigned
+  const assignedLunchIds=new Set(currentDinners.map(d=>d.lunch_recipe_id).filter(Boolean));
+  const unpairedLunches=currentMeals.filter(m=>!assignedLunchIds.has(m.recipe_id));
+  const allLunches=currentMeals; // also allow re-assigning over existing if admin wants
+  if(allLunches.length===0){showToast('No lunches in this plan','error');return;}
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  const lunchOptions=allLunches.map(m=>{
+    const name=m.recipes?.name_en||'Unknown';
+    const hasTag=assignedLunchIds.has(m.recipe_id)?'<span style="font-size:0.7rem;color:var(--mid);margin-left:6px">(has dinner)</span>':'';
+    return`<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem;width:100%" onclick="openAddDinnerStep2('${m.recipe_id}','${name.replace(/'/g,"\\'")}')">🍽 ${name}${hasTag}</button>`;
+  }).join('');
+  el.innerHTML=`<div class="modal" style="max-width:420px"><h3>Add dinner</h3><p>Which lunch should this dinner be paired with?</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0;max-height:50vh;overflow-y:auto">${lunchOptions}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
+  document.body.appendChild(el);el.addEventListener('click',e=>{if(e.target===el)closeModal();});
+}
+
+async function openAddDinnerStep2(lunchRecipeId,lunchName){
+  const{data:pairings}=await sb.from('dinner_pairings').select('dinner_recipe_id').eq('lunch_recipe_id',lunchRecipeId);
+  if(!pairings||pairings.length===0){showToast('No dinner options found for this lunch','error');return;}
+  const dinnerIds=pairings.map(p=>p.dinner_recipe_id);
+  const{data:dinnerRecipes}=await sb.from('recipes').select('id,name_en').in('id',dinnerIds);
+  if(!dinnerRecipes||dinnerRecipes.length===0){showToast('Could not load dinner options','error');return;}
+  // Remove existing modal and show step 2
+  closeModal();
+  await new Promise(r=>setTimeout(r,80));
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="modal" style="max-width:420px"><h3>Add dinner</h3><p>Paired with: <strong>${lunchName}</strong>. Choose a dinner:</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">${dinnerRecipes.map(r=>`<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem;width:100%" onclick="adminAddDinner('${lunchRecipeId}','${r.id}','${r.name_en.replace(/'/g,"\\'")}')">🌙 ${r.name_en}</button>`).join('')}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
+  document.body.appendChild(el);el.addEventListener('click',e=>{if(e.target===el)closeModal();});
+}
+
+async function adminAddDinner(lunchRecipeId,dinnerRecipeId,dinnerName){
+  if(!currentPlan){showToast('No active plan','error');return;}
+  const{error}=await sb.from('weekly_plan_meals').insert({plan_id:currentPlan.id,recipe_id:dinnerRecipeId,lunch_recipe_id:lunchRecipeId,is_dinner:true,cooked:false});
+  if(error){showToast('Error adding dinner: '+error.message,'error');return;}
+  closeModal();showToast(`${dinnerName} added ✓`);await loadWeekData();await renderDashboard();
+}
+// ── END ADMIN DINNER MANAGEMENT ──────────────────────────────────
+
 async function reshuffleDinners(){
   if(!currentPlan||!currentMeals.length){showToast('No active plan','error');return;}
   await assignDinnersForPlan(currentPlan.id,currentMeals);
