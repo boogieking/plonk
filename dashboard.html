@@ -580,7 +580,7 @@ async function loadWeekData(){
     currentDinners=dinnerData||[];
   }
 }
-async function loadRecipes(){const{data}=await sb.from('recipes').select('*').eq('is_dinner',false).order('name_en');return data||[];}
+async function loadRecipes(){const{data}=await sb.from('recipes').select('*').neq('is_dinner',true).order('name_en');return data||[];}
 async function renderDashboard(){
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
   await loadKarenAdditions();await loadPendingIdeaRatings();
@@ -818,7 +818,7 @@ function getProteinType(name){
 }
 async function selectMealsForWeek(allRecipes,homeMealsNeeded){
   if(homeMealsNeeded<=0)return[];
-  const{data:allPlanMeals}=await sb.from('weekly_plan_meals').select('recipe_id,plan_id').eq('is_dinner',false);
+  const{data:allPlanMeals}=await sb.from('weekly_plan_meals').select('recipe_id,plan_id').neq('is_dinner',true);
   const{data:allPlans}=await sb.from('weekly_plans').select('id,week_start');
   const planDateMap={};if(allPlans){for(const plan of allPlans)planDateMap[plan.id]=new Date(plan.week_start+'T12:00:00');}
   const lastSeenMap={};if(allPlanMeals){for(const row of allPlanMeals){const planDate=planDateMap[row.plan_id];if(!planDate)continue;if(!lastSeenMap[row.recipe_id]||planDate>lastSeenMap[row.recipe_id])lastSeenMap[row.recipe_id]=planDate;}}
@@ -1017,7 +1017,7 @@ async function recalculateRecipeRating(recipeId){
 }
 let pendingIdeaRatings=[];
 async function loadPendingIdeaRatings(){
-  const{data:recipes}=await sb.from('recipes').select('id,name_en').is('avg_rating',null).eq('hibernated',false).eq('is_dinner',false);
+  const{data:recipes}=await sb.from('recipes').select('id,name_en').is('avg_rating',null).eq('hibernated',false).neq('is_dinner',true);
   if(!recipes||recipes.length===0){pendingIdeaRatings=[];return;}
   const recipeIds=recipes.map(r=>r.id);
   const{data:myRatings}=await sb.from('ratings').select('recipe_id').eq('user_id',userProfile.id).eq('rating_type','idea').in('recipe_id',recipeIds);
