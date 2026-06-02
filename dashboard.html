@@ -622,6 +622,7 @@ function renderCameron(recipes,name){
       ${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowAdmin(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>No meals suggested yet — set eating-out days above</div>`}
       ${reshuffleLogHtml}
     </div>
+    ${currentUserCan('manage_dinners')&&currentDinners.length>0?`<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Dinners this week</div><button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all dinners</button></div><div id="dinner-list-cam">${renderDinnerList()}</div></div>`:''}
     ${sectionEnd()}
     ${sectionHeader('cam-inventory','Inventory check', false)}
     <div class="card" style="margin-bottom:20px">
@@ -863,41 +864,49 @@ async function confirmEatingOut(){
     const{data:prevPlans}=await sb.from('weekly_plans').select('id,week_start').eq('status','archived').order('created_at',{ascending:false}).limit(1);
     if(prevPlans&&prevPlans.length>0){
       const prevPlanId=prevPlans[0].id;
-      const{data:uncookedMeals}=await sb.from('weekly_plan_meals').select('recipe_id,recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',prevPlanId).eq('cooked',false).neq('is_dinner',true);
-      if(uncookedMeals&&uncookedMeals.length>0){
-        // Show carry-over modal step
-        showCarryOverModal(uncookedMeals,homeMeals);
+      const{data:uncookedLunches}=await sb.from('weekly_plan_meals').select('recipe_id,recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',prevPlanId).eq('cooked',false).neq('is_dinner',true);
+      const{data:uncookedDinners}=await sb.from('weekly_plan_meals').select('recipe_id,lunch_recipe_id,recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',prevPlanId).eq('cooked',false).eq('is_dinner',true);
+      const hasUncooked=(uncookedLunches&&uncookedLunches.length>0)||(uncookedDinners&&uncookedDinners.length>0);
+      if(hasUncooked){
+        showCarryOverModal(uncookedLunches||[],uncookedDinners||[],homeMeals);
         return;
       }
     }
   }catch(e){/* if check fails, proceed normally */}
   await doCreateNewPlan(homeMeals,[]);
 }
-let _carryOverHomeMeals=0;
-function showCarryOverModal(uncookedMeals,homeMeals){
+let _carryOverHomeMeals=0,_carryOverDinners=[];
+function showCarryOverModal(uncookedLunches,uncookedDinners,homeMeals){
   _carryOverHomeMeals=homeMeals;
+  _carryOverDinners=uncookedDinners||[];
+  const lunchRows=uncookedLunches.map(m=>`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--cream);border-radius:10px;cursor:pointer;font-size:0.88rem">
+    <input type="checkbox" class="carryover-lunch" value="${m.recipe_id}" style="width:16px;height:16px;accent-color:var(--clay);cursor:pointer">
+    🍽 ${m.recipes?.name_en||m.recipe_id}
+  </label>`).join('');
+  const dinnerRows=uncookedDinners.map(m=>`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--cream);border-radius:10px;cursor:pointer;font-size:0.88rem">
+    <input type="checkbox" class="carryover-dinner" value="${m.recipe_id}" data-lunch="${m.lunch_recipe_id||''}" style="width:16px;height:16px;accent-color:var(--clay);cursor:pointer">
+    🌙 ${m.recipes?.name_en||m.recipe_id}
+  </label>`).join('');
   const el=document.getElementById('modal-overlay');
   if(el)el.innerHTML=`<div class="modal" style="max-width:480px">
     <h3>Meals from last week</h3>
     <p style="margin-bottom:14px">These meals weren't cooked last week. Tick any you'd like to carry over into this week.</p>
-    <div id="carryover-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
-      ${uncookedMeals.map(m=>`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--cream);border-radius:10px;cursor:pointer;font-size:0.88rem">
-        <input type="checkbox" value="${m.recipe_id}" style="width:16px;height:16px;accent-color:var(--clay);cursor:pointer">
-        ${m.recipes?.name_en||m.recipe_id}
-      </label>`).join('')}
-    </div>
+    ${uncookedLunches.length>0?`<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Lunches</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">${lunchRows}</div>`:''}
+    ${uncookedDinners.length>0?`<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Dinners</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">${dinnerRows}</div>`:''}
     <div class="modal-btns">
-      <button class="btn-ghost" onclick="doCreateNewPlan(${homeMeals},[])">Skip — don't carry any over</button>
+      <button class="btn-ghost" onclick="doCreateNewPlan(${homeMeals},[],[])">Skip — don't carry any over</button>
       <button class="btn-primary" onclick="confirmCarryOver(${homeMeals})">Add selected &amp; continue</button>
     </div>
   </div>`;
 }
 async function confirmCarryOver(homeMeals){
-  const checkboxes=document.querySelectorAll('#carryover-list input[type=checkbox]:checked');
-  const carryOverIds=Array.from(checkboxes).map(cb=>cb.value);
-  await doCreateNewPlan(homeMeals,carryOverIds);
+  const lunchChecks=document.querySelectorAll('.carryover-lunch:checked');
+  const dinnerChecks=document.querySelectorAll('.carryover-dinner:checked');
+  const carryOverLunchIds=Array.from(lunchChecks).map(cb=>cb.value);
+  const carryOverDinners=Array.from(dinnerChecks).map(cb=>({recipe_id:cb.value,lunch_recipe_id:cb.dataset.lunch||null}));
+  await doCreateNewPlan(homeMeals,carryOverLunchIds,carryOverDinners);
 }
-async function doCreateNewPlan(homeMeals,carryOverIds){
+async function doCreateNewPlan(homeMeals,carryOverIds,carryOverDinners=[]){
   const allRecipes=await loadRecipes();const picked=await selectMealsForWeek(allRecipes,homeMeals);
   try{
     await sb.from('weekly_plans').update({status:'archived'}).not('status','eq','archived');
@@ -905,12 +914,15 @@ async function doCreateNewPlan(homeMeals,carryOverIds){
     currentPlan=newPlan;
     // Insert newly suggested meals
     if(picked.length>0){const{error:mealsError}=await sb.from('weekly_plan_meals').insert(picked.map(r=>({plan_id:currentPlan.id,recipe_id:r.id,cooked:false,is_dinner:false})));if(mealsError)throw mealsError;}
-    // Insert carried-over meals (skip any already in picked)
+    // Insert carried-over lunches (skip any already in picked)
     const pickedIds=new Set(picked.map(r=>r.id));
     const toCarry=carryOverIds.filter(id=>!pickedIds.has(id));
     if(toCarry.length>0){const{error:carryErr}=await sb.from('weekly_plan_meals').insert(toCarry.map(id=>({plan_id:currentPlan.id,recipe_id:id,cooked:false,is_dinner:false})));if(carryErr)throw carryErr;}
+    // Insert carried-over dinners
+    if(carryOverDinners.length>0){const{error:dinnerCarryErr}=await sb.from('weekly_plan_meals').insert(carryOverDinners.map(d=>({plan_id:currentPlan.id,recipe_id:d.recipe_id,lunch_recipe_id:d.lunch_recipe_id||null,cooked:false,is_dinner:true})));if(dinnerCarryErr)throw dinnerCarryErr;}
     closeModal();await loadWeekData();myRatingsThisWeek={};await loadMyRatingsThisWeek();await renderDashboard();
-    if(toCarry.length>0)showToast(`${toCarry.length} meal${toCarry.length!==1?'s':''} carried over ✓`);
+    const total=(toCarry.length)+(carryOverDinners.length);
+    if(total>0)showToast(`${total} meal${total!==1?'s':''} carried over ✓`);
   }catch(err){showToast('Something went wrong. Please try again.','error');}
 }
 const modalTitles={swap:{h:'Request a meal swap',p:'Pick the meal to remove, choose a replacement, and tell Cameron why.'},hibernate:{h:'Request hibernation',p:'Which meal should be rested? It will be hibernated for 2 months.'},new:{h:'Suggest a new meal',p:'What meal would you like to add? Briefly explain why.'}};
@@ -2079,10 +2091,10 @@ function mealRowSiennaDinner(m){
   const prepMin=r.prep_time_minutes||'—';
   const actionHtml=!isCooked?`<button class="btn-secondary" style="font-size:0.75rem;padding:4px 10px" onclick="markDinnerCooked('${rid}','${mid}')">✓ Cooked</button>`:'<span class="tag tag-green">Cooked ✓</span>';
   const alreadySwapped=dinnerSwappedIds.has(mid);
-  const swapBtn=!isCooked
+  const swapBtn=!isCooked&&currentUserCan('manage_dinners')
     ?alreadySwapped
       ?`<button class="btn-secondary" style="font-size:0.72rem;padding:4px 10px;opacity:0.45;cursor:not-allowed" disabled title="Already swapped once this week">⇄ Swapped</button>`
-      :`<button class="btn-secondary" style="font-size:0.72rem;padding:4px 10px" onclick="openDinnerSwapModal('${mid}','${lrid}','${rid}')">⇄ Swap</button>`
+      :`<button class="btn-secondary" style="font-size:0.72rem;padding:4px 10px" onclick="openDinnerSwapModal('${mid}','${lrid}','${rid}')">⇄ Change dinner</button>`
     :'';
   return`<div class="meal-item ${isCooked?'cooked':''}"><div style="flex:1"><div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">🌙 ${r.name_en}</div><div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${prepMin} min prep${avgStr} ${pairedLabel}</div>${ratingHtml}${ratedHtml}</div><div class="meal-actions" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${actionHtml}${swapBtn}</div></div>`;
 }
@@ -2103,7 +2115,7 @@ async function openDinnerSwapModal(planMealId,lunchRecipeId,currentDinnerRecipeI
   const options=dinnerRecipes.filter(r=>String(r.id)!==String(currentDinnerRecipeId));
   if(options.length===0){showToast('No other options available for this pairing','error');return;}
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-  el.innerHTML=`<div class="modal" style="max-width:400px"><h3>Swap this dinner</h3><p>Pick a different option from the paired choices for this lunch.</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">${options.map(r=>`<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem;width:100%" onclick="swapDinner('${planMealId}','${r.id}')">${r.name_en}</button>`).join('')}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
+  el.innerHTML=`<div class="modal" style="max-width:400px"><h3>Change dinner</h3><p>Choose from the 3 paired options for this lunch.</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">${options.map(r=>`<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem;width:100%" onclick="swapDinner('${planMealId}','${r.id}')">${r.name_en}</button>`).join('')}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
   document.body.appendChild(el);el.addEventListener('click',e=>{if(e.target===el)closeModal();});
 }
 async function swapDinner(planMealId,newDinnerRecipeId){
