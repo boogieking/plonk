@@ -282,6 +282,24 @@
     .recurring-header{display:flex;align-items:center;justify-content:space-between;font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:#3a7a3a;margin-bottom:10px;}
     .recurring-item{opacity:0.85;}
     .recurring-item:hover{opacity:1;}
+    .trend-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.12s;}
+    .trend-row:last-child{border-bottom:none;}
+    .trend-row:hover{background:var(--cream);border-radius:8px;padding-left:8px;padding-right:8px;}
+    .trend-name{flex:1;font-size:0.88rem;font-weight:500;color:var(--dark);}
+    .trend-name-es{font-size:0.74rem;color:var(--mid);}
+    .trend-price{font-size:0.92rem;font-weight:600;min-width:80px;text-align:right;}
+    .trend-change{font-size:0.78rem;font-weight:500;min-width:70px;text-align:right;}
+    .trend-change.up{color:#c44;}
+    .trend-change.down{color:#3a7a3a;}
+    .trend-change.stable{color:var(--mid);}
+    .sparkline{display:flex;align-items:flex-end;gap:2px;height:24px;min-width:50px;}
+    .spark-bar{width:7px;border-radius:2px 2px 0 0;background:var(--clay);opacity:0.5;transition:opacity 0.12s;}
+    .spark-bar:last-child{opacity:1;}
+    .trend-filter-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+    .trends-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;}
+    .trends-stat{background:var(--cream);border-radius:10px;padding:12px;text-align:center;}
+    .trends-stat-num{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dark);}
+    .trends-stat-label{font-size:0.72rem;color:var(--mid);text-transform:uppercase;letter-spacing:0.06em;margin-top:2px;}
     /* ── SCANNER ── */
     .scanner-overlay{position:fixed;inset:0;z-index:300;background:rgba(26,22,18,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;}
     .scanner-card{background:var(--cream);border-radius:18px;padding:16px;width:100%;max-width:420px;max-height:92vh;overflow-y:auto;box-sizing:border-box;}
@@ -2235,15 +2253,18 @@ function shareRecipe(recipeId){
 }
 
 // ── PRODUCTS VIEW ────────────────────────────────────────────────
-let productsCache=null,productFilterStore='all',productFilterSearch='';
+let productsCache=null,productFilterStore='all',productFilterSearch='',productsSubView='products',trendFilter='all';
 const STORE_OPTIONS=['La Comer','City Market','Other'];
 
 async function renderProductsView(){
   if(userProfile.role!=='admin'){showToast('Products management is admin only','error');switchView('dashboard');return;}
   const content=document.getElementById('dashboard-content');
-  content.innerHTML=`<div class="fade-in"><div class="page-header"><h1>Products</h1><p>Manage the household products linked to recipe ingredients</p></div><div class="products-toolbar"><input class="search-input" id="product-search" placeholder="Search products…" oninput="filterProducts()" style="max-width:280px"><button class="filter-pill ${productFilterStore==='all'?'active':''}" onclick="setProductStoreFilter('all')">All stores</button><button class="filter-pill ${productFilterStore==='La Comer'?'active':''}" onclick="setProductStoreFilter('La Comer')">La Comer</button><button class="filter-pill ${productFilterStore==='City Market'?'active':''}" onclick="setProductStoreFilter('City Market')">City Market</button><button class="btn-primary" style="margin-left:auto" onclick="openAddProductModal()">+ Add product</button><button class="scan-btn" style="margin-left:8px" onclick="openBarcodeScanner('products')">📷 Scan</button><button class="scan-btn" style="margin-left:4px" onclick="openReceiptScanner()">📄 Receipt</button></div><div id="products-grid"><div class="empty"><span class="empty-icon">🛒</span>Loading products...</div></div></div>`;
-  await loadAndRenderProducts();
+  const isTrends=productsSubView==='trends';
+  content.innerHTML=`<div class="fade-in"><div class="page-header"><h1>Products</h1><p>Manage the household products linked to recipe ingredients</p></div><div class="products-toolbar"><input class="search-input" id="product-search" placeholder="Search products…" oninput="filterProducts()" style="max-width:220px;${isTrends?'display:none':''}"><button class="filter-pill ${!isTrends&&productFilterStore==='all'?'active':''}" onclick="setProductSubViewProducts('all')">All stores</button><button class="filter-pill ${!isTrends&&productFilterStore==='La Comer'?'active':''}" onclick="setProductSubViewProducts('La Comer')">La Comer</button><button class="filter-pill ${!isTrends&&productFilterStore==='City Market'?'active':''}" onclick="setProductSubViewProducts('City Market')">City Market</button><button class="filter-pill ${isTrends?'active':''}" onclick="setProductsSubView('trends')">📈 Trends</button><button class="btn-primary" style="margin-left:auto;${isTrends?'display:none':''}" onclick="openAddProductModal()">+ Add product</button><button class="scan-btn" style="margin-left:8px;${isTrends?'display:none':''}" onclick="openBarcodeScanner('products')">📷 Scan</button><button class="scan-btn" style="margin-left:4px;${isTrends?'display:none':''}" onclick="openReceiptScanner()">📄 Receipt</button></div><div id="products-grid"><div class="empty"><span class="empty-icon">🛒</span>Loading...</div></div></div>`;
+  if(isTrends){await renderPriceTrendsView();}else{await loadAndRenderProducts();}
 }
+function setProductSubViewProducts(store){productsSubView='products';productFilterStore=store;renderProductsView();}
+function setProductsSubView(view){productsSubView=view;renderProductsView();}
 
 async function loadAndRenderProducts(){
   const{data,error}=await sb.from('household_products').select('*, ingredients(name_en)').order('name_es');
@@ -2324,8 +2345,88 @@ async function showPriceHistory(productId,productName){
   body.innerHTML=`<div style="padding:16px">${trend}${overallHtml}</div>`;
 }
 
-function setProductStoreFilter(store){productFilterStore=store;renderProductsView();}
+function setProductStoreFilter(store){productsSubView='products';productFilterStore=store;renderProductsView();}
 function filterProducts(){renderFilteredProducts();}
+
+async function renderPriceTrendsView(){
+  const grid=document.getElementById('products-grid');if(!grid)return;
+  grid.innerHTML=`<div class="empty"><div class="spin" style="width:20px;height:20px;border-width:2px;margin:0 auto 8px"></div>Loading price data…</div>`;
+  // Fetch all products with price history (at least 2 entries)
+  const{data:history,error}=await sb.from('price_history')
+    .select('product_id,price_mxn,recorded_at')
+    .order('recorded_at',{ascending:true});
+  if(error||!history?.length){grid.innerHTML=`<div class="empty"><span class="empty-icon">📈</span>No price history yet — prices build up as you shop and scan receipts.</div>`;return;}
+  // Group by product
+  const byProduct={};
+  for(const row of history){
+    if(!byProduct[row.product_id])byProduct[row.product_id]=[];
+    byProduct[row.product_id].push(row);
+  }
+  // Only keep products with 2+ entries
+  const eligible=Object.entries(byProduct).filter(([,rows])=>rows.length>=2);
+  if(!eligible.length){grid.innerHTML=`<div class="empty"><span class="empty-icon">📈</span>Not enough data yet — need at least 2 shops per product to show trends.</div>`;return;}
+  // Load product names
+  const productIds=eligible.map(([id])=>id);
+  const{data:products}=await sb.from('household_products').select('id,name_en,name_es,category').in('id',productIds);
+  const prodMap={};for(const p of products||[])prodMap[p.id]=p;
+  // Build trend data
+  const trends=eligible.map(([id,rows])=>{
+    const prices=rows.map(r=>r.price_mxn);
+    const first=prices[0];
+    const last=prices[prices.length-1];
+    const recent=prices.slice(-6); // last 6 for sparkline
+    const change=last-first;
+    const pct=first>0?((change/first)*100):0;
+    const prod=prodMap[id]||{name_en:id,name_es:'',category:'Other'};
+    return{id,prod,prices,recent,first,last,change,pct};
+  }).sort((a,b)=>Math.abs(b.pct)-Math.abs(a.pct));
+  // Summary stats
+  const rising=trends.filter(t=>t.change>0).length;
+  const falling=trends.filter(t=>t.change<0).length;
+  const stable=trends.filter(t=>t.change===0).length;
+  // Filter
+  let filtered=trends;
+  if(trendFilter==='rising')filtered=trends.filter(t=>t.change>0);
+  else if(trendFilter==='falling')filtered=trends.filter(t=>t.change<0);
+  else if(trendFilter==='stable')filtered=trends.filter(t=>t.change===0);
+  // Render
+  const filterBtns=['all','rising','falling','stable'].map(f=>
+    `<button class="filter-pill ${trendFilter===f?'active':''}" onclick="trendFilter='${f}';renderPriceTrendsView()">${f.charAt(0).toUpperCase()+f.slice(1)}${f==='rising'?' ▲':f==='falling'?' ▼':''}</button>`
+  ).join('');
+  const rows=filtered.map(t=>{
+    const dir=t.change>0?'up':t.change<0?'down':'stable';
+    const arrow=t.change>0?'▲':t.change<0?'▼':'—';
+    const changeStr=t.change!==0?`${arrow} $${Math.abs(t.change).toFixed(2)} (${Math.abs(t.pct).toFixed(1)}%)`:'Stable';
+    // Sparkline
+    const max=Math.max(...t.recent);const min=Math.min(...t.recent);
+    const range=max-min||1;
+    const bars=t.recent.map(p=>{
+      const h=Math.max(4,Math.round(((p-min)/range)*20));
+      const col=p===max?'#c44':p===min?'#3a7a3a':'var(--clay)';
+      return`<div class="spark-bar" style="height:${h}px;background:${col}"></div>`;
+    }).join('');
+    return`<div class="trend-row" onclick="showPriceHistory('${t.id}','${(t.prod.name_en||t.prod.name_es).replace(/'/g,"\\'")}')">
+      <div style="flex:1">
+        <div class="trend-name">${t.prod.name_en||t.prod.name_es}</div>
+        ${t.prod.name_es&&t.prod.name_en!==t.prod.name_es?`<div class="trend-name-es">${t.prod.name_es}</div>`:''}
+      </div>
+      <div class="sparkline">${bars}</div>
+      <div class="trend-price">$${t.last.toFixed(2)}</div>
+      <div class="trend-change ${dir}">${changeStr}</div>
+    </div>`;
+  }).join('');
+  grid.innerHTML=`
+    <div class="trends-summary">
+      <div class="trends-stat"><div class="trends-stat-num" style="color:#c44">${rising}</div><div class="trends-stat-label">Rising ▲</div></div>
+      <div class="trends-stat"><div class="trends-stat-num" style="color:#3a7a3a">${falling}</div><div class="trends-stat-label">Falling ▼</div></div>
+      <div class="trends-stat"><div class="trends-stat-num">${stable}</div><div class="trends-stat-label">Stable</div></div>
+    </div>
+    <div class="trend-filter-row">${filterBtns}</div>
+    <div class="card" style="padding:0 16px">
+      ${filtered.length?rows:`<div class="empty" style="padding:20px">No products in this filter</div>`}
+    </div>
+    <div style="font-size:0.74rem;color:var(--mid);margin-top:12px;text-align:center">Tap any row to see full price history · Change shown from first to last recorded price</div>`;
+}
 
 async function openAddProductModal(prefill={}){
   const{data:ingredients,error:ingErr}=await sb.from('ingredients').select('id,name_en').not('recipe_id','is',null).not('name_en','is',null).order('name_en');
