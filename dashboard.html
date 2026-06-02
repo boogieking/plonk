@@ -278,6 +278,10 @@
     .trolley-total-usd{font-size:0.78rem;color:rgba(255,255,255,0.5);margin-top:1px;}
     .trolley-finish-btn{background:var(--clay);color:white;border:none;border-radius:9px;padding:9px 18px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:500;cursor:pointer;white-space:nowrap;transition:background 0.18s;}
     .trolley-finish-btn:hover{background:var(--clay-dark);}
+    .recurring-section{margin-top:20px;border-top:1px solid var(--border);padding-top:14px;}
+    .recurring-header{display:flex;align-items:center;justify-content:space-between;font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:#3a7a3a;margin-bottom:10px;}
+    .recurring-item{opacity:0.85;}
+    .recurring-item:hover{opacity:1;}
     /* ── SCANNER ── */
     .scanner-overlay{position:fixed;inset:0;z-index:300;background:rgba(26,22,18,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;}
     .scanner-card{background:var(--cream);border-radius:18px;padding:16px;width:100%;max-width:420px;max-height:92vh;overflow-y:auto;box-sizing:border-box;}
@@ -1244,7 +1248,7 @@ async function loadKarenShoppingPreview(){
   try{const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();if(!deduped[key]||(!deduped[key].lacomer_url&&ing.lacomer_url))deduped[key]=ing;}const linked=await applyProductLinks(Object.values(deduped));const items=linked.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load list: ${err.message}</div>`;}
 }
-function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems){
+function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyItems=[],dueSoonItems=[]){
   const UNITS=['g','kg','ml','L','units','pcs','tbsp','tsp'];
   const groups={};
   for(const ing of mealItems){const cat=ing.lacomer_category||'Other';if(!groups[cat])groups[cat]=[];const qty=ing.quantity?`${ing.quantity}${ing.unit?' '+ing.unit:''}`:'' ;groups[cat].push({...ing,_type:'ingredient',_qtyStr:qty});}
@@ -1270,6 +1274,19 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems){
     }
   }
   if(isAdmin&&ckItems.length>0){const unitOpts=UNITS.map(u=>`<option value="${u}">${u}</option>`).join('');html+=`<div class="casa-king-section" id="ck-pre-consolidate"><div class="casa-king-header"><div class="card-title">Household items</div><span class="casa-king-badge">Casa King</span></div><div style="font-size:0.78rem;color:var(--mid);margin-bottom:12px">Add quantities then hit Consolidate ↑</div>`;for(const item of ckItems){html+=`<div class="ck-item-row" id="ck-row-${item.id}"><div class="ck-item-text" style="flex:1">${item.text}</div><input type="number" min="0" step="any" id="ck-qty-${item.id}" placeholder="qty" style="width:60px;border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:0.82rem;margin-right:4px"><select id="ck-unit-${item.id}" style="border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:0.82rem;margin-right:8px">${unitOpts}</select><button class="ck-done-btn ${item.done?'done':''}" onclick="tickCKItem('${item.id}',this)">${item.done?'Done ✓':'Got it'}</button></div>`;}html+=`</div>`;}
+  // Always-buy section
+  const allRecurring=[...alwaysBuyItems,...dueSoonItems];
+  if(allRecurring.length>0){
+    html+=`<div class="recurring-section"><div class="recurring-header"><span>♻ Regular items</span><button class="btn-ghost" style="font-size:0.72rem;padding:3px 8px" onclick="this.closest('.recurring-section').querySelector('.recurring-list').style.display=this.closest('.recurring-section').querySelector('.recurring-list').style.display==='none'?'':'none';this.textContent=this.textContent==='▼ Show'?'▲ Hide':'▼ Show'">▲ Hide</button></div><div class="recurring-list">`;
+    for(const p of allRecurring){
+      const isDueSoon=!p.always_buy;
+      const badge=isDueSoon?`<span style="font-size:0.7rem;color:var(--clay)">due this week</span>`:`<span style="font-size:0.7rem;color:#3a7a3a">always buy</span>`;
+      const qty=p.standing_qty?`<span class="shop-qty"> · ${p.standing_qty}</span>`:'';
+      const link=p.store_url?`<a class="shop-link" href="${p.store_url}" target="_blank">🛒 La Comer</a>`:'';
+      html+=`<div class="shop-row recurring-item" id="shop-row-rec-${p.id}"><div class="shop-names"><div class="shop-name-en">${p.name_en||p.name_es}${qty}</div><div class="shop-name-es">${p.name_es||''} ${badge}</div></div>${link}<button class="adhoc-item-remove" onclick="removeRecurringFromList('${p.id}',this)" title="Remove from this week">✕</button></div>`;
+    }
+    html+=`</div></div>`;
+  }
   return html||`<div class="empty" style="color:var(--green)">✓ Nothing needed — you have everything!</div>`;
 }
 /* ── PRODUCT LINK OVERLAY ─────────────────────── */
@@ -1295,6 +1312,42 @@ async function applyProductLinks(ingredients){
   }catch(e){console.warn('household_products lookup failed:',e.message);return ingredients;}
 }
 /* ── END PRODUCT LINK OVERLAY ─────────────────── */
+function showDueSoonNudge(items){
+  return new Promise(resolve=>{
+    const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+    el.innerHTML=`<div class="modal" style="max-width:420px">
+      <h3>🛒 Usually buy these now</h3>
+      <p style="font-size:0.83rem;color:var(--mid);margin-bottom:14px">These products are due based on how often you buy them. Tick any to add to this week's list.</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+        ${items.map(p=>`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--cream);border-radius:10px;cursor:pointer;font-size:0.88rem">
+          <input type="checkbox" class="due-soon-check" value="${p.id}" data-name="${(p.name_en||p.name_es).replace(/"/g,'&quot;')}" style="width:16px;height:16px;accent-color:var(--clay);cursor:pointer" checked>
+          <span style="flex:1">${p.name_en||p.name_es}${p.name_es&&p.name_en!==p.name_es?`<span style="font-size:0.75rem;color:var(--mid)"> · ${p.name_es}</span>`:''}</span>
+          <span style="font-size:0.75rem;color:var(--mid)">every ${p.buy_every_weeks}w</span>
+        </label>`).join('')}
+      </div>
+      <div class="modal-btns">
+        <button class="btn-ghost" onclick="window._dueSoonResolve([]);closeModal()">Skip all</button>
+        <button class="btn-primary" onclick="confirmDueSoon(${JSON.stringify(items).replace(/"/g,'&quot;')})">Add selected ✓</button>
+      </div>
+    </div>`;
+    document.body.appendChild(el);
+    window._dueSoonResolve=resolve;
+  });
+}
+function confirmDueSoon(items){
+  const checked=document.querySelectorAll('.due-soon-check:checked');
+  const selectedIds=new Set(Array.from(checked).map(c=>c.value));
+  const selected=items.filter(p=>selectedIds.has(p.id));
+  closeModal();
+  if(window._dueSoonResolve)window._dueSoonResolve(selected);
+}
+function removeRecurringFromList(productId,btn){
+  const row=document.getElementById(`shop-row-rec-${productId}`);
+  if(row)row.remove();
+  // If recurring list is now empty, remove the section
+  const list=document.querySelector('.recurring-list');
+  if(list&&list.children.length===0)document.querySelector('.recurring-section')?.remove();
+}
 async function generateShoppingList(){
   clearShoppingState();
   const btn=document.getElementById('generate-btn');const content=document.getElementById('shopping-list-content');
@@ -1313,13 +1366,27 @@ async function generateShoppingList(){
     const linkedIngredients=await applyProductLinks(Object.values(deduped));
     const mealItems=linkedIngredients.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));
     let ckItems=[];try{ckItems=await ckFetch('ck_items?cat=eq.shopping&done=eq.false&select=id,text,done&order=text.asc');}catch(e){console.warn('Casa King fetch failed:',e.message);}
-    content.innerHTML=renderShoppingListHTML(mealItems,ckItems,true,karenAdditions);
+    // Load always-buy and due-soon products
+    const{data:recurringProds}=await sb.from('household_products').select('id,name_en,name_es,always_buy,standing_qty,buy_every_weeks,last_bought_at,store_url,category').or('always_buy.eq.true,buy_every_weeks.not.is.null');
+    const alwaysBuyItems=(recurringProds||[]).filter(p=>p.always_buy);
+    const now=new Date();
+    const dueSoonItems=(recurringProds||[]).filter(p=>!p.always_buy&&p.buy_every_weeks>0&&(()=>{
+      if(!p.last_bought_at)return true;
+      const weeksSince=(now-new Date(p.last_bought_at))/(1000*60*60*24*7);
+      return weeksSince>=(p.buy_every_weeks-0.5);
+    })());
+    // Show due-soon nudge if any
+    let userPickedDueSoon=[];
+    if(dueSoonItems.length>0){
+      userPickedDueSoon=await showDueSoonNudge(dueSoonItems);
+    }
+    content.innerHTML=renderShoppingListHTML(mealItems,ckItems,true,karenAdditions,alwaysBuyItems,[...userPickedDueSoon]);
     const consolidateBtn=document.getElementById('consolidate-btn');if(consolidateBtn)consolidateBtn.style.display=ckItems.length>0?'':'none';
     for(const[id,val]of Object.entries(savedCKQtys)){const el=document.getElementById(`ck-qty-${id}`);if(el)el.value=val;}
     for(const[id,val]of Object.entries(savedCKUnits)){const el=document.getElementById(`ck-unit-${id}`);if(el)el.value=val;}
     btn.textContent='Regenerate list';btn.disabled=false;
     const ssBtn=document.getElementById('start-shopping-btn');if(ssBtn)ssBtn.style.display='';
-    saveShoppingState(mealItems,ckItems);
+    saveShoppingState(mealItems,ckItems,alwaysBuyItems,[...userPickedDueSoon]);
    const notifications=currentPlan.notifications||{};if(!notifications.shoplist_sent){await sb.from('weekly_plans').update({notifications:{...notifications,shoplist_sent:true}}).eq('id',currentPlan.id);currentPlan.notifications={...notifications,shoplist_sent:true};await sendEmail('plan_finalised');}
   }catch(err){content.innerHTML=`<div class="empty" style="color:#c44">Error: ${err.message}</div>`;btn.textContent='Generate list';btn.disabled=false;}
 }
@@ -1360,6 +1427,13 @@ async function finishTrolleyMode(){
   const snapshot={...trolleyItems};
   const snapTotal=Object.values(snapshot).filter(i=>!i.notFound).reduce((s,i)=>s+(i.price||0),0);
   showReceiptModal(snapshot,snapTotal,savedCount);
+  // Update last_bought_at for any recurring items that were in the trolley
+  const recurringRows=document.querySelectorAll('.recurring-item');
+  if(recurringRows.length>0){
+    const now=new Date().toISOString();
+    const ids=Array.from(recurringRows).map(r=>r.id.replace('shop-row-rec-',''));
+    for(const id of ids){try{await sb.from('household_products').update({last_bought_at:now}).eq('id',id);}catch(e){console.warn('last_bought_at update failed:',e);}}
+  }
   // Clear trolley UI
   trolleyMode=false;trolleyItems={};clearTrolleyState();clearShoppingState();
   const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');
@@ -2195,6 +2269,8 @@ function productRowHtml(p){
   const foodCats=['Meats & Eggs','Dairy','Produce','Grains, Pasta & Bakery','Canned & Packaged Foods','Herbs, Vinegar & Condiments','Frozen','Beverages','Grains Pasta & Bakery','Canned & Packaged'];
   const nonFoodCats=['Household','Cleaning','Personal Care','Baby','Pet','Office','Garden'];
   const isFoodCat=p.category&&!nonFoodCats.some(c=>p.category.toLowerCase().includes(c.toLowerCase()))&&foodCats.some(c=>p.category.toLowerCase().includes(c.toLowerCase().split(' ')[0]));
+  const alwaysBuyBadge=p.always_buy?`<span style="font-size:0.7rem;background:rgba(80,160,80,0.12);color:#3a7a3a;border:1px solid rgba(80,160,80,0.3);border-radius:20px;padding:2px 8px;font-weight:500">♻ Always buy${p.standing_qty?' · '+p.standing_qty:''}</span>`:'';
+  const dueSoonBadge=p.buy_every_weeks&&!p.always_buy?`<span style="font-size:0.7rem;background:rgba(180,120,40,0.1);color:var(--clay);border:1px solid rgba(180,120,40,0.2);border-radius:20px;padding:2px 8px">every ${p.buy_every_weeks}w</span>`:'';
   const unlinked=!linkedIng&&!p.is_pantry_item&&isFoodCat?`<span class="unlinked-badge">⚠ unlinked ingredient</span><button class="quick-link-btn" onclick="openQuickLink('${p.id}',this)">🔗 Link</button>`:'';
   const isIncomplete=p.notes?.includes('incomplete')||(!p.name_en||!p.category);
   const incompleteBadge=isIncomplete?`<span class="incomplete-badge">⚠ incomplete</span>`:'';
@@ -2207,6 +2283,7 @@ function productRowHtml(p){
         <span class="product-store-tag">${p.store||'La Comer'}</span>
         ${prefLaComer}${prefCity}
         ${linkedIng?`<span style="font-size:0.72rem;color:var(--mid)">→ ${linkedIng}</span>`:''}
+        ${alwaysBuyBadge}${dueSoonBadge}
         ${unlinked}
         ${incompleteBadge}
         ${p.notes&&!p.notes.includes('incomplete')?`<span style="font-size:0.72rem;color:var(--mid);font-style:italic">${p.notes}</span>`:''}
@@ -2269,6 +2346,15 @@ async function openAddProductModal(prefill={}){
       <div style="display:flex;gap:16px"><label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" id="prod-pref-lc" ${prefill.is_preferred_lacomer?'checked':''}> Preferred at La Comer</label><label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" id="prod-pref-cm" ${prefill.is_preferred_citymarket?'checked':''}> Preferred at City Market</label></div>
       <div><label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" id="prod-pantry" ${prefill.is_pantry_item?'checked':''}> Not a recipe ingredient (pantry / household item)</label></div>
       <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Price at La Comer (MXN)</label><input id="prod-price" class="search-input" placeholder="e.g. 45.50" type="number" min="0" step="0.01" value="${prefill.last_price_mxn||''}" style="width:100%"></div>
+      <div style="background:var(--cream);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid)">Recurring purchase</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer"><input type="checkbox" id="prod-always-buy" ${prefill.always_buy?'checked':''}>  <span><strong>Always buy</strong> — added to every shopping list automatically</span></label>
+        <div style="display:flex;gap:10px;align-items:flex-end">
+          <div style="flex:1"><label style="display:block;font-size:0.75rem;color:var(--mid);margin-bottom:4px">Quantity (optional)</label><input id="prod-standing-qty" class="search-input" placeholder="e.g. 2L, 1 dozen, 500g" value="${prefill.standing_qty||''}" style="width:100%"></div>
+          <div style="flex:1"><label style="display:block;font-size:0.75rem;color:var(--mid);margin-bottom:4px">Or buy every X weeks</label><input id="prod-buy-every" class="search-input" type="number" min="1" max="52" placeholder="e.g. 2" value="${prefill.buy_every_weeks||''}" style="width:100%"></div>
+        </div>
+        <div style="font-size:0.75rem;color:var(--mid)">💡 Always buy adds it every week. Every X weeks suggests it when it is due.</div>
+      </div>
       <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Notes (optional)</label><input id="prod-notes" class="search-input" placeholder="e.g. Only buy on sale" value="${prefill.notes||''}" style="width:100%"></div>
     </div>
     <div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="saveNewProduct()">Save product</button></div>
@@ -2289,6 +2375,9 @@ async function saveNewProduct(){
     is_preferred_lacomer:document.getElementById('prod-pref-lc')?.checked||false,
     is_preferred_citymarket:document.getElementById('prod-pref-cm')?.checked||false,
     is_pantry_item:document.getElementById('prod-pantry')?.checked||false,
+    always_buy:document.getElementById('prod-always-buy')?.checked||false,
+    standing_qty:document.getElementById('prod-standing-qty')?.value.trim()||null,
+    buy_every_weeks:parseInt(document.getElementById('prod-buy-every')?.value)||null,
     last_price_mxn:parseFloat(document.getElementById('prod-price')?.value)||null,
     notes:document.getElementById('prod-notes')?.value.trim()||null,
     added_by:userProfile.id,
@@ -2343,6 +2432,9 @@ async function updateProduct(productId){
     is_preferred_lacomer:document.getElementById('prod-pref-lc')?.checked||false,
     is_preferred_citymarket:document.getElementById('prod-pref-cm')?.checked||false,
     is_pantry_item:document.getElementById('prod-pantry')?.checked||false,
+    always_buy:document.getElementById('prod-always-buy')?.checked||false,
+    standing_qty:document.getElementById('prod-standing-qty')?.value.trim()||null,
+    buy_every_weeks:parseInt(document.getElementById('prod-buy-every')?.value)||null,
     last_price_mxn:parseFloat(document.getElementById('prod-price')?.value)||null,
     notes:document.getElementById('prod-notes')?.value.trim()||null
   };
