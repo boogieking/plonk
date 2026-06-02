@@ -342,6 +342,39 @@
     .not-found-row .shop-name-en{text-decoration:line-through;}
     .cat-subtotal{font-size:0.7rem;font-weight:500;color:var(--clay);margin-left:auto;padding-left:8px;white-space:nowrap;}
     .trolley-banner-cats{font-size:0.72rem;color:rgba(255,255,255,0.55);margin-top:4px;line-height:1.6;}
+    .trolley-add-fab{position:fixed;bottom:80px;right:20px;z-index:210;width:48px;height:48px;border-radius:50%;background:var(--clay);color:white;border:none;font-size:1.4rem;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;transition:background 0.18s,transform 0.15s;}
+    .trolley-add-fab:hover{background:var(--clay-dark);transform:scale(1.08);}
+    .trolley-calc-fab{position:fixed;bottom:80px;right:76px;z-index:210;width:48px;height:48px;border-radius:50%;background:var(--dark);color:white;border:none;font-size:1.1rem;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;transition:background 0.18s,transform 0.15s;}
+    .trolley-calc-fab:hover{transform:scale(1.08);}
+    .adhoc-item-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(200,180,160,0.15);gap:10px;}
+    .adhoc-item-row:last-child{border-bottom:none;}
+    .adhoc-item-name{font-size:0.85rem;flex:1;color:var(--dark);}
+    .adhoc-item-price{font-size:0.85rem;font-weight:600;color:var(--clay);min-width:60px;text-align:right;}
+    .adhoc-item-remove{background:none;border:none;cursor:pointer;color:var(--mid);font-size:0.8rem;padding:2px 6px;border-radius:5px;transition:background 0.12s;}
+    .adhoc-item-remove:hover{background:var(--light);color:#c44;}
+    .adhoc-section-header{font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:var(--clay);margin:16px 0 8px;display:flex;align-items:center;gap:6px;}
+    .unsaved-prompt{background:var(--dark);color:white;border-radius:14px;padding:22px 24px;max-width:360px;width:90%;}
+    .unsaved-prompt-title{font-size:1rem;font-weight:600;margin-bottom:6px;}
+    .unsaved-prompt-sub{font-size:0.82rem;color:rgba(255,255,255,0.6);margin-bottom:16px;}
+    .unsaved-item-list{max-height:160px;overflow-y:auto;margin-bottom:16px;}
+    .unsaved-item-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.08);font-size:0.85rem;}
+    .unsaved-item-row:last-child{border-bottom:none;}
+    .calc-modal{background:var(--surface);border-radius:16px;padding:20px;max-width:300px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,0.18);}
+    .calc-display{background:var(--dark);color:white;border-radius:10px;padding:12px 16px;font-family:'Playfair Display',serif;font-size:1.6rem;text-align:right;margin-bottom:12px;min-height:52px;word-break:break-all;letter-spacing:0.02em;}
+    .calc-display-sub{font-size:0.75rem;color:rgba(255,255,255,0.45);font-family:'DM Sans',sans-serif;margin-bottom:2px;min-height:16px;}
+    .calc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+    .calc-btn{border:none;border-radius:9px;padding:14px 0;font-family:'DM Sans',sans-serif;font-size:0.95rem;font-weight:500;cursor:pointer;transition:background 0.12s,transform 0.1s;}
+    .calc-btn:active{transform:scale(0.94);}
+    .calc-btn-num{background:var(--light);color:var(--dark);}
+    .calc-btn-num:hover{background:#e0d8cc;}
+    .calc-btn-op{background:rgba(180,120,40,0.12);color:var(--clay);}
+    .calc-btn-op:hover{background:rgba(180,120,40,0.22);}
+    .calc-btn-eq{background:var(--clay);color:white;grid-column:span 2;}
+    .calc-btn-eq:hover{background:var(--clay-dark);}
+    .calc-btn-clear{background:rgba(200,60,60,0.1);color:#c44;}
+    .calc-btn-clear:hover{background:rgba(200,60,60,0.2);}
+    .calc-btn-pct{background:rgba(180,120,40,0.12);color:var(--clay);}
+    .calc-btn-zero{grid-column:span 2;}
     .receipt-modal{background:white;border-radius:var(--radius);padding:28px 24px;max-width:400px;width:90%;max-height:80vh;overflow-y:auto;}
     .receipt-title{font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--dark);margin-bottom:4px;}
     .receipt-date{font-size:0.75rem;color:var(--mid);margin-bottom:18px;}
@@ -650,7 +683,7 @@ function loadShoppingState(){
 function clearShoppingState(){const key=shoppingStateKey();if(key)localStorage.removeItem(key);}
 function saveTrolleyState(){
   const key=trolleyStateKey();if(!key)return;
-  try{localStorage.setItem(key,JSON.stringify({trolleyMode,trolleyItems,savedAt:Date.now()}));}catch(e){console.warn('Trolley state save failed:',e);}
+  try{localStorage.setItem(key,JSON.stringify({trolleyMode,trolleyItems,adhocItems,savedAt:Date.now()}));}catch(e){console.warn('Trolley state save failed:',e);}
 }
 function loadTrolleyState(){
   const key=trolleyStateKey();if(!key)return null;
@@ -677,6 +710,7 @@ async function restoreShoppingAndTrolleyState(){
     const trolleyState=loadTrolleyState();
     if(trolleyState&&trolleyState.trolleyMode){
       trolleyItems=trolleyState.trolleyItems||{};
+      adhocItems=trolleyState.adhocItems||[];
       trolleyMode=true;
       await fetchExchangeRate();
       if(btn)btn.style.display='none';
@@ -701,6 +735,7 @@ async function restoreShoppingAndTrolleyState(){
         }
       }
       updateTrolleyBanner();updateCatSubtotals();
+      if(adhocItems.length>0)renderAdhocSection();
       showToast('Welcome back — your trolley has been restored 🛒');
     }
   }
@@ -1280,8 +1315,12 @@ async function generateShoppingList(){
 async function fetchExchangeRate(){if(usdRate)return usdRate;try{const r=await fetch('https://open.er-api.com/v6/latest/MXN');const d=await r.json();if(d&&d.rates&&d.rates.USD){usdRate=d.rates.USD;return usdRate;}}catch(e){console.warn('Exchange rate fetch failed:',e.message);}return null;}
 async function startTrolleyMode(){trolleyMode=true;trolleyItems={};await fetchExchangeRate();const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');if(genBtn)genBtn.style.display='none';if(ssBtn)ssBtn.style.display='none';document.querySelectorAll('.link-btn-group').forEach(el=>el.style.display='none');renderTrolleyUI();saveTrolleyState();showToast('Shopping mode on — tick items as you add them 🛒');}
 async function finishTrolleyMode(){
+  // Check for unsaved adhoc items first
+  const shouldContinue=await checkUnsavedAdhocItems();
+  if(!shouldContinue)return;
+  adhocItems=[];
   // Save prices to household_products for all items that have a price
-  const itemsWithPrice=Object.entries(trolleyItems).filter(([k,v])=>k&&v.price>0&&!v.notFound);
+  const itemsWithPrice=Object.entries(trolleyItems).filter(([k,v])=>k&&v.price>0&&!v.notFound&&!v.isAdhoc);
   let savedCount=0;
   if(itemsWithPrice.length>0){
     for(const[ingId,item]of itemsWithPrice){
@@ -1317,6 +1356,8 @@ async function finishTrolleyMode(){
   document.getElementById('trolley-banner')?.remove();
   document.getElementById('in-trolley-section')?.remove();
   document.getElementById('trolley-col-header')?.remove();
+  document.getElementById('trolley-add-fab')?.remove();
+  document.getElementById('trolley-calc-fab')?.remove();
   document.querySelectorAll('.trolley-check-wrap').forEach(el=>el.remove());
   document.querySelectorAll('.trolley-price-wrap').forEach(el=>el.remove());
   document.querySelectorAll('.shop-cat-subtotal').forEach(el=>el.remove());
@@ -1417,8 +1458,15 @@ function renderTrolleyUI(){
   // In Trolley section at bottom
   if(!document.getElementById('in-trolley-section')){
     const sec=document.createElement('div');sec.id='in-trolley-section';sec.className='in-trolley-section';
-    sec.innerHTML=`<div class="in-trolley-header">🛒 In Trolley <span id="trolley-item-count">(0)</span></div><div id="in-trolley-list"></div>`;
+    sec.innerHTML=`<div class="in-trolley-header">🛒 In Trolley <span id="trolley-item-count">(0)</span></div><div id="in-trolley-list"></div><div id="adhoc-section" style="display:none"><div class="adhoc-section-header">➕ Added in store</div><div id="adhoc-list"></div></div>`;
     content.appendChild(sec);
+  }
+  // Floating FABs — add item + calculator
+  if(!document.getElementById('trolley-add-fab')){
+    const fab=document.createElement('button');fab.id='trolley-add-fab';fab.className='trolley-add-fab';fab.innerHTML='＋';fab.title='Add unplanned item';fab.onclick=openAddAdhocModal;document.body.appendChild(fab);
+  }
+  if(!document.getElementById('trolley-calc-fab')){
+    const cfab=document.createElement('button');cfab.id='trolley-calc-fab';cfab.className='trolley-calc-fab';cfab.innerHTML='🧮';cfab.title='Calculator';cfab.onclick=openCalculator;document.body.appendChild(cfab);
   }
 }
 function markNotFound(itemId,itemName,row,btn){
@@ -1479,6 +1527,192 @@ function updateCatSubtotals(){
     const total=cats[catName]||0;
     span.textContent=total>0?`$${total.toFixed(2)}`:'';
   });
+}
+/* ── ADHOC ITEMS ──────────────────────────────── */
+let adhocItems=[];
+function openAddAdhocModal(){
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="modal" style="max-width:360px">
+    <h3>Add item to trolley</h3>
+    <p style="font-size:0.83rem;color:var(--mid);margin-bottom:16px">For items not on your shopping list</p>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Item name</label>
+      <input id="adhoc-name-input" class="modal-input" placeholder="e.g. Extra cheese, Sparkling water..." autofocus style="width:100%;padding:10px 12px;border:1.5px solid var(--light);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.9rem;outline:none;box-sizing:border-box">
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Price (MXN)</label>
+      <input id="adhoc-price-input" class="modal-input" type="number" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:10px 12px;border:1.5px solid var(--light);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.9rem;outline:none;box-sizing:border-box">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="confirmAddAdhocItem()">Add to trolley</button>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+  setTimeout(()=>document.getElementById('adhoc-name-input')?.focus(),80);
+  document.getElementById('adhoc-price-input')?.addEventListener('keydown',e=>{if(e.key==='Enter')confirmAddAdhocItem();});
+}
+function confirmAddAdhocItem(){
+  const name=(document.getElementById('adhoc-name-input')?.value||'').trim();
+  const price=parseFloat(document.getElementById('adhoc-price-input')?.value)||0;
+  if(!name){showToast('Please enter a name','error');return;}
+  const id='adhoc-'+Date.now();
+  adhocItems.push({id,name,price,savedToProducts:false});
+  // Add to trolleyItems so it counts in the total
+  trolleyItems[id]={name,price,cat:'Ad-hoc',isAdhoc:true};
+  closeModal();
+  renderAdhocSection();
+  updateTrolleyBanner();updateCatSubtotals();
+  saveTrolleyState();
+  showToast(`"${name}" added to trolley ✓`);
+}
+function renderAdhocSection(){
+  const sec=document.getElementById('adhoc-section');
+  const list=document.getElementById('adhoc-list');
+  if(!sec||!list)return;
+  if(adhocItems.length===0){sec.style.display='none';return;}
+  sec.style.display='';
+  list.innerHTML=adhocItems.map(item=>`
+    <div class="adhoc-item-row" id="adhoc-row-${item.id}">
+      <span class="adhoc-item-name">${item.name}${item.savedToProducts?'<span style="font-size:0.7rem;color:var(--green);margin-left:6px">✓ saved</span>':''}</span>
+      <span class="adhoc-item-price">${item.price>0?'$'+item.price.toFixed(2)+' MXN':'—'}</span>
+      <button class="adhoc-item-remove" onclick="removeAdhocItem('${item.id}')" title="Remove">✕</button>
+    </div>`).join('');
+  const countEl=document.getElementById('trolley-item-count');
+  if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';
+}
+function removeAdhocItem(id){
+  adhocItems=adhocItems.filter(i=>i.id!==id);
+  delete trolleyItems[id];
+  renderAdhocSection();
+  updateTrolleyBanner();updateCatSubtotals();
+  saveTrolleyState();
+}
+/* ── UNSAVED ITEMS PROMPT ─────────────────────── */
+function checkUnsavedAdhocItems(){
+  const unsaved=adhocItems.filter(i=>!i.savedToProducts);
+  if(unsaved.length===0)return Promise.resolve(true);
+  return new Promise(resolve=>{
+    const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+    const rows=unsaved.map(i=>`<div class="unsaved-item-row"><span>${i.name}</span><span>${i.price>0?'$'+i.price.toFixed(2)+' MXN':'—'}</span></div>`).join('');
+    el.innerHTML=`<div class="unsaved-prompt">
+      <div class="unsaved-prompt-title">💾 ${unsaved.length} item${unsaved.length!==1?'s':''} not saved to products</div>
+      <div class="unsaved-prompt-sub">These ad-hoc items aren't in your product list yet. Save them so they appear in future shops?</div>
+      <div class="unsaved-item-list">${rows}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn-primary" style="flex:1" onclick="saveAdhocToProducts(${JSON.stringify(unsaved).replace(/"/g,'&quot;')},true)">Save all & finish</button>
+        <button class="btn-ghost" style="flex:1;color:rgba(255,255,255,0.7);border-color:rgba(255,255,255,0.2)" onclick="closeModal();window._adhocResolve(true)">Skip & finish</button>
+      </div>
+    </div>`;
+    document.body.appendChild(el);
+    window._adhocResolve=resolve;
+  });
+}
+async function saveAdhocToProducts(items,thenFinish){
+  closeModal();
+  let saved=0;
+  for(const item of items){
+    // Fire AI in background to get Spanish name + category
+    autoFillAdhocProduct(item);
+    // Save minimal record immediately
+    try{
+      const{error}=await sb.from('household_products').insert({name_en:item.name,name_es:item.name,store:'La Comer',last_price_mxn:item.price>0?item.price:null,added_by:userProfile?.id||null,created_at:new Date().toISOString(),notes:'Added in-store — needs review'});
+      if(!error){saved++;const ai=adhocItems.find(i=>i.id===item.id);if(ai)ai.savedToProducts=true;}
+    }catch(e){console.warn('Adhoc save failed:',item.name,e);}
+  }
+  if(saved>0)showToast(`${saved} item${saved!==1?'s':''} saved to products ✓`);
+  if(thenFinish&&window._adhocResolve)window._adhocResolve(true);
+}
+async function autoFillAdhocProduct(item){
+  // Fire AI call to guess Spanish name and category — updates product in background
+  try{
+    const proxyUrl='https://claude-proxy.cameronjohnking.workers.dev';
+    const secret=typeof PROXY_SECRET!=='undefined'?PROXY_SECRET:'';
+    const resp=await fetch(proxyUrl,{method:'POST',headers:{'Content-Type':'application/json','x-proxy-secret':secret},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:200,messages:[{role:'user',content:`For this grocery item sold at La Comer in Mexico: "${item.name}"
+Respond with ONLY a JSON object (no markdown) with these fields:
+- name_es: Spanish name as it would appear at La Comer
+- category: one of: Dairy, Meats & Eggs, Produce, Grains/Pasta/Bakery, Canned & Packaged, Herbs/Condiments, Beverages, Cleaning, Personal Care, Other
+- is_pantry_item: true or false`}]})});
+    const data=await resp.json();
+    const text=data.content?.find(b=>b.type==='text')?.text||'';
+    const clean=text.replace(/```json|```/g,'').trim();
+    const parsed=JSON.parse(clean);
+    // Update the product we just saved
+    const{data:prod}=await sb.from('household_products').select('id').eq('name_en',item.name).eq('added_by',userProfile?.id).order('created_at',{ascending:false}).limit(1).maybeSingle();
+    if(prod){await sb.from('household_products').update({name_es:parsed.name_es||item.name,category:parsed.category||'Other',is_pantry_item:parsed.is_pantry_item||false,notes:null}).eq('id',prod.id);}
+  }catch(e){console.warn('AI autofill failed for',item.name,e);}
+}
+/* ── CALCULATOR ───────────────────────────────── */
+let calcState={display:'0',prev:null,op:null,fresh:true};
+function openCalculator(){
+  if(document.getElementById('calc-modal-overlay'))return;
+  calcState={display:'0',prev:null,op:null,fresh:true};
+  const el=document.createElement('div');el.id='calc-modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="calc-modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h3 style="margin:0;font-size:0.95rem">Calculator</h3>
+      <button class="btn-ghost" style="padding:4px 10px;font-size:0.8rem" onclick="closeCalculator()">✕ Close</button>
+    </div>
+    <div class="calc-display"><div class="calc-display-sub" id="calc-sub"></div><div id="calc-main">0</div></div>
+    <div class="calc-grid">
+      <button class="calc-btn calc-btn-clear" onclick="calcInput('C')">C</button>
+      <button class="calc-btn calc-btn-op" onclick="calcInput('+/-')">+/−</button>
+      <button class="calc-btn calc-btn-pct" onclick="calcInput('%')">%</button>
+      <button class="calc-btn calc-btn-op" onclick="calcInput('/')">÷</button>
+      <button class="calc-btn calc-btn-num" onclick="calcInput('7')">7</button>
+      <button class="calc-btn calc-btn-num" onclick="calcInput('8')">8</button>
+      <button class="calc-btn calc-btn-num" onclick="calcInput('9')">9</button>
+      <button class="calc-btn calc-btn-op" onclick="calcInput('*')">×</button>
+      <button class="calc-btn calc-btn-num" onclick="calcInput('4')">4</button>
+      <button class="calc-btn calc-btn-num" onclick="calcInput('5')">5</button>
+      <button class="calc-btn calc-btn-num" onclick="calcInput('6')">6</button>
+      <button class="calc-btn calc-btn-op" onclick="calcInput('-')">−</button>
+      <button class="calc-btn calc-btn-num" onclick="calcInput('1')">1</button>
+      <button class="calc-btn calc-btn-num" onclick="calcInput('2')">2</button>
+      <button class="calc-btn calc-btn-num" onclick="calcInput('3')">3</button>
+      <button class="calc-btn calc-btn-op" onclick="calcInput('+')">+</button>
+      <button class="calc-btn calc-btn-num calc-btn-zero" onclick="calcInput('0')">0</button>
+      <button class="calc-btn calc-btn-num" onclick="calcInput('.')">.</button>
+      <button class="calc-btn calc-btn-eq" onclick="calcInput('=')">=</button>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+  // Prevent clicks on backdrop closing calculator (it's a tool, not a confirm modal)
+  el.addEventListener('click',e=>{if(e.target===el)closeCalculator();});
+}
+function closeCalculator(){document.getElementById('calc-modal-overlay')?.remove();}
+function calcInput(val){
+  const s=calcState;
+  if(val==='C'){s.display='0';s.prev=null;s.op=null;s.fresh=true;}
+  else if(val==='+/-'){s.display=String(parseFloat(s.display)*-1);}
+  else if(val==='%'){s.display=String(parseFloat(s.display)/100);}
+  else if(['+','-','*','/'].includes(val)){
+    s.prev=parseFloat(s.display);s.op=val;s.fresh=true;
+  }
+  else if(val==='='){
+    if(s.op&&s.prev!==null){
+      const cur=parseFloat(s.display);
+      let result;
+      if(s.op==='+')result=s.prev+cur;
+      else if(s.op==='-')result=s.prev-cur;
+      else if(s.op==='*')result=s.prev*cur;
+      else if(s.op==='/')result=cur!==0?s.prev/cur:0;
+      s.display=String(parseFloat(result.toFixed(10)));
+      s.prev=null;s.op=null;s.fresh=true;
+    }
+  }
+  else if(val==='.'){
+    if(s.fresh){s.display='0.';s.fresh=false;}
+    else if(!s.display.includes('.'))s.display+='.';
+  }
+  else{
+    if(s.fresh||s.display==='0'){s.display=val;s.fresh=false;}
+    else{if(s.display.replace('-','').length<12)s.display+=val;}
+  }
+  const main=document.getElementById('calc-main');
+  const sub=document.getElementById('calc-sub');
+  if(main)main.textContent=s.display;
+  if(sub)sub.textContent=s.op&&s.prev!==null?`${s.prev} ${s.op==='*'?'×':s.op==='/'?'÷':s.op} `:'';
 }
 /* ── END TROLLEY MODE ─────────────────────────── */
 function findOnLaComer(ingId,nameEs,btn){
