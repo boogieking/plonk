@@ -502,6 +502,7 @@
       <button class="nav-tab active" data-view="dashboard" onclick="switchView('dashboard')">This Week</button>
       <button class="nav-tab" data-view="recipes" onclick="switchView('recipes')">Recipes</button>
       <button class="nav-tab" data-view="products" onclick="switchView('products')" id="products-tab" style="display:none">Products</button>
+      <button class="nav-tab" data-view="history" onclick="switchView('history')" id="history-tab" style="display:none">History</button>
       <button class="nav-tab" data-view="permissions" onclick="switchView('permissions')" id="permissions-tab" style="display:none">Permissions</button>
     </div>
     <div class="nav-right">
@@ -565,7 +566,7 @@ async function init(){
   document.getElementById('loading').style.display='none';
   document.getElementById('app').classList.add('ready');
 }
-function renderNav(){const col=roleColor[userProfile.role]||'#888';const initials=(userProfile.name||'U').substring(0,1).toUpperCase();document.getElementById('nav-avatar').textContent=initials;document.getElementById('nav-avatar').style.background=col;document.getElementById('nav-name').textContent=userProfile.name;const roleEl=document.getElementById('nav-role-tag');roleEl.textContent=roleLabel[userProfile.role]||userProfile.role;roleEl.style.background=col;const productsTab=document.getElementById('products-tab');if(productsTab)productsTab.style.display=userProfile.role==='admin'?'':'none';const permissionsTab=document.getElementById('permissions-tab');if(permissionsTab)permissionsTab.style.display=userProfile.role==='admin'?'':'none';}
+function renderNav(){const col=roleColor[userProfile.role]||'#888';const initials=(userProfile.name||'U').substring(0,1).toUpperCase();document.getElementById('nav-avatar').textContent=initials;document.getElementById('nav-avatar').style.background=col;document.getElementById('nav-name').textContent=userProfile.name;const roleEl=document.getElementById('nav-role-tag');roleEl.textContent=roleLabel[userProfile.role]||userProfile.role;roleEl.style.background=col;const productsTab=document.getElementById('products-tab');if(productsTab)productsTab.style.display=userProfile.role==='admin'?'':'none';const historyTab=document.getElementById('history-tab');if(historyTab)historyTab.style.display=userProfile.role==='admin'?'':'none';const permissionsTab=document.getElementById('permissions-tab');if(permissionsTab)permissionsTab.style.display=userProfile.role==='admin'?'':'none';}
 async function signOut(){await sb.auth.signOut();window.location.href='index.html';}
 function planDateLabel(plan){if(!plan)return'';const d=new Date(plan.week_start+'T12:00:00');return d.toLocaleDateString('en-AU',{month:'long',day:'numeric',year:'numeric'});}
 function getTodayDate(){const now=new Date();return`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;}
@@ -1993,7 +1994,7 @@ async function checkHibernationWakeUps(){
   wokenUp.forEach(r=>showToast(`🌅 ${r.name} is back! Restored to ${TIER_LABELS[r.tier]}`,'success'));
 }
 let currentView='dashboard';
-function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){renderRecipeListView();}else if(view==='products'){renderProductsView();}else if(view==='permissions'){renderPermissionsView();}}
+function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){renderRecipeListView();}else if(view==='products'){renderProductsView();}else if(view==='history'){renderHistoryView();}else if(view==='permissions'){renderPermissionsView();}}
 let recipeFilterTier='all',recipeFilterSearch='',recipeShowHibernated=false,allRecipesCache=null,recipeFilterType='lunch';
 async function renderRecipeListView(){
   const content=document.getElementById('dashboard-content');
@@ -3476,6 +3477,85 @@ function expandAll(ids){
   });
 }
 /* ── END COLLAPSIBLE SECTIONS ───────────────── */
+
+/* ── PLAN HISTORY ───────────────────────────── */
+async function renderHistoryView(){
+  if(userProfile.role!=='admin'){showToast('Admin only','error');switchView('dashboard');return;}
+  const content=document.getElementById('dashboard-content');
+  content.innerHTML=`<div class="fade-in"><div class="page-header"><h1>Plan History</h1><p>A read-only record of every past week.</p></div><div id="history-body"><div style="color:var(--mid);font-size:0.9rem;padding:40px 0;text-align:center">Loading past plans…</div></div></div>`;
+
+  // Load all archived plans newest first
+  const{data:plans,error:planErr}=await sb.from('weekly_plans')
+    .select('id,week_start,status,created_at')
+    .eq('status','archived')
+    .order('week_start',{ascending:false});
+
+  const body=document.getElementById('history-body');
+  if(planErr){body.innerHTML=`<div style="color:#c44;padding:20px">Error loading plans: ${planErr.message}</div>`;return;}
+  if(!plans||plans.length===0){body.innerHTML=`<div style="color:var(--mid);font-size:0.9rem;padding:40px 0;text-align:center">No archived plans yet — completed weeks will appear here.</div>`;return;}
+
+  // Load all meals for all archived plans in one query
+  const planIds=plans.map(p=>p.id);
+  const{data:allMeals,error:mealErr}=await sb.from('weekly_plan_meals')
+    .select('plan_id,is_dinner,cooked,recipes!weekly_plan_meals_recipe_id_fkey(name_en,name_es)')
+    .in('plan_id',planIds);
+
+  if(mealErr){body.innerHTML=`<div style="color:#c44;padding:20px">Error loading meals: ${mealErr.message}</div>`;return;}
+
+  // Group meals by plan
+  const mealsByPlan={};
+  for(const m of allMeals||[]){
+    if(!mealsByPlan[m.plan_id])mealsByPlan[m.plan_id]=[];
+    mealsByPlan[m.plan_id].push(m);
+  }
+
+  const fmt=d=>{
+    const dt=new Date(d+'T12:00:00');
+    return dt.toLocaleDateString('en-MX',{day:'numeric',month:'long',year:'numeric'});
+  };
+
+  const planCards=plans.map((plan,idx)=>{
+    const meals=mealsByPlan[plan.id]||[];
+    const lunches=meals.filter(m=>m.is_dinner!==true);
+    const dinners=meals.filter(m=>m.is_dinner===true);
+    const cookedCount=meals.filter(m=>m.cooked).length;
+    const totalCount=meals.length;
+
+    const mealRow=(m,icon)=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:0.85rem;flex:1;color:${m.cooked?'var(--mid)':'var(--dark)'};${m.cooked?'text-decoration:line-through':''}">
+          ${icon} ${m.recipes?.name_en||'Unknown'}
+        </span>
+        <span style="font-size:0.72rem;font-weight:500;padding:2px 8px;border-radius:999px;background:${m.cooked?'rgba(74,124,89,0.12)':'rgba(200,103,74,0.1)'};color:${m.cooked?'var(--green)':'var(--clay)'}">
+          ${m.cooked?'✓ Cooked':'— Uncooked'}
+        </span>
+      </div>`;
+
+    const lunchRows=lunches.length>0?lunches.map(m=>mealRow(m,'🍽')).join(''):`<div style="color:var(--mid);font-size:0.82rem;padding:8px 0">No lunches recorded</div>`;
+    const dinnerRows=dinners.length>0?dinners.map(m=>mealRow(m,'🌙')).join(''):`<div style="color:var(--mid);font-size:0.82rem;padding:8px 0">No dinners recorded</div>`;
+
+    const secId=`hist-${plan.id}`;
+    const stored=localStorage.getItem('sec_'+secId);
+    const isOpen=stored!==null?stored==='1':idx===0; // first plan open by default
+
+    return `<div class="card" style="margin-bottom:16px">
+      <div class="sec-header" onclick="toggleSection('${secId}')" style="cursor:pointer">
+        <div>
+          <div style="font-size:1rem;font-weight:600;color:var(--dark)">Week of ${fmt(plan.week_start)}</div>
+          <div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${totalCount} meal${totalCount!==1?'s':''} planned &nbsp;·&nbsp; ${cookedCount} cooked &nbsp;·&nbsp; ${totalCount-cookedCount} uncooked</div>
+        </div>
+        <span class="sec-chevron${isOpen?'':' collapsed'}" id="chev-${secId}">${CHEVRON_SVG}</span>
+      </div>
+      <div class="sec-body${isOpen?'':' collapsed'}" id="sec-${secId}" style="padding-top:12px">
+        ${lunches.length>0?`<div style="font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--mid);margin-bottom:4px">Lunches</div>${lunchRows}`:''}
+        ${dinners.length>0?`<div style="font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--mid);margin-top:14px;margin-bottom:4px">Dinners</div>${dinnerRows}`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  body.innerHTML=planCards;
+}
+/* ── END PLAN HISTORY ───────────────────────── */
 
 init();
 </script>
