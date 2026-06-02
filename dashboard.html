@@ -631,7 +631,7 @@ function renderCameron(recipes,name){
     ${sectionEnd()}
     ${sectionHeader('cam-shopping','Shopping list')}
     <div class="card" id="cameron-shopping-card">
-      <div class="card-header" style="flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div class="card-title">La Comer + Casa King</div><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%"><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-secondary" id="consolidate-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="consolidateList()">🔀 Consolidate</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
+      <div class="card-header" style="flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div class="card-title">La Comer + Casa King</div><div style="display:flex;gap:6px"><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button><button class="scan-btn" style="font-size:0.8rem" onclick="openReceiptScanner()">📄 Receipt</button></div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%"><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-secondary" id="consolidate-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="consolidateList()">🔀 Consolidate</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
       <div id="shopping-list-content"><div class="empty"><span class="empty-icon">🛍️</span>${hasInventory?'Click Generate list to build your shopping list':'Complete inventory check first to generate the shopping list'}</div></div>
     </div>
     ${sectionEnd()}
@@ -1409,7 +1409,10 @@ function showReceiptModal(items,totalMXN,savedCount){
       <div style="text-align:right"><div class="receipt-grand-mxn">$${totalMXN.toFixed(2)} MXN</div>${usdLine}</div>
     </div>
     ${savedNote}
-    <div class="modal-btns" style="margin-top:18px"><button class="btn-primary" onclick="closeModal()">Done</button></div>
+    <div class="modal-btns" style="margin-top:18px">
+      <button class="btn-secondary" onclick="closeModal();setTimeout(openReceiptScanner,150)">📄 Scan receipt</button>
+      <button class="btn-primary" onclick="closeModal()">Done</button>
+    </div>
   </div>`;
   document.body.appendChild(el);
 }
