@@ -427,7 +427,6 @@
   .sec-header{display:flex;align-items:center;justify-content:space-between;cursor:pointer;margin:28px 0 0;padding:10px 14px 10px 0;border-bottom:1.5px solid var(--border);user-select:none;}
   .sec-header:hover .sec-title{color:var(--dark);}
   .sec-title{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--mid);transition:color 0.15s;}
-  .sec-badge{display:inline-block;width:8px;height:8px;background:#e53935;border-radius:50%;margin-left:7px;vertical-align:middle;position:relative;top:-1px;flex-shrink:0;}
   .sec-chevron{width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:var(--mid);transition:transform 0.25s cubic-bezier(0.4,0,0.2,1);flex-shrink:0;}
   .sec-chevron svg{width:14px;height:14px;stroke:currentColor;stroke-width:2.5;fill:none;stroke-linecap:round;stroke-linejoin:round;}
   .sec-chevron.collapsed{transform:rotate(-90deg);}
@@ -529,7 +528,7 @@ async function loadRecipes(){const{data}=await sb.from('recipes').select('*').eq
 async function renderDashboard(){
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
   await loadKarenAdditions();await loadPendingIdeaRatings();
-  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);await loadPendingRequests();if(currentPlan?.status==='approved')await loadInventory();loadLeftovers();}
+  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);await loadPendingRequests();if(currentPlan?.status==='approved')await loadInventory();loadLeftovers();restoreShoppingAndTrolleyState();}
   else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);await loadInventory();}
   else{content.innerHTML=renderKaren(recipes,userProfile.name);renderKarenAdditionsList();await loadInventory();loadKarenShoppingPreview();}
 }
@@ -573,11 +572,11 @@ function renderCameron(recipes,name){
       <button class="collapse-btn" onclick="collapseAll(['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers'])">Collapse all</button>
       <button class="collapse-btn" onclick="expandAll(['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers'])">Expand all</button>
     </div>
-    ${sectionHeader('cam-requests','Pending requests',true,badgePendingRequests())}
+    ${sectionHeader('cam-requests','Pending requests')}
     <div class="card" style="margin-bottom:20px" id="requests-container"><div class="empty"><span class="empty-icon">📋</span>Loading requests...</div></div>
     ${sectionEnd()}
     ${pendingIdeaRatings.length>0?sectionHeader('cam-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
-    ${sectionHeader('cam-meals',"This plan's meal pool",true,badgeMealPool())}
+    ${sectionHeader('cam-meals',"This plan's meal pool")}
     ${renderPrepReminders()}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header">
@@ -591,13 +590,13 @@ function renderCameron(recipes,name){
       ${reshuffleLogHtml}
     </div>
     ${sectionEnd()}
-    ${sectionHeader('cam-inventory','Inventory check', false, badgeInventory())}
+    ${sectionHeader('cam-inventory','Inventory check', false)}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">Fridge & freezer</div>${currentPlan?.status==='approved'?`<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`:`<span class="tag tag-gray">Submit plan first</span>`}</div>
       ${currentPlan?.status==='approved'?`<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`:`<div class="empty" style="padding:20px 0"><span class="empty-icon">🛒</span>Once the plan is approved, inventory check unlocks here</div>`}
     </div>
     ${sectionEnd()}
-    ${sectionHeader('cam-shopping','Shopping list',true,badgeShoppingList())}
+    ${sectionHeader('cam-shopping','Shopping list')}
     <div class="card" id="cameron-shopping-card">
       <div class="card-header" style="flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div class="card-title">La Comer + Casa King</div><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%"><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-secondary" id="consolidate-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="consolidateList()">🔀 Consolidate</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
       <div id="shopping-list-content"><div class="empty"><span class="empty-icon">🛍️</span>${hasInventory?'Click Generate list to build your shopping list':'Complete inventory check first to generate the shopping list'}</div></div>
@@ -636,6 +635,77 @@ function mealRowAdmin(m){
 }
 let inventoryItems=[],inventoryState={};
 let trolleyMode=false,trolleyItems={},usdRate=null;
+
+/* ── SHOPPING STATE PERSISTENCE ─────────────── */
+function shoppingStateKey(){return currentPlan?`forknight_shopping_${currentPlan.id}`:null;}
+function trolleyStateKey(){return currentPlan?`forknight_trolley_${currentPlan.id}`:null;}
+function saveShoppingState(mealItems,ckItems){
+  const key=shoppingStateKey();if(!key)return;
+  try{localStorage.setItem(key,JSON.stringify({mealItems,ckItems,savedAt:Date.now()}));}catch(e){console.warn('Shopping state save failed:',e);}
+}
+function loadShoppingState(){
+  const key=shoppingStateKey();if(!key)return null;
+  try{const raw=localStorage.getItem(key);if(!raw)return null;return JSON.parse(raw);}catch(e){return null;}
+}
+function clearShoppingState(){const key=shoppingStateKey();if(key)localStorage.removeItem(key);}
+function saveTrolleyState(){
+  const key=trolleyStateKey();if(!key)return;
+  try{localStorage.setItem(key,JSON.stringify({trolleyMode,trolleyItems,savedAt:Date.now()}));}catch(e){console.warn('Trolley state save failed:',e);}
+}
+function loadTrolleyState(){
+  const key=trolleyStateKey();if(!key)return null;
+  try{const raw=localStorage.getItem(key);if(!raw)return null;return JSON.parse(raw);}catch(e){return null;}
+}
+function clearTrolleyState(){const key=trolleyStateKey();if(key)localStorage.removeItem(key);}
+
+async function restoreShoppingAndTrolleyState(){
+  if(!currentPlan||currentPlan.status!=='approved')return;
+  // Restore shopping list first
+  const shopState=loadShoppingState();
+  if(shopState&&shopState.mealItems&&shopState.mealItems.length>0){
+    const content=document.getElementById('shopping-list-content');
+    const btn=document.getElementById('generate-btn');
+    const ssBtn=document.getElementById('start-shopping-btn');
+    const consolidateBtn=document.getElementById('consolidate-btn');
+    if(content){
+      content.innerHTML=renderShoppingListHTML(shopState.mealItems,shopState.ckItems||[],true,karenAdditions);
+      if(btn){btn.textContent='Regenerate list';btn.disabled=false;}
+      if(ssBtn)ssBtn.style.display='';
+      if(consolidateBtn)consolidateBtn.style.display=(shopState.ckItems&&shopState.ckItems.length>0)?'':'none';
+    }
+    // Now restore trolley on top if it was active
+    const trolleyState=loadTrolleyState();
+    if(trolleyState&&trolleyState.trolleyMode){
+      trolleyItems=trolleyState.trolleyItems||{};
+      trolleyMode=true;
+      await fetchExchangeRate();
+      if(btn)btn.style.display='none';
+      if(ssBtn)ssBtn.style.display='none';
+      document.querySelectorAll('.link-btn-group').forEach(el=>el.style.display='none');
+      renderTrolleyUI();
+      // Re-tick items and restore prices
+      for(const[itemId,item]of Object.entries(trolleyItems)){
+        const row=document.getElementById(`shop-row-${itemId}`);
+        if(!row)continue;
+        if(item.notFound){
+          row.classList.add('not-found-row');
+          const btn=row.querySelector('.not-found-btn');
+          if(btn){btn.textContent='↩ Undo';btn.classList.add('not-found-active');}
+        }else{
+          const chk=row.querySelector('.trolley-check');
+          if(chk)chk.checked=true;
+          row.classList.add('in-trolley');
+          const priceInput=row.querySelector('.trolley-price-input');
+          if(priceInput&&item.price>0)priceInput.value=item.price;
+          addInTrolleyRow(itemId,item.name,item.price);
+        }
+      }
+      updateTrolleyBanner();updateCatSubtotals();
+      showToast('Welcome back — your trolley has been restored 🛒');
+    }
+  }
+}
+/* ── END SHOPPING STATE PERSISTENCE ─────────── */
 
 async function loadInventory(){
   if(!currentPlan)return;inventoryState=currentPlan.inventory||{};
@@ -958,7 +1028,7 @@ async function loadPendingRequests(){
   const{data,error}=await sb.from('requests').select('id,request_type,reason,requested_by,status,created_at,meta').eq('status','pending').order('created_at',{ascending:false});
   if(error){container.innerHTML='<div class="empty">Could not load requests</div>';if(countEl)countEl.textContent='?';return;}
   const requests=data||[];if(countEl)countEl.textContent=requests.length;
-  if(requests.length===0){container.innerHTML=`<div class="empty"><span class="empty-icon">📋</span>No pending requests from Sienna or Karen</div>`;updateSectionBadge('cam-requests',false);return;}
+  if(requests.length===0){container.innerHTML=`<div class="empty"><span class="empty-icon">📋</span>No pending requests from Sienna or Karen</div>`;return;}
   container.innerHTML=requests.map(req=>{
     const fromName=req.requested_by==='4581c8f1-042d-43a6-ba2d-6ec586dea301'?'Cameron':req.requested_by==='ca779de4-2052-4bb4-89c6-59b67a5ad788'?'Sienna':req.requested_by==='60688390-f010-4e19-b7e9-bfbe2c35b04c'?'Karen':'Unknown';
     const label=REQUEST_LABELS[req.request_type]||req.request_type;const date=new Date(req.created_at).toLocaleDateString('en-AU',{month:'short',day:'numeric'});
@@ -967,7 +1037,6 @@ async function loadPendingRequests(){
     let newMealDetail=req.request_type==='new'&&req.meta?.name_en?`<div style="font-size:0.85rem;font-weight:500;color:var(--dark);margin-top:3px">🍽 "${req.meta.name_en}"</div>`:'';
     return`<div class="request-item" id="req-${req.id}"><div class="request-from">${fromName} · ${date}</div><div class="request-text">${label}</div>${sideSwapDetail}${swapDetail}${newMealDetail}${req.reason?`<div class="request-reason">"${req.reason}"</div>`:''}<div class="request-btns"><button class="btn-primary" style="font-size:0.78rem;padding:6px 14px" onclick="handleRequest('${req.id}','${req.request_type}','approved')">Approve</button><button class="btn-secondary" style="font-size:0.78rem;padding:5px 14px" onclick="handleRequest('${req.id}','${req.request_type}','rejected')">Reject</button></div></div>`;
   }).join('');
-  updateSectionBadge('cam-requests',requests.length>0);
 }
 async function handleRequest(requestId,type,decision){
   const{error}=await sb.from('requests').update({status:decision}).eq('id',requestId);if(error){showToast('Error: '+error.message,'error');return;}
@@ -1030,7 +1099,7 @@ function renderSienna(recipes,name){
       <button class="collapse-btn" onclick="collapseAll(['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping'])">Collapse all</button>
       <button class="collapse-btn" onclick="expandAll(['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping'])">Expand all</button>
     </div>
-    ${sectionHeader('sie-meals',"This week's meals",true,badgeMealPool())}
+    ${sectionHeader('sie-meals',"This week's meals")}
     ${renderPrepReminders()}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">Meal pool</div>${hasPlan?`<span class="tag tag-green">${mealCount} meals</span>`:''}</div>
@@ -1042,13 +1111,13 @@ function renderSienna(recipes,name){
     <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Requests</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">${currentUserCan('submit_swap')?`<button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button>`:''}<button class="btn-secondary" onclick="openModal('hibernate')">😴 Request hibernation</button>${currentUserCan('suggest_meals')?`<button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button>`:''}</div></div>
     ${pendingIdeaRatings.length>0?sectionHeader('sie-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
     ${sectionEnd()}
-    ${sectionHeader('sie-inventory','Inventory check', false, badgeInventory())}
+    ${sectionHeader('sie-inventory','Inventory check', false)}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">Fridge & freezer</div>${planStatus==='approved'?`<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`:''}</div>
       ${planStatus==='approved'?`<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`:`<div class="empty" style="padding:20px 0"><span class="empty-icon">🛒</span>Unlocks once Cameron approves the plan</div>`}
     </div>
     ${sectionEnd()}
-    ${currentUserCan('view_shopping')?sectionHeader('sie-shopping','Shopping preview',true,badgeShoppingList())+`<div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer + Casa King</div><span class="tag tag-gray">View only · Cameron generates</span></div><div id="sienna-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`+sectionEnd():''}
+    ${currentUserCan('view_shopping')?sectionHeader('sie-shopping','Shopping preview')+`<div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer + Casa King</div><span class="tag tag-gray">View only · Cameron generates</span></div><div id="sienna-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`+sectionEnd():''}
   </div>`;
 }
 function mealRowSienna(m){
@@ -1104,7 +1173,7 @@ function renderKaren(recipes,name){
     <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Requests (require Cameron's approval)</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">${currentUserCan('submit_swap')?`<button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button>`:''  }${currentUserCan('suggest_meals')?`<button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button>`:''}</div></div>
     ${pendingIdeaRatings.length>0?sectionHeader('kar-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
     ${sectionEnd()}
-    ${currentUserCan('view_shopping')?sectionHeader('kar-shopping','Shopping list',true,badgeShoppingList())+`<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Your additions</div><span class="tag tag-blue">Mixed into the list</span></div><div class="karen-add-row"><input class="karen-add-input" id="karen-add-input" placeholder="e.g. olive oil, chocolate, shampoo..." onkeydown="if(event.key==='Enter')addKarenItem()"><button class="btn-primary" style="padding:8px 16px;font-size:0.85rem" onclick="addKarenItem()">Add</button></div><div id="karen-additions-list"><div style="font-size:0.82rem;color:var(--mid)">No items added yet</div></div></div><div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer</div><span class="tag tag-gray">View only</span></div><div id="karen-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`+sectionEnd():''}
+    ${currentUserCan('view_shopping')?sectionHeader('kar-shopping','Shopping list')+`<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Your additions</div><span class="tag tag-blue">Mixed into the list</span></div><div class="karen-add-row"><input class="karen-add-input" id="karen-add-input" placeholder="e.g. olive oil, chocolate, shampoo..." onkeydown="if(event.key==='Enter')addKarenItem()"><button class="btn-primary" style="padding:8px 16px;font-size:0.85rem" onclick="addKarenItem()">Add</button></div><div id="karen-additions-list"><div style="font-size:0.82rem;color:var(--mid)">No items added yet</div></div></div><div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer</div><span class="tag tag-gray">View only</span></div><div id="karen-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`+sectionEnd():''}
   </div>`;
 }
 function mealRowKaren(m){
@@ -1180,6 +1249,7 @@ async function applyProductLinks(ingredients){
 }
 /* ── END PRODUCT LINK OVERLAY ─────────────────── */
 async function generateShoppingList(){
+  clearShoppingState();
   const btn=document.getElementById('generate-btn');const content=document.getElementById('shopping-list-content');
   const savedCKQtys={};document.querySelectorAll('[id^="ck-qty-"]').forEach(el=>{const id=el.id.replace('ck-qty-','');if(el.value)savedCKQtys[id]=el.value;});
   const savedCKUnits={};document.querySelectorAll('[id^="ck-unit-"]').forEach(el=>{const id=el.id.replace('ck-unit-','');savedCKUnits[id]=el.value;});
@@ -1202,12 +1272,13 @@ async function generateShoppingList(){
     for(const[id,val]of Object.entries(savedCKUnits)){const el=document.getElementById(`ck-unit-${id}`);if(el)el.value=val;}
     btn.textContent='Regenerate list';btn.disabled=false;
     const ssBtn=document.getElementById('start-shopping-btn');if(ssBtn)ssBtn.style.display='';
+    saveShoppingState(mealItems,ckItems);
    const notifications=currentPlan.notifications||{};if(!notifications.shoplist_sent){await sb.from('weekly_plans').update({notifications:{...notifications,shoplist_sent:true}}).eq('id',currentPlan.id);currentPlan.notifications={...notifications,shoplist_sent:true};await sendEmail('plan_finalised');}
   }catch(err){content.innerHTML=`<div class="empty" style="color:#c44">Error: ${err.message}</div>`;btn.textContent='Generate list';btn.disabled=false;}
 }
 /* ── TROLLEY MODE ─────────────────────────────── */
 async function fetchExchangeRate(){if(usdRate)return usdRate;try{const r=await fetch('https://open.er-api.com/v6/latest/MXN');const d=await r.json();if(d&&d.rates&&d.rates.USD){usdRate=d.rates.USD;return usdRate;}}catch(e){console.warn('Exchange rate fetch failed:',e.message);}return null;}
-async function startTrolleyMode(){trolleyMode=true;trolleyItems={};await fetchExchangeRate();const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');if(genBtn)genBtn.style.display='none';if(ssBtn)ssBtn.style.display='none';document.querySelectorAll('.link-btn-group').forEach(el=>el.style.display='none');renderTrolleyUI();showToast('Shopping mode on — tick items as you add them 🛒');}
+async function startTrolleyMode(){trolleyMode=true;trolleyItems={};await fetchExchangeRate();const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');if(genBtn)genBtn.style.display='none';if(ssBtn)ssBtn.style.display='none';document.querySelectorAll('.link-btn-group').forEach(el=>el.style.display='none');renderTrolleyUI();saveTrolleyState();showToast('Shopping mode on — tick items as you add them 🛒');}
 async function finishTrolleyMode(){
   // Save prices to household_products for all items that have a price
   const itemsWithPrice=Object.entries(trolleyItems).filter(([k,v])=>k&&v.price>0&&!v.notFound);
@@ -1239,7 +1310,7 @@ async function finishTrolleyMode(){
   const snapTotal=Object.values(snapshot).filter(i=>!i.notFound).reduce((s,i)=>s+(i.price||0),0);
   showReceiptModal(snapshot,snapTotal,savedCount);
   // Clear trolley UI
-  trolleyMode=false;trolleyItems={};
+  trolleyMode=false;trolleyItems={};clearTrolleyState();clearShoppingState();
   const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');
   if(genBtn){genBtn.style.display='';genBtn.textContent='Regenerate list';}
   if(ssBtn)ssBtn.style.display='';
@@ -1366,10 +1437,10 @@ function markNotFound(itemId,itemName,row,btn){
     row.classList.add('not-found-row');
     btn.textContent='↩ Undo';btn.classList.add('not-found-active');
   }
-  updateTrolleyBanner();
+  updateTrolleyBanner();saveTrolleyState();
 }
-function inTrolleyPriceInput(input,itemId){if(trolleyItems[itemId]){trolleyItems[itemId].price=parseFloat(input.value)||0;updateTrolleyBanner();updateCatSubtotals();const origInput=document.querySelector(`#shop-row-${itemId} .trolley-price-input`);if(origInput)origInput.value=input.value;}}
-function trolleyPriceInput(input,itemId){if(trolleyItems[itemId]){trolleyItems[itemId].price=parseFloat(input.value)||0;updateTrolleyBanner();updateCatSubtotals();updateInTrolleyRow(itemId);}}
+function inTrolleyPriceInput(input,itemId){if(trolleyItems[itemId]){trolleyItems[itemId].price=parseFloat(input.value)||0;updateTrolleyBanner();updateCatSubtotals();const origInput=document.querySelector(`#shop-row-${itemId} .trolley-price-input`);if(origInput)origInput.value=input.value;saveTrolleyState();}}
+function trolleyPriceInput(input,itemId){if(trolleyItems[itemId]){trolleyItems[itemId].price=parseFloat(input.value)||0;updateTrolleyBanner();updateCatSubtotals();updateInTrolleyRow(itemId);saveTrolleyState();}}
 function tickTrolleyItem(chk,row,itemId,itemName){
   if(chk.checked){
     const priceInput=row.querySelector('.trolley-price-input');
@@ -1381,12 +1452,12 @@ function tickTrolleyItem(chk,row,itemId,itemName){
   }else{
     delete trolleyItems[itemId];row.classList.remove('in-trolley');removeInTrolleyRow(itemId);
   }
-  updateTrolleyBanner();updateCatSubtotals();
+  updateTrolleyBanner();updateCatSubtotals();saveTrolleyState();
 }
 function addInTrolleyRow(itemId,itemName,price){const list=document.getElementById('in-trolley-list');if(!list)return;const div=document.createElement('div');div.className='in-trolley-row';div.id=`introlley-row-${itemId}`;div.innerHTML=`<span class="in-trolley-name">${itemName}</span><input id="introlley-price-${itemId}" class="in-trolley-price-input" type="number" min="0" step="0.01" placeholder="0.00" value="${price>0?price:''}" oninput="inTrolleyPriceInput(this,'${itemId}')"><button class="trolley-uncheck-btn" onclick="uncheckTrolleyItem('${itemId}')">↑ Put back</button>`;list.appendChild(div);const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
 function updateInTrolleyRow(itemId){const priceEl=document.getElementById(`introlley-price-${itemId}`);if(priceEl&&trolleyItems[itemId]){const p=trolleyItems[itemId].price;priceEl.textContent=p>0?'$'+p.toFixed(2):'—';}}
 function removeInTrolleyRow(itemId){document.getElementById(`introlley-row-${itemId}`)?.remove();const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
-function uncheckTrolleyItem(itemId){const origRow=document.getElementById(`shop-row-${itemId}`);if(origRow){const chk=origRow.querySelector('.trolley-check');if(chk)chk.checked=false;origRow.classList.remove('in-trolley');}delete trolleyItems[itemId];removeInTrolleyRow(itemId);updateTrolleyBanner();}
+function uncheckTrolleyItem(itemId){const origRow=document.getElementById(`shop-row-${itemId}`);if(origRow){const chk=origRow.querySelector('.trolley-check');if(chk)chk.checked=false;origRow.classList.remove('in-trolley');}delete trolleyItems[itemId];removeInTrolleyRow(itemId);updateTrolleyBanner();saveTrolleyState();}
 function updateTrolleyBanner(){
   const banner=document.getElementById('trolley-banner');if(!banner)return;
   const totalMXN=Object.values(trolleyItems).reduce((s,i)=>s+(i.price||0),0);
@@ -1523,8 +1594,7 @@ function renderPrepReminders(){
   if(!currentPlan||currentPlan.status!=='approved')return'';if(userProfile.role==='reviewer')return'';
   const advancePrepMeals=currentMeals.filter(m=>m.recipes?.advance_prep_required&&!m.cooked);if(advancePrepMeals.length===0)return'';
   const rows=advancePrepMeals.map(m=>{const r=m.recipes;const dayLabel=m.assigned_day?` · scheduled ${dateToDayName(m.assigned_day)}`:'';return`<div class="prep-reminder-row"><div class="prep-reminder-icon">⏰</div><div><div class="prep-reminder-meal">${r.name_en}${dayLabel}</div><div class="prep-reminder-desc">${r.advance_prep_description||'Advance preparation required'}</div></div></div>`;}).join('');
-  const prepCount=advancePrepMeals.length;
-  return sectionHeader('prep-reminders','Prep reminders',true,badgePrepReminders(prepCount))+`<div class="prep-reminders-card"><div style="font-size:0.78rem;font-weight:500;color:var(--clay);margin-bottom:12px">🗒️ These meals need advance prep this week · <strong>${prepCount}</strong></div>${rows}</div>`;
+  return sectionHeader('prep-reminders','Prep reminders')+`<div class="prep-reminders-card"><div style="font-size:0.78rem;font-weight:500;color:var(--clay);margin-bottom:12px">🗒️ These meals need advance prep this week</div>${rows}</div>`;
 }
 function openSideSwapModal(recipeId,currentSideEn){
   const isKaren=userProfile.role==='reviewer';const isSienna=userProfile.role==='planner';if(!isKaren&&!isSienna)return;
@@ -2925,63 +2995,11 @@ function renderPermissionsView(){
 const CHEVRON_SVG = `<svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
 
 // Generate a collapsible section header + body wrapper
-/* ── SECTION BADGE HELPERS ──────────────────── */
-function badgePendingRequests(){
-  // Badge if user can approve and there are pending requests
-  if(!currentUserCan('approve_plan'))return false;
-  const container=document.getElementById('requests-container');
-  if(!container)return false;
-  // Count request-item elements rendered
-  return container.querySelectorAll('.request-item').length>0;
-}
-function badgeMealPool(){
-  if(!currentUserCan('approve_plan')&&!currentUserCan('submit_swap'))return false;
-  if(!currentPlan)return false;
-  // Badge if plan is pending approval (submitted but not approved)
-  return currentPlan.status==='suggested'||currentPlan.status==='submitted';
-}
-function badgeInventory(){
-  if(!currentUserCan('view_plan'))return false;
-  if(!currentPlan||currentPlan.status!=='approved')return false;
-  // Badge if inventory hasn't been done yet (empty or no 'need' entries)
-  const inv=currentPlan.inventory||{};
-  return Object.keys(inv).length===0;
-}
-function badgeShoppingList(){
-  if(!currentUserCan('generate_shopping')&&!currentUserCan('view_shopping'))return false;
-  if(!currentPlan||currentPlan.status!=='approved')return false;
-  // Badge if inventory is done but list not yet generated (no items in DOM)
-  const inv=currentPlan.inventory||{};
-  if(Object.keys(inv).length===0)return false;
-  const content=document.getElementById('shopping-list-content');
-  if(!content)return false;
-  // If content still shows the empty/placeholder state, badge it
-  return content.querySelector('.shopping-category')===null;
-}
-function badgePrepReminders(count){
-  if(!currentUserCan('view_plan'))return false;
-  return count>0;
-}
-function getPrepReminderCount(){
-  if(!currentPlan||currentPlan.status!=='approved')return 0;
-  return currentMeals.filter(m=>m.recipes?.advance_prep_required&&!m.cooked).length;
-}
-// Dynamically update a section's badge dot after async loads
-function updateSectionBadge(id, show){
-  const header=document.querySelector(`.sec-header[onclick="toggleSection('${id}')"] .sec-title`);
-  if(!header)return;
-  const existing=header.querySelector('.sec-badge');
-  if(show&&!existing){const dot=document.createElement('span');dot.className='sec-badge';header.appendChild(dot);}
-  else if(!show&&existing){existing.remove();}
-}
-/* ── END SECTION BADGE HELPERS ──────────────── */
-
-function sectionHeader(id, label, defaultOpen=true, badge=false){
+function sectionHeader(id, label, defaultOpen=true){
   const stored = localStorage.getItem('sec_'+id);
   const isOpen = stored !== null ? stored === '1' : defaultOpen;
-  const badgeHtml = badge ? `<span class="sec-badge"></span>` : '';
   return `<div class="sec-header" onclick="toggleSection('${id}')">
-    <span class="sec-title">${label}${badgeHtml}</span>
+    <span class="sec-title">${label}</span>
     <span class="sec-chevron${isOpen?'':' collapsed'}" id="chev-${id}">${CHEVRON_SVG}</span>
   </div>
   <div class="sec-body${isOpen?'':' collapsed'}" id="sec-${id}">`;
