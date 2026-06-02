@@ -636,7 +636,7 @@ function renderCameron(recipes,name){
     ${sectionEnd()}
     ${pendingIdeaRatings.length>0?sectionHeader('cam-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
     ${sectionHeader('cam-meals',"This plan's meal pool")}
-    ${renderPrepReminders()}
+    ${currentUserCan('show_prep_reminders')?renderPrepReminders():''}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">Suggested meals</div>
@@ -650,19 +650,19 @@ function renderCameron(recipes,name){
     </div>
     ${currentPlan?.status==='approved'?`<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Dinners this week</div><div style="display:flex;gap:8px;flex-wrap:wrap">${currentDinners.length>0?`<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all</button>`:''}<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="openAddDinnerModal()">+ Add dinner</button></div></div><div id="dinner-list-cam">${renderDinnerListAdmin()}</div></div>`:''}
     ${sectionEnd()}
-    ${sectionHeader('cam-inventory','Inventory check', false)}
+    ${currentUserCan('show_inventory')?sectionHeader('cam-inventory','Inventory check', false)+`
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">Fridge & freezer</div>${currentPlan?.status==='approved'?`<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`:`<span class="tag tag-gray">Submit plan first</span>`}</div>
       ${currentPlan?.status==='approved'?`<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`:`<div class="empty" style="padding:20px 0"><span class="empty-icon">🛒</span>Once the plan is approved, inventory check unlocks here</div>`}
     </div>
-    ${sectionEnd()}
+    `+sectionEnd():''}
     ${sectionHeader('cam-shopping','Shopping list')}
     <div class="card" id="cameron-shopping-card">
       <div class="card-header" style="flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div class="card-title">La Comer + Casa King</div><div style="display:flex;gap:6px"><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button><button class="scan-btn" style="font-size:0.8rem" onclick="openReceiptScanner()">📄 Receipt</button></div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%"><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-secondary" id="consolidate-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="consolidateList()">🔀 Consolidate</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
       <div id="shopping-list-content"><div class="empty"><span class="empty-icon">🛍️</span>${hasInventory?'Click Generate list to build your shopping list':'Complete inventory check first to generate the shopping list'}</div></div>
     </div>
     ${sectionEnd()}
-    ${sectionHeader('cam-leftovers','Leftovers & open packets')}
+    ${currentUserCan('show_leftovers')?sectionHeader('cam-leftovers','Leftovers & open packets')+`
     <div class="card" id="leftovers-card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">In fridge / freezer / pantry</div>
@@ -670,7 +670,7 @@ function renderCameron(recipes,name){
       </div>
       <div id="leftovers-list"><div class="empty"><span class="empty-icon">📦</span>No leftovers tracked yet — they appear here after receipt scanning</div></div>
     </div>
-    ${sectionEnd()}
+    `+sectionEnd():''}
   </div>`;
 }
 function cookedBtn(recipeId,planMealId,small){if(!currentUserCan('mark_cooked'))return'';const sz=small?'font-size:0.75rem;padding:4px 10px':'font-size:0.78rem;padding:5px 10px';return`<button class="btn-secondary" style="${sz}" onclick="markCooked('${recipeId}','${planMealId}')">✓ Cooked</button>`;}
@@ -1173,23 +1173,23 @@ function renderSienna(recipes,name){
       <button class="collapse-btn" onclick="expandAll(['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping'])">Expand all</button>
     </div>
     ${sectionHeader('sie-meals',"This week's meals")}
-    ${renderPrepReminders()}
+    ${currentUserCan('show_prep_reminders')?renderPrepReminders():''}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">Meal pool</div>${hasPlan?`<span class="tag tag-green">${mealCount} meals</span>`:''}</div>
       ${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowSienna(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>${hasPlan?'No meals in plan yet':'No plan yet this week'}</div>`}
     </div>
     ${sectionEnd()}
-   ${userProfile.role==='planner'&&currentPlan?.status==='approved'&&currentUserCan('manage_dinners')?sectionHeader('sie-dinners','Dinners this week')+`<div class="card" style="margin-bottom:20px" id="dinner-section"><div class="card-header"><div class="card-title">Tonight\'s options</div><button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all dinners</button></div><div id="dinner-list">${renderDinnerList()}</div></div>`+sectionEnd():''}
-    ${sectionHeader('sie-requests','Requests')}
+   ${userProfile.role==='planner'&&currentPlan?.status==='approved'&&currentUserCan('manage_dinners')&&currentUserCan('show_dinners')?sectionHeader('sie-dinners','Dinners this week')+`<div class="card" style="margin-bottom:20px" id="dinner-section"><div class="card-header"><div class="card-title">Tonight\'s options</div><button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all dinners</button></div><div id="dinner-list">${renderDinnerList()}</div></div>`+sectionEnd():''}
+    ${currentUserCan('show_requests')?sectionHeader('sie-requests','Requests')+`
     <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Requests</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">${currentUserCan('submit_swap')?`<button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button>`:''}<button class="btn-secondary" onclick="openModal('hibernate')">😴 Request hibernation</button>${currentUserCan('suggest_meals')?`<button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button>`:''}</div></div>
-    ${pendingIdeaRatings.length>0?sectionHeader('sie-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
-    ${sectionEnd()}
-    ${sectionHeader('sie-inventory','Inventory check', false)}
+    `+sectionEnd():''}
+    ${pendingIdeaRatings.length>0&&currentUserCan('show_ratings')?sectionHeader('sie-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
+    ${currentUserCan('show_inventory')?sectionHeader('sie-inventory','Inventory check', false)+`
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">Fridge & freezer</div>${planStatus==='approved'?`<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`:''}</div>
       ${planStatus==='approved'?`<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`:`<div class="empty" style="padding:20px 0"><span class="empty-icon">🛒</span>Unlocks once Cameron approves the plan</div>`}
     </div>
-    ${sectionEnd()}
+    `+sectionEnd():''}
     ${currentUserCan('view_shopping')?sectionHeader('sie-shopping','Shopping preview')+`<div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer + Casa King</div><span class="tag tag-gray">View only · Cameron generates</span></div><div id="sienna-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`+sectionEnd():''}
   </div>`;
 }
@@ -1242,10 +1242,10 @@ function renderKaren(recipes,name){
     ${sectionHeader('kar-meals',"This week's meals")}
     <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Meal pool</div>${hasPlan?`<span class="tag tag-blue">${mealCount} meals</span>`:''}</div>${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowKaren(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>No meals yet this week</div>`}</div>
     ${sectionEnd()}
-    ${sectionHeader('kar-requests','Suggest a change')}
+    ${currentUserCan('show_requests')?sectionHeader('kar-requests','Suggest a change')+`
     <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Requests (require Cameron's approval)</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">${currentUserCan('submit_swap')?`<button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button>`:''  }${currentUserCan('suggest_meals')?`<button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button>`:''}</div></div>
-    ${pendingIdeaRatings.length>0?sectionHeader('kar-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
-    ${sectionEnd()}
+    `+sectionEnd():''}
+    ${pendingIdeaRatings.length>0&&currentUserCan('show_ratings')?sectionHeader('kar-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
     ${currentUserCan('view_shopping')?sectionHeader('kar-shopping','Shopping list')+`<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Your additions</div><span class="tag tag-blue">Mixed into the list</span></div><div class="karen-add-row"><input class="karen-add-input" id="karen-add-input" placeholder="e.g. olive oil, chocolate, shampoo..." onkeydown="if(event.key==='Enter')addKarenItem()"><button class="btn-primary" style="padding:8px 16px;font-size:0.85rem" onclick="addKarenItem()">Add</button></div><div id="karen-additions-list"><div style="font-size:0.82rem;color:var(--mid)">No items added yet</div></div></div><div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer</div><span class="tag tag-gray">View only</span></div><div id="karen-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`+sectionEnd():''}
   </div>`;
 }
@@ -3402,22 +3402,29 @@ async function saveManualLeftover(){
 /* ── PERMISSIONS ─────────────────────────────── */
 // All defined permissions with friendly labels
 const PERMISSION_DEFS = [
-  { key:'view_plan',         label:'View the plan',           sub:'See meals planned for the week' },
-  { key:'mark_cooked',       label:'Mark meals as cooked',    sub:'Tick off meals after cooking' },
-  { key:'submit_swap',       label:'Submit swap requests',    sub:'Request a meal be swapped out' },
-  { key:'reshuffle_plan',    label:'Reshuffle the plan',      sub:"Randomise the week's meals" },
-  { key:'carry_over_meals',  label:'Carry over uncooked meals', sub:'Bring meals forward from last week' },
-  { key:'manage_dinners',    label:'Manage dinners',          sub:'Choose or change dinner pairings' },
-  { key:'view_shopping',     label:'View shopping list',      sub:'See the generated shopping list' },
-  { key:'generate_shopping', label:'Generate shopping list',  sub:'Create and finalise shopping list' },
-  { key:'suggest_meals',     label:'Suggest new meals',       sub:'Propose new recipes for the rotation' },
-  { key:'approve_plan',      label:'Approve the plan',        sub:"Sign off the week's meal plan" },
+  { key:'view_plan',         label:'View the plan',           sub:'See meals planned for the week',        group:'actions' },
+  { key:'mark_cooked',       label:'Mark meals as cooked',    sub:'Tick off meals after cooking',          group:'actions' },
+  { key:'submit_swap',       label:'Submit swap requests',    sub:'Request a meal be swapped out',         group:'actions' },
+  { key:'reshuffle_plan',    label:'Reshuffle the plan',      sub:"Randomise the week's meals",            group:'actions' },
+  { key:'carry_over_meals',  label:'Carry over uncooked meals', sub:'Bring meals forward from last week',  group:'actions' },
+  { key:'manage_dinners',    label:'Manage dinners',          sub:'Choose or change dinner pairings',      group:'actions' },
+  { key:'view_shopping',     label:'View shopping list',      sub:'See the generated shopping list',       group:'actions' },
+  { key:'generate_shopping', label:'Generate shopping list',  sub:'Create and finalise shopping list',     group:'actions' },
+  { key:'suggest_meals',     label:'Suggest new meals',       sub:'Propose new recipes for the rotation',  group:'actions' },
+  { key:'approve_plan',      label:'Approve the plan',        sub:"Sign off the week's meal plan",         group:'actions' },
+  // Visible sections — hide sections the user doesn't need
+  { key:'show_prep_reminders', label:'Prep reminders',        sub:'Advance prep warnings for the week',    group:'sections' },
+  { key:'show_inventory',      label:'Inventory check',       sub:'Fridge & freezer check before shopping',group:'sections' },
+  { key:'show_leftovers',      label:'Leftovers & open packets', sub:'Track leftovers and part-used items',group:'sections' },
+  { key:'show_requests',       label:'Requests section',      sub:'Submit swap / hibernation / new meal requests', group:'sections' },
+  { key:'show_ratings',        label:'Idea ratings',          sub:'Rate new meal suggestions',             group:'sections' },
+  { key:'show_dinners',        label:'Dinners this week',     sub:'See and manage dinner pairings',        group:'sections' },
 ];
 
 // Default permissions per role (used when no DB row exists yet)
 const PERMISSION_DEFAULTS = {
-  planner: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true, carry_over_meals:false, manage_dinners:true, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false },
-  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false },
+  planner:  { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true,  carry_over_meals:false, manage_dinners:true,  view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true },
+  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true },
 };
 
 // Loaded at init — keyed by user_id
@@ -3483,7 +3490,7 @@ function renderPermissionsView(){
   ];
 
   const blocks = users.map(u => {
-    const rows = PERMISSION_DEFS.map(p => {
+    const makeRow = p => {
       const granted = hasPermission(u.id, p.key);
       return `<div class="perm-row">
         <div><div class="perm-label">${p.label}</div><div class="perm-sublabel">${p.sub}</div></div>
@@ -3495,7 +3502,9 @@ function renderPermissionsView(){
           </label>
         </div>
       </div>`;
-    }).join('');
+    };
+    const actionRows  = PERMISSION_DEFS.filter(p=>p.group==='actions').map(makeRow).join('');
+    const sectionRows = PERMISSION_DEFS.filter(p=>p.group==='sections').map(makeRow).join('');
     return `<div class="perm-user-block">
       <div class="perm-user-header">
         <div class="perm-user-avatar" style="background:${u.color}">${u.name[0]}</div>
@@ -3505,7 +3514,11 @@ function renderPermissionsView(){
         </div>
         <span class="perm-saving" id="perm-saving-${u.id}"></span>
       </div>
-      <div class="perm-grid">${rows}</div>
+      <div style="font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.09em;color:var(--mid);margin:4px 0 6px">Actions</div>
+      <div class="perm-grid">${actionRows}</div>
+      <div style="font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.09em;color:var(--mid);margin:18px 0 6px">Visible sections</div>
+      <div style="font-size:0.78rem;color:var(--mid);margin-bottom:10px">Toggle off sections this person does not use to keep their view clean.</div>
+      <div class="perm-grid">${sectionRows}</div>
     </div>`;
   }).join('');
 
