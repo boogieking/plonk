@@ -690,9 +690,10 @@ function mealRowAdmin(m){
   const tierBadge=`<button class="tier-badge tier-${tierKey}${isLocked?' tier-locked':''}" title="${isLocked?'Override active':'Click to override'}" onclick="openTierModal('${r.id}','${tierKey}',${isLocked})">${TIER_LABELS[tierKey]||tierKey}</button>`;
   const actionHtml=!isCooked?cookedBtn(r.id,planMeal.id,false):'<span class="tag tag-green">Cooked</span>';
   const removeBtn=!isCooked?`<button class="btn-remove-meal" onclick="removeMealFromPlan('${planMeal.id}','${r.name_en.replace(/'/g,"\\'")}')">✕ Remove</button>`:'';
+  const swapBtn=!isCooked?`<button class="btn-remove-meal" style="color:#2E5F8A;border-color:rgba(46,95,138,0.3)" onclick="openAdminSwapModal('${planMeal.id}','${r.id}','${r.name_en.replace(/'/g,"\\'")}')">⇄ Swap</button>`:'';
   const hibernateBtn=!isCooked?`<button class="btn-remove-meal" style="color:#6B5F54;border-color:rgba(107,95,84,0.3)" onclick="openHibernateModal('${r.id}','${r.name_en.replace(/'/g,"\\'")}')">😴 Hibernate</button>`:'';
   const sideHtml=`<div class="meal-side" id="side-row-${r.id}">🍽 With: <span id="side-label-${r.id}">${r.default_side_en||'No side set'}</span>${r.default_side_es?` · <em id="side-label-es-${r.id}">${r.default_side_es}</em>`:`<em id="side-label-es-${r.id}"></em>`} <button class="side-edit-btn" onclick="openSideDropdown(event,'${r.id}','${(r.default_side_en||'').replace(/'/g,"\\'")}')">✏️ change</button><div class="side-dropdown-wrap" id="side-dd-${r.id}" style="display:none"><div class="side-dropdown-panel"><input type="text" id="side-input-${r.id}" placeholder="Or type a new side..." oninput="filterSideOptions('${r.id}',this.value)"><div class="side-options" id="side-opts-${r.id}"></div><div class="side-dropdown-footer"><button class="side-cancel-btn" onclick="closeSideDropdown('${r.id}')">Cancel</button><button class="side-save-btn" onclick="saveSide('${r.id}')">Save</button></div></div></div></div>`;
-  return`<div class="meal-item ${isCooked?'cooked':''}" id="meal-item-${r.id}"><div style="flex:1"><div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${r.name_en} ${advPrepTag} ${tierBadge}</div><div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${r.prep_time_minutes||'—'} min prep · ${r.cook_time_minutes||'—'} min cook${avgStr} ${scheduledLabel}</div>${sideHtml}${ratingHtml}${ratedHtml}</div><div class="meal-actions" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${actionHtml}${removeBtn}${hibernateBtn}</div></div>`;
+  return`<div class="meal-item ${isCooked?'cooked':''}" id="meal-item-${r.id}"><div style="flex:1"><div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${r.name_en} ${advPrepTag} ${tierBadge}</div><div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${r.prep_time_minutes||'—'} min prep · ${r.cook_time_minutes||'—'} min cook${avgStr} ${scheduledLabel}</div>${sideHtml}${ratingHtml}${ratedHtml}</div><div class="meal-actions" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${actionHtml}${swapBtn}${removeBtn}${hibernateBtn}</div></div>`;
 }
 let inventoryItems=[],inventoryState={};
 let trolleyMode=false,trolleyItems={},usdRate=null;
@@ -1143,6 +1144,57 @@ async function addMealToPlan(recipeId,mealName,btn){
   btn.closest('div[style]').style.opacity='0.4';btn.textContent='Added ✓';btn.disabled=true;
   showToast(`${mealName} added ✓`);
   // Reload in background so the dashboard reflects it
+  await loadWeekData();await renderDashboard();
+}
+
+async function openAdminSwapModal(planMealId,currentRecipeId,currentMealName){
+  if(!currentPlan){showToast('No active plan','error');return;}
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="modal" style="max-width:480px;max-height:85vh;display:flex;flex-direction:column">
+    <h3>⇄ Swap meal</h3>
+    <p>Replacing: <strong>${currentMealName}</strong>. Pick what to swap it with.</p>
+    <input class="search-input" id="swap-meal-search" placeholder="Search recipes…" oninput="filterSwapMealList()" style="margin-bottom:12px">
+    <div id="swap-meal-list" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:8px"><div class="empty">Loading…</div></div>
+    <div class="modal-btns" style="margin-top:14px"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div>
+  </div>`;
+  document.body.appendChild(el);
+  const{data,error}=await sb.from('recipes').select('id,name_en,name_es,avg_rating,frequency_tier').eq('hibernated',false).neq('is_dinner',true).order('name_en');
+  if(error||!data){document.getElementById('swap-meal-list').innerHTML=`<div class="empty" style="color:#c44">Could not load recipes</div>`;return;}
+  el._swapRecipes=data;el._planMealId=planMealId;el._currentRecipeId=currentRecipeId;el._currentMealName=currentMealName;
+  filterSwapMealList();
+}
+
+function filterSwapMealList(){
+  const el=document.getElementById('modal-overlay');if(!el||!el._swapRecipes)return;
+  const search=(document.getElementById('swap-meal-search')?.value||'').toLowerCase().trim();
+  const alreadyIn=new Set(currentMeals.map(m=>m.recipe_id));
+  const filtered=el._swapRecipes.filter(r=>{
+    if(r.id===el._currentRecipeId)return false;
+    if(alreadyIn.has(r.id))return false;
+    if(search&&!r.name_en.toLowerCase().includes(search)&&!(r.name_es||'').toLowerCase().includes(search))return false;
+    return true;
+  });
+  const list=document.getElementById('swap-meal-list');if(!list)return;
+  if(filtered.length===0){list.innerHTML=`<div class="empty">${search?'No recipes match':'No other meals available'}</div>`;return;}
+  list.innerHTML=filtered.map(r=>{
+    const stars=r.avg_rating?`⭐ ${parseFloat(r.avg_rating).toFixed(1)}`:'';
+    const tier=r.frequency_tier||'regular';
+    return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(255,255,255,0.7);border:1px solid var(--border);border-radius:10px;gap:12px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:0.9rem;font-weight:400;color:var(--dark)">${r.name_en}</div>
+        ${r.name_es?`<div style="font-size:0.74rem;color:var(--mid)">${r.name_es}</div>`:''}
+        <div style="font-size:0.72rem;color:var(--mid);margin-top:2px">${stars}${stars&&tier?' · ':''}${TIER_LABELS[tier]||tier}</div>
+      </div>
+      <button class="btn-primary" style="font-size:0.8rem;padding:6px 14px;flex-shrink:0;background:var(--blue)" onclick="confirmAdminSwap('${el._planMealId}','${r.id}','${r.name_en.replace(/'/g,"\\'")}','${el._currentMealName.replace(/'/g,"\\'")}',this)">⇄ Swap in</button>
+    </div>`;
+  }).join('');
+}
+
+async function confirmAdminSwap(planMealId,newRecipeId,newMealName,oldMealName,btn){
+  btn.disabled=true;btn.textContent='Swapping…';
+  const{error}=await sb.from('weekly_plan_meals').update({recipe_id:newRecipeId}).eq('id',planMealId);
+  if(error){showToast('Error swapping: '+error.message,'error');btn.disabled=false;btn.textContent='⇄ Swap in';return;}
+  closeModal();showToast(`${oldMealName} → ${newMealName} ✓`);
   await loadWeekData();await renderDashboard();
 }
 async function markCooked(recipeId,planMealId){if(!currentUserCan('mark_cooked')){showToast('Permission denied','error');return;}if(!planMealId||planMealId==='undefined'){const pm=currentMeals.find(m=>m.recipe_id===recipeId);if(pm)planMealId=pm.id;}if(!planMealId){showToast('Cannot find meal record','error');return;}checkPrepBeforeCook(recipeId,planMealId,()=>doMarkCooked(recipeId,planMealId));}
