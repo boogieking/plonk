@@ -587,8 +587,8 @@ async function loadRecipes(){const{data}=await sb.from('recipes').select('*').ne
 async function renderDashboard(){
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
   await loadKarenAdditions();await loadPendingIdeaRatings();
-  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);await loadPendingRequests();if(currentPlan?.status==='approved')await loadInventory();loadLeftovers();restoreShoppingAndTrolleyState();}
-  else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);await loadInventory();}
+  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();}
+  else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);if(currentUserCan('show_inventory'))await loadInventory();}
   else{content.innerHTML=renderKaren(recipes,userProfile.name);renderKarenAdditionsList();loadKarenShoppingPreview();}
 }
 function renderCameron(recipes,name){
