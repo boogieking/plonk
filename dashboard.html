@@ -2424,7 +2424,9 @@ async function adminAddDinner(lunchRecipeId,dinnerRecipeId,dinnerName){
 // ── END ADMIN DINNER MANAGEMENT ──────────────────────────────────
 
 async function reshuffleDinners(){
+  if(!currentUserCan('manage_dinners')){showToast('Permission denied','error');return;}
   if(!currentPlan||!currentMeals.length){showToast('No active plan','error');return;}
+  if(!confirm('Reshuffle all dinners? This will replace all current dinner assignments.'))return;
   await assignDinnersForPlan(currentPlan.id,currentMeals);
   await loadWeekData();await renderDashboard();
   showToast('Dinners reshuffled ✓');
@@ -6213,7 +6215,9 @@ async function adminAddDinner(lunchRecipeId,dinnerRecipeId,dinnerName){
 // ── END ADMIN DINNER MANAGEMENT ──────────────────────────────────
 
 async function reshuffleDinners(){
+  if(!currentUserCan('manage_dinners')){showToast('Permission denied','error');return;}
   if(!currentPlan||!currentMeals.length){showToast('No active plan','error');return;}
+  if(!confirm('Reshuffle all dinners? This will replace all current dinner assignments.'))return;
   await assignDinnersForPlan(currentPlan.id,currentMeals);
   await loadWeekData();await renderDashboard();
   showToast('Dinners reshuffled ✓');
