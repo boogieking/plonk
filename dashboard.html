@@ -45,10 +45,10 @@
     .page-header h1{font-family:'Playfair Display',serif;font-size:1.7rem;font-weight:700;color:var(--dark);line-height:1.2;}
     .page-header p{margin-top:5px;font-size:0.88rem;color:var(--mid);font-weight:300;}
     .week-banner{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;box-shadow:0 2px 12px rgba(0,0,0,0.05);}
-    @media(max-width:600px){.week-banner{flex-direction:column;align-items:stretch;gap:12px;padding:16px;}}
+    @media(max-width:600px){.week-banner{flex-direction:column;align-items:stretch;gap:12px;padding:16px;}.week-banner .status-label{font-size:0.78rem;}.week-banner>div:last-child{display:flex;flex-wrap:wrap;gap:8px;width:100%;}.week-banner>div:last-child .btn-primary,.week-banner>div:last-child .btn-secondary{flex:1;min-width:0;text-align:center;}}
     .status-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
     .status-label{font-size:0.82rem;font-weight:500;color:var(--mid);text-transform:uppercase;letter-spacing:0.05em}
-    .status-text{font-size:0.88rem;color:var(--dark)}
+    .status-text{font-size:0.88rem;color:var(--dark);min-width:0;word-break:break-word}
     .btn-primary{background:var(--clay);color:white;border:none;border-radius:10px;padding:9px 18px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:500;cursor:pointer;white-space:nowrap;transition:background 0.18s,transform 0.12s;box-shadow:0 3px 10px rgba(200,103,74,0.3);}
     .btn-primary:hover{background:var(--clay-dark);transform:translateY(-1px)}
     .btn-primary:disabled{opacity:0.45;cursor:not-allowed;transform:none;box-shadow:none}
@@ -213,8 +213,9 @@
     .nav-tabs{display:flex;align-items:center;gap:4px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;flex-shrink:1;min-width:0;}
     .nav-tabs::-webkit-scrollbar{display:none;}
     .nav-tabs-wrap{position:relative;flex-shrink:1;min-width:0;}
+    @keyframes scrollHintPulse{0%,100%{opacity:1}50%{opacity:0.3}}
     .nav-tabs-wrap::after{content:'';position:absolute;right:0;top:0;bottom:0;width:32px;background:linear-gradient(to right,transparent,rgba(245,240,232,0.95));pointer-events:none;display:none;}
-    @media(max-width:600px){.nav-tabs-wrap::after{display:block;}}
+    @media(max-width:600px){.nav-tabs-wrap::after{display:block;animation:scrollHintPulse 1.6s ease-in-out 0.8s 2;}}
     .nav-tab{padding:6px 14px;border-radius:8px;border:none;background:none;font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:400;color:var(--mid);cursor:pointer;transition:all 0.15s;white-space:nowrap;flex-shrink:0;}
     .nav-tab:hover{background:var(--light);color:var(--dark)}
     .nav-tab.active{background:rgba(200,103,74,0.1);color:var(--clay);font-weight:500;}
@@ -1290,7 +1291,7 @@ function renderSienna(recipes,name){
     ${renderDayBeforeReminder()}
     <div class="page-header"><h1>Hi ${name} 👋</h1><p>${hasPlan?'Plan started '+planDateLabel(currentPlan):'No active plan yet'}</p></div>
     <div class="week-banner">
-      <div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px"><div class="status-dot" style="background:${hasPlan?'#4A7C59':'#C8674A'}"></div><div class="status-text">${hasPlan?`${mealCount} meal${mealCount!==1?'s':''} suggested · status: <strong>${planStatus}</strong>`:"Waiting for Cameron to start this week's plan"}</div></div></div>
+      <div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap"><div class="status-dot" style="background:${hasPlan?'#4A7C59':'#C8674A'}"></div><div class="status-text">${hasPlan?`${mealCount} meal${mealCount!==1?'s':''} suggested · status: <strong>${planStatus}</strong>`:"Waiting for Cameron to start this week's plan"}</div></div></div>
       ${hasPlan?`<div style="display:flex;gap:10px;flex-wrap:wrap">${currentUserCan('reshuffle_plan')?`<button class="btn-secondary" ${reshuffleUsed||alreadySubmitted?'disabled':''} onclick="doReshuffle(this)">${reshuffleUsed?'🔀 Reshuffle used':'🔀 Reshuffle'}</button>`:''}<button class="btn-primary" id="submit-plan-btn" ${alreadySubmitted?'disabled style="opacity:0.6"':''} onclick="submitPlan(this)">${submitLabel}</button></div>`:''}
     </div>
     <div class="collapse-controls">
@@ -1359,7 +1360,7 @@ function renderKaren(recipes,name){
   return`<div class="fade-in">
     ${showFinalBanner?`<div id="finalised-banner" style="background:rgba(74,124,89,0.1);border:1px solid rgba(74,124,89,0.3);border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px"><div style="display:flex;align-items:center;gap:12px"><span style="font-size:1.3rem">✅</span><div><div style="font-weight:600;color:#2d5a3d;font-size:0.92rem">This week's plan is finalised!</div><div style="font-size:0.82rem;color:#4A7C59;margin-top:2px">Cameron has approved the meal plan. See your meals below.</div></div></div><button onclick="sessionStorage.setItem('${bannerKey}','1');document.getElementById('finalised-banner').remove()" style="background:none;border:none;cursor:pointer;font-size:1.1rem;color:#4A7C59;padding:4px 8px" title="Dismiss">✕</button></div>`:''}
     <div class="page-header"><h1>Hi ${name} 👋</h1><p>${hasPlan?'Plan started '+planDateLabel(currentPlan):'No active plan yet'}</p></div>
-    <div class="week-banner"><div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px"><div class="status-dot" style="background:${hasPlan?'#4A7C59':'#C8674A'}"></div><div class="status-text">${hasPlan?`${mealCount} meal${mealCount!==1?'s':''} this week · status: <strong>${currentPlan.status}</strong>`:'No active plan yet'}</div></div></div></div>
+    <div class="week-banner"><div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap"><div class="status-dot" style="background:${hasPlan?'#4A7C59':'#C8674A'}"></div><div class="status-text">${hasPlan?`${mealCount} meal${mealCount!==1?'s':''} this week · status: <strong>${currentPlan.status}</strong>`:'No active plan yet'}</div></div></div></div>
     <div class="collapse-controls">
       <button class="collapse-btn" onclick="collapseAll(['kar-meals','kar-requests','kar-ratings','kar-shopping'])">Collapse all</button>
       <button class="collapse-btn" onclick="expandAll(['kar-meals','kar-requests','kar-ratings','kar-shopping'])">Expand all</button>
