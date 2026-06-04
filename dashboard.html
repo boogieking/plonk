@@ -680,7 +680,7 @@ function renderCameron(recipes,name){
     <div class="card" id="leftovers-card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">In fridge / freezer / pantry</div>
-        <button class="btn-secondary" style="font-size:0.78rem;padding:5px 12px" onclick="openAddLeftoverModal()">+ Add manually</button>
+        <button class="btn-secondary" style="font-size:0.78rem;padding:5px 12px" onclick="openManualLeftoverModal()">+ Add manually</button>
       </div>
       <div id="leftovers-list"><div class="empty"><span class="empty-icon">📦</span>No leftovers tracked yet — they appear here after receipt scanning</div></div>
     </div>
@@ -2565,7 +2565,6 @@ async function showPriceHistory(productId,productName){
   body.innerHTML=`<div style="padding:16px">${trend}${overallHtml}</div>`;
 }
 
-function setProductStoreFilter(store){productsSubView='products';productFilterStore=store;renderProductsView();}
 function filterProducts(){renderFilteredProducts();}
 
 async function renderPriceTrendsView(){
