@@ -615,7 +615,7 @@ function renderCameron(recipes,name){
     ${renderDayBeforeReminder()}
     <div class="page-header"><h1>Good day, ${name} 👋</h1><p>${hasPlan?'Plan started '+planDateLabel(currentPlan):'No active plan yet'} · You have full control</p></div>
     <div class="week-banner">
-      <div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px"><div class="status-dot" style="background:${statusColor}"></div><div class="status-text">${statusText}</div></div></div>
+      <div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px"><div class="status-dot" style="background:${statusColor}"></div><div class="status-text">${statusText}</div>${currentPlan?.is_test?`<span class="tag" style="background:rgba(200,103,74,0.15);color:var(--clay);border:1px solid rgba(200,103,74,0.3);font-weight:600">🧪 Test plan</span>`:''}</div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         ${hasPlan&&currentPlan.status==='suggested'?`<button class="btn-primary" id="approve-plan-btn" onclick="approvePlanAsAdmin(this)">✓ Approve plan</button>`:''}
         ${hasPlan&&currentPlan.status==='approved'?`<button class="btn-primary" disabled style="opacity:0.6">✓ Approved</button>`:''}
@@ -879,13 +879,14 @@ let selectedEatingOutDays=[];
 function openEatingOutModal(){
   selectedEatingOutDays=[];
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-  el.innerHTML=`<div class="modal" style="max-width:480px"><h3>Start a new plan</h3><p>Tap the days you'll be eating out. The app will suggest the right number of home meals.</p><div class="day-selector" id="day-selector">${DAYS.map(d=>`<button class="day-btn" onclick="toggleDay('${d}',this)">${d}</button>`).join('')}</div><div id="meal-count-preview" style="margin:14px 0;padding:12px 14px;background:var(--cream);border-radius:10px;font-size:0.88rem;color:var(--mid)">${mealCountPreview(0)}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" id="confirm-eating-out" onclick="confirmEatingOut()">Suggest meals</button></div></div>`;
+  el.innerHTML=`<div class="modal" style="max-width:480px"><h3>Start a new plan</h3><p>Tap the days you'll be eating out. The app will suggest the right number of home meals.</p><div class="day-selector" id="day-selector">${DAYS.map(d=>`<button class="day-btn" onclick="toggleDay('${d}',this)">${d}</button>`).join('')}</div><div id="meal-count-preview" style="margin:14px 0;padding:12px 14px;background:var(--cream);border-radius:10px;font-size:0.88rem;color:var(--mid)">${mealCountPreview(0)}</div><label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(200,103,74,0.06);border:1px solid rgba(200,103,74,0.2);border-radius:10px;cursor:pointer;font-size:0.85rem;margin-bottom:4px"><input type="checkbox" id="is-test-plan" style="width:16px;height:16px;accent-color:var(--clay);cursor:pointer"><span><strong>This is a test plan</strong> — hidden from history by default, can be deleted</span></label><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" id="confirm-eating-out" onclick="confirmEatingOut()">Suggest meals</button></div></div>`;
   document.body.appendChild(el);
 }
 function mealCountPreview(outCount){const home=Math.max(0,7-outCount);return`<span class="day-count">${home}</span> home meal${home!==1?'s':''} needed<span style="margin-left:8px;color:var(--mid);font-size:0.78rem">(7 days − ${outCount} eating out)</span>`;}
 function toggleDay(day,btn){if(selectedEatingOutDays.includes(day)){selectedEatingOutDays=selectedEatingOutDays.filter(d=>d!==day);btn.classList.remove('selected');}else{selectedEatingOutDays.push(day);btn.classList.add('selected');}document.getElementById('meal-count-preview').innerHTML=mealCountPreview(selectedEatingOutDays.length);}
 async function confirmEatingOut(){
   const btn=document.getElementById('confirm-eating-out');btn.textContent='Checking...';btn.disabled=true;
+  const isTest=document.getElementById('is-test-plan')?.checked||false;
   const homeMeals=Math.max(0,7-selectedEatingOutDays.length);
   // Check previous plan for uncooked meals
   try{
@@ -896,17 +897,18 @@ async function confirmEatingOut(){
       const{data:uncookedDinners}=await sb.from('weekly_plan_meals').select('recipe_id,lunch_recipe_id,recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',prevPlanId).eq('cooked',false).eq('is_dinner',true);
       const hasUncooked=(uncookedLunches&&uncookedLunches.length>0)||(uncookedDinners&&uncookedDinners.length>0);
       if(hasUncooked){
-        showCarryOverModal(uncookedLunches||[],uncookedDinners||[],homeMeals);
+        showCarryOverModal(uncookedLunches||[],uncookedDinners||[],homeMeals,isTest);
         return;
       }
     }
   }catch(e){/* if check fails, proceed normally */}
-  await doCreateNewPlan(homeMeals,[]);
+  await doCreateNewPlan(homeMeals,[],[],isTest);
 }
-let _carryOverHomeMeals=0,_carryOverDinners=[];
-function showCarryOverModal(uncookedLunches,uncookedDinners,homeMeals){
+let _carryOverHomeMeals=0,_carryOverDinners=[],_carryOverIsTest=false;
+function showCarryOverModal(uncookedLunches,uncookedDinners,homeMeals,isTest=false){
   _carryOverHomeMeals=homeMeals;
   _carryOverDinners=uncookedDinners||[];
+  _carryOverIsTest=isTest;
   const lunchRows=uncookedLunches.map(m=>`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--cream);border-radius:10px;cursor:pointer;font-size:0.88rem">
     <input type="checkbox" class="carryover-lunch" value="${m.recipe_id}" style="width:16px;height:16px;accent-color:var(--clay);cursor:pointer">
     🍽 ${m.recipes?.name_en||m.recipe_id}
@@ -922,7 +924,7 @@ function showCarryOverModal(uncookedLunches,uncookedDinners,homeMeals){
     ${uncookedLunches.length>0?`<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Lunches</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">${lunchRows}</div>`:''}
     ${uncookedDinners.length>0?`<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Dinners</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">${dinnerRows}</div>`:''}
     <div class="modal-btns">
-      <button class="btn-ghost" onclick="doCreateNewPlan(${homeMeals},[],[])">Skip — don't carry any over</button>
+      <button class="btn-ghost" onclick="doCreateNewPlan(${homeMeals},[],[],_carryOverIsTest)">Skip — don't carry any over</button>
       <button class="btn-primary" onclick="confirmCarryOver(${homeMeals})">Add selected &amp; continue</button>
     </div>
   </div>`;
@@ -932,13 +934,13 @@ async function confirmCarryOver(homeMeals){
   const dinnerChecks=document.querySelectorAll('.carryover-dinner:checked');
   const carryOverLunchIds=Array.from(lunchChecks).map(cb=>cb.value);
   const carryOverDinners=Array.from(dinnerChecks).map(cb=>({recipe_id:cb.value,lunch_recipe_id:cb.dataset.lunch||null}));
-  await doCreateNewPlan(homeMeals,carryOverLunchIds,carryOverDinners);
+  await doCreateNewPlan(homeMeals,carryOverLunchIds,carryOverDinners,_carryOverIsTest);
 }
-async function doCreateNewPlan(homeMeals,carryOverIds,carryOverDinners=[]){
+async function doCreateNewPlan(homeMeals,carryOverIds,carryOverDinners=[],isTest=false){
   const allRecipes=await loadRecipes();const picked=await selectMealsForWeek(allRecipes,homeMeals);
   try{
     await sb.from('weekly_plans').update({status:'archived'}).not('status','eq','archived');
-    const{data:newPlan,error:planError}=await sb.from('weekly_plans').insert({week_start:getTodayDate(),eating_out_days:selectedEatingOutDays,status:'suggested',reshuffle_used:false}).select().single();if(planError)throw planError;
+    const{data:newPlan,error:planError}=await sb.from('weekly_plans').insert({week_start:getTodayDate(),eating_out_days:selectedEatingOutDays,status:'suggested',reshuffle_used:false,is_test:isTest}).select().single();if(planError)throw planError;
     currentPlan=newPlan;
     // Insert newly suggested meals
     if(picked.length>0){const{error:mealsError}=await sb.from('weekly_plan_meals').insert(picked.map(r=>({plan_id:currentPlan.id,recipe_id:r.id,cooked:false,is_dinner:false})));if(mealsError)throw mealsError;}
@@ -3694,71 +3696,69 @@ function expandAll(ids){
 async function renderHistoryView(){
   if(userProfile.role!=='admin'){showToast('Admin only','error');switchView('dashboard');return;}
   const content=document.getElementById('dashboard-content');
-  content.innerHTML=`<div class="fade-in"><div class="page-header"><h1>Plan History</h1><p>A read-only record of every past week.</p></div><div id="history-body"><div style="color:var(--mid);font-size:0.9rem;padding:40px 0;text-align:center">Loading past plans…</div></div></div>`;
+  const showTests=content._showTests||false;
+  content.innerHTML=`<div class="fade-in"><div class="page-header"><h1>Plan History</h1><p>A read-only record of every past week.</p></div><div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:16px"><label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer"><input type="checkbox" id="show-test-plans" ${showTests?'checked':''} onchange="toggleHistoryTestPlans(this.checked)" style="accent-color:var(--clay)"> Show test plans</label></div><div id="history-body"><div style="color:var(--mid);font-size:0.9rem;padding:40px 0;text-align:center">Loading past plans…</div></div></div>`;
 
-  // Load all archived plans newest first
   const{data:plans,error:planErr}=await sb.from('weekly_plans')
-    .select('id,week_start,status,created_at')
+    .select('id,week_start,status,created_at,is_test')
     .eq('status','archived')
     .order('week_start',{ascending:false});
 
   const body=document.getElementById('history-body');
   if(planErr){body.innerHTML=`<div style="color:#c44;padding:20px">Error loading plans: ${planErr.message}</div>`;return;}
-  if(!plans||plans.length===0){body.innerHTML=`<div style="color:var(--mid);font-size:0.9rem;padding:40px 0;text-align:center">No archived plans yet — completed weeks will appear here.</div>`;return;}
+  if(!plans||plans.length===0){body.innerHTML=`<div style="color:var(--mid);font-size:0.9rem;padding:40px 0;text-align:center">No archived plans yet.</div>`;return;}
 
-  // Load all meals for all archived plans in one query
-  const planIds=plans.map(p=>p.id);
+  const filtered=showTests?plans:plans.filter(p=>!p.is_test);
+  if(filtered.length===0){body.innerHTML=`<div style="color:var(--mid);font-size:0.9rem;padding:40px 0;text-align:center">No regular plans yet — tick "Show test plans" to see test plans.</div>`;return;}
+
+  const planIds=filtered.map(p=>p.id);
   const{data:allMeals,error:mealErr}=await sb.from('weekly_plan_meals')
     .select('plan_id,is_dinner,cooked,recipes!weekly_plan_meals_recipe_id_fkey(name_en,name_es)')
     .in('plan_id',planIds);
 
   if(mealErr){body.innerHTML=`<div style="color:#c44;padding:20px">Error loading meals: ${mealErr.message}</div>`;return;}
 
-  // Group meals by plan
   const mealsByPlan={};
   for(const m of allMeals||[]){
     if(!mealsByPlan[m.plan_id])mealsByPlan[m.plan_id]=[];
     mealsByPlan[m.plan_id].push(m);
   }
 
-  const fmt=d=>{
-    const dt=new Date(d+'T12:00:00');
-    return dt.toLocaleDateString('en-MX',{day:'numeric',month:'long',year:'numeric'});
-  };
+  const fmt=d=>{const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-MX',{day:'numeric',month:'long',year:'numeric'});};
 
-  const planCards=plans.map((plan,idx)=>{
+  const planCards=filtered.map((plan,idx)=>{
     const meals=mealsByPlan[plan.id]||[];
     const lunches=meals.filter(m=>m.is_dinner!==true);
     const dinners=meals.filter(m=>m.is_dinner===true);
     const cookedCount=meals.filter(m=>m.cooked).length;
     const totalCount=meals.length;
+    const isTest=plan.is_test===true;
 
-    const mealRow=(m,icon)=>`
-      <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);">
-        <span style="font-size:0.85rem;flex:1;color:${m.cooked?'var(--mid)':'var(--dark)'};${m.cooked?'text-decoration:line-through':''}">
-          ${icon} ${m.recipes?.name_en||'Unknown'}
-        </span>
-        <span style="font-size:0.72rem;font-weight:500;padding:2px 8px;border-radius:999px;background:${m.cooked?'rgba(74,124,89,0.12)':'rgba(200,103,74,0.1)'};color:${m.cooked?'var(--green)':'var(--clay)'}">
-          ${m.cooked?'✓ Cooked':'— Uncooked'}
-        </span>
-      </div>`;
+    const mealRow=(m,icon)=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);"><span style="font-size:0.85rem;flex:1;color:${m.cooked?'var(--mid)':'var(--dark)'};${m.cooked?'text-decoration:line-through':''}">${icon} ${m.recipes?.name_en||'Unknown'}</span><span style="font-size:0.72rem;font-weight:500;padding:2px 8px;border-radius:999px;background:${m.cooked?'rgba(74,124,89,0.12)':'rgba(200,103,74,0.1)'};color:${m.cooked?'var(--green)':'var(--clay)'}">${m.cooked?'✓ Cooked':'— Uncooked'}</span></div>`;
 
     const lunchRows=lunches.length>0?lunches.map(m=>mealRow(m,'🍽')).join(''):`<div style="color:var(--mid);font-size:0.82rem;padding:8px 0">No lunches recorded</div>`;
     const dinnerRows=dinners.length>0?dinners.map(m=>mealRow(m,'🌙')).join(''):`<div style="color:var(--mid);font-size:0.82rem;padding:8px 0">No dinners recorded</div>`;
 
     const secId=`hist-${plan.id}`;
     const stored=localStorage.getItem('sec_'+secId);
-    const isOpen=stored!==null?stored==='1':idx===0; // first plan open by default
+    const isOpen=stored!==null?stored==='1':idx===0;
+    const testBadge=isTest?`<span style="font-size:0.7rem;font-weight:600;padding:2px 8px;border-radius:999px;background:rgba(200,103,74,0.12);color:var(--clay);border:1px solid rgba(200,103,74,0.25);margin-left:8px">🧪 Test</span>`:'';
+    const deleteBtn=isTest?`<button class="btn-secondary" style="font-size:0.72rem;padding:4px 12px;color:#c44;border-color:rgba(200,50,50,0.3);white-space:nowrap;flex-shrink:0" onclick="deleteTestPlan('${plan.id}','${fmt(plan.week_start)}')">🗑 Delete</button>`:'';
 
-    return `<div class="card" style="margin-bottom:16px">
-      <div class="sec-header" onclick="toggleSection('${secId}')" style="cursor:pointer">
-        <div>
-          <div style="font-size:1rem;font-weight:600;color:var(--dark)">Week of ${fmt(plan.week_start)}</div>
-          <div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${totalCount} meal${totalCount!==1?'s':''} planned &nbsp;·&nbsp; ${cookedCount} cooked &nbsp;·&nbsp; ${totalCount-cookedCount} uncooked</div>
+    return `<div class="card" style="margin-bottom:16px${isTest?';border-color:rgba(200,103,74,0.25)':''}">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 0">
+        <div style="flex:1;cursor:pointer" onclick="toggleSection('${secId}')">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:1rem;font-weight:600;color:var(--dark);display:flex;align-items:center">Week of ${fmt(plan.week_start)}${testBadge}</div>
+              <div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${totalCount} meal${totalCount!==1?'s':''} planned · ${cookedCount} cooked · ${totalCount-cookedCount} uncooked</div>
+            </div>
+            <span class="sec-chevron${isOpen?'':' collapsed'}" id="chev-${secId}">${CHEVRON_SVG}</span>
+          </div>
         </div>
-        <span class="sec-chevron${isOpen?'':' collapsed'}" id="chev-${secId}">${CHEVRON_SVG}</span>
+        ${deleteBtn}
       </div>
-      <div class="sec-body${isOpen?'':' collapsed'}" id="sec-${secId}" style="padding-top:12px">
+      <div class="sec-body${isOpen?'':' collapsed'}" id="sec-${secId}" style="padding-top:4px">
         ${lunches.length>0?`<div style="font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--mid);margin-bottom:4px">Lunches</div>${lunchRows}`:''}
         ${dinners.length>0?`<div style="font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--mid);margin-top:14px;margin-bottom:4px">Dinners</div>${dinnerRows}`:''}
       </div>
@@ -3766,6 +3766,22 @@ async function renderHistoryView(){
   }).join('');
 
   body.innerHTML=planCards;
+}
+
+function toggleHistoryTestPlans(show){
+  const content=document.getElementById('dashboard-content');
+  content._showTests=show;
+  renderHistoryView();
+}
+
+async function deleteTestPlan(planId,planLabel){
+  if(!confirm(`Permanently delete the test plan "${planLabel}"?\n\nThis cannot be undone.`))return;
+  const{error:mealsErr}=await sb.from('weekly_plan_meals').delete().eq('plan_id',planId);
+  if(mealsErr){showToast('Error deleting meals: '+mealsErr.message,'error');return;}
+  const{error:planErr}=await sb.from('weekly_plans').delete().eq('id',planId);
+  if(planErr){showToast('Error deleting plan: '+planErr.message,'error');return;}
+  showToast('Test plan deleted ✓');
+  renderHistoryView();
 }
 /* ── END PLAN HISTORY ───────────────────────── */
 
