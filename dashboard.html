@@ -45,6 +45,7 @@
     .page-header h1{font-family:'Playfair Display',serif;font-size:1.7rem;font-weight:700;color:var(--dark);line-height:1.2;}
     .page-header p{margin-top:5px;font-size:0.88rem;color:var(--mid);font-weight:300;}
     .week-banner{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;box-shadow:0 2px 12px rgba(0,0,0,0.05);}
+    @media(max-width:600px){.week-banner{flex-direction:column;align-items:stretch;gap:12px;padding:16px;}}
     .status-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
     .status-label{font-size:0.82rem;font-weight:500;color:var(--mid);text-transform:uppercase;letter-spacing:0.05em}
     .status-text{font-size:0.88rem;color:var(--dark)}
@@ -211,10 +212,13 @@
     .prep-reminder-desc{font-size:0.78rem;color:var(--mid);margin-top:2px}
     .nav-tabs{display:flex;align-items:center;gap:4px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;flex-shrink:1;min-width:0;}
     .nav-tabs::-webkit-scrollbar{display:none;}
+    .nav-tabs-wrap{position:relative;flex-shrink:1;min-width:0;}
+    .nav-tabs-wrap::after{content:'';position:absolute;right:0;top:0;bottom:0;width:32px;background:linear-gradient(to right,transparent,rgba(245,240,232,0.95));pointer-events:none;display:none;}
+    @media(max-width:600px){.nav-tabs-wrap::after{display:block;}}
     .nav-tab{padding:6px 14px;border-radius:8px;border:none;background:none;font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:400;color:var(--mid);cursor:pointer;transition:all 0.15s;white-space:nowrap;flex-shrink:0;}
     .nav-tab:hover{background:var(--light);color:var(--dark)}
     .nav-tab.active{background:rgba(200,103,74,0.1);color:var(--clay);font-weight:500;}
-    @media(max-width:600px){.nav-tabs{width:100%;order:3;padding:4px 0 8px;border-top:1px solid var(--border);margin-top:8px;}.nav-tabs .nav-tab{padding:6px 12px;font-size:0.8rem;}.nav-brand{font-size:1.1rem;}}
+    @media(max-width:600px){.nav-tabs-wrap{width:100%;order:3;border-top:1px solid var(--border);margin-top:8px;}.nav-tabs{padding:4px 0 8px;}.nav-tabs .nav-tab{padding:6px 12px;font-size:0.8rem;}.nav-brand{font-size:1.1rem;}}
     .recipes-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px;}
     .search-input{flex:1;min-width:180px;padding:8px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;color:var(--dark);background:white;transition:border-color 0.2s;}
     .search-input:focus{border-color:var(--clay)}
@@ -504,12 +508,14 @@
 <div id="app">
   <nav>
     <div class="nav-brand">🍴 <span class="nav-brand-word">Fork<span class="n">n</span>ight</span></div>
+    <div class="nav-tabs-wrap">
     <div class="nav-tabs" id="nav-tabs">
       <button class="nav-tab active" data-view="dashboard" onclick="switchView('dashboard')">This Week</button>
       <button class="nav-tab" data-view="recipes" onclick="switchView('recipes')">Recipes</button>
       <button class="nav-tab" data-view="products" onclick="switchView('products')" id="products-tab" style="display:none">Products</button>
       <button class="nav-tab" data-view="history" onclick="switchView('history')" id="history-tab" style="display:none">History</button>
       <button class="nav-tab" data-view="permissions" onclick="switchView('permissions')" id="permissions-tab" style="display:none">Permissions</button>
+    </div>
     </div>
     <div class="nav-right">
       <div class="user-chip">
@@ -621,7 +627,7 @@ function renderCameron(recipes,name){
     ${renderDayBeforeReminder()}
     <div class="page-header"><h1>Good day, ${name} 👋</h1><p>${hasPlan?'Plan started '+planDateLabel(currentPlan):'No active plan yet'} · You have full control</p></div>
     <div class="week-banner">
-      <div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px"><div class="status-dot" style="background:${statusColor}"></div><div class="status-text">${statusText}</div>${currentPlan?.is_test?`<span class="tag" style="background:rgba(200,103,74,0.15);color:var(--clay);border:1px solid rgba(200,103,74,0.3);font-weight:600">🧪 Test plan</span>`:''}</div></div>
+      <div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap"><div class="status-dot" style="background:${statusColor}"></div><div class="status-text">${statusText}</div></div>${currentPlan?.is_test?`<div style="margin-top:6px"><span class="tag" style="background:rgba(200,103,74,0.15);color:var(--clay);border:1px solid rgba(200,103,74,0.3);font-weight:600">🧪 Test plan</span></div>`:''}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         ${hasPlan&&currentPlan.status==='suggested'?`<button class="btn-primary" id="approve-plan-btn" onclick="approvePlanAsAdmin(this)">✓ Approve plan</button>`:''}
         ${hasPlan&&currentPlan.status==='approved'?`<button class="btn-primary" disabled style="opacity:0.6">✓ Approved</button>`:''}
