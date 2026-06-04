@@ -28,12 +28,12 @@
     body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--dark);min-height:100vh;overflow-x:hidden;}
     body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 60% 50% at 85% 10%,rgba(200,103,74,0.10) 0%,transparent 60%),radial-gradient(ellipse 40% 60% at 5% 90%,rgba(200,103,74,0.07) 0%,transparent 50%);pointer-events:none;z-index:0;}
     nav{position:sticky;top:0;z-index:100;background:rgba(245,240,232,0.88);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:58px;overflow:hidden;}
-    @media(max-width:480px){nav{padding:0 12px;}}
+    @media(max-width:600px){nav{flex-wrap:wrap;height:auto;padding:10px 14px 0;overflow:visible;}}    
     .nav-brand{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dark);display:flex;align-items:center;}
     .nav-brand-word{display:inline;font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dark);margin-left:8px}
     .nav-brand-word .n{color:var(--clay)}
     .nav-right{display:flex;align-items:center;gap:16px;flex-shrink:0;}
-    @media(max-width:480px){.nav-right{gap:8px;}.user-chip{padding:5px 8px 5px 5px;}.sign-out{font-size:0.75rem;padding:6px 6px;}}
+    @media(max-width:600px){.nav-right{gap:8px;}.user-chip{padding:5px 8px 5px 5px;font-size:0.78rem;}.sign-out{font-size:0.75rem;padding:6px 4px;}}
     .user-chip{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:5px 14px 5px 5px;font-size:0.82rem;}
     .avatar{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:500;color:white;}
     .role-tag{font-size:0.68rem;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px;color:white;}
@@ -214,7 +214,7 @@
     .nav-tab{padding:6px 14px;border-radius:8px;border:none;background:none;font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:400;color:var(--mid);cursor:pointer;transition:all 0.15s;white-space:nowrap;flex-shrink:0;}
     .nav-tab:hover{background:var(--light);color:var(--dark)}
     .nav-tab.active{background:rgba(200,103,74,0.1);color:var(--clay);font-weight:500;}
-    @media(max-width:600px){.nav-tabs .nav-tab{padding:6px 10px;font-size:0.78rem}.nav-brand{font-size:1.1rem}}
+    @media(max-width:600px){.nav-tabs{width:100%;order:3;padding:4px 0 8px;border-top:1px solid var(--border);margin-top:8px;}.nav-tabs .nav-tab{padding:6px 12px;font-size:0.8rem;}.nav-brand{font-size:1.1rem;}}
     .recipes-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px;}
     .search-input{flex:1;min-width:180px;padding:8px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;color:var(--dark);background:white;transition:border-color 0.2s;}
     .search-input:focus{border-color:var(--clay)}
