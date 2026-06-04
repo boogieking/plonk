@@ -375,6 +375,21 @@
     .not-found-row .shop-name-en{text-decoration:line-through;}
     .cat-subtotal{font-size:0.7rem;font-weight:500;color:var(--clay);margin-left:auto;padding-left:8px;white-space:nowrap;}
     .trolley-banner-cats{font-size:0.72rem;color:rgba(255,255,255,0.55);margin-top:4px;line-height:1.6;}
+    .budget-bar-wrap{margin-top:8px;width:180px;}
+    .budget-bar-track{height:5px;border-radius:3px;background:rgba(255,255,255,0.18);overflow:hidden;}
+    .budget-bar-fill{height:100%;border-radius:3px;transition:width 0.3s ease,background 0.3s ease;}
+    .budget-bar-label{font-size:0.68rem;color:rgba(255,255,255,0.55);margin-top:3px;}
+    .budget-over{color:#ff8a65!important;}
+    .budget-warn{color:#ffd54f!important;}
+    .budget-input-wrap{display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:10px 14px;background:rgba(74,124,89,0.08);border:1.5px solid rgba(74,124,89,0.2);border-radius:10px;}
+    .budget-input-wrap label{font-size:0.8rem;font-weight:500;color:var(--mid);white-space:nowrap;}
+    .budget-input{width:110px;border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;background:white;color:var(--dark);outline:none;text-align:right;}
+    .budget-input:focus{border-color:var(--clay);}
+    .pre-estimate-banner{background:rgba(74,124,89,0.07);border:1.5px solid rgba(74,124,89,0.18);border-radius:10px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+    .pre-estimate-label{font-size:0.78rem;color:var(--mid);}
+    .pre-estimate-amt{font-size:1rem;font-weight:600;color:var(--green);}
+    .cheaper-alt-nudge{background:#fff8e1;border:1.5px solid #ffc107;border-radius:9px;padding:9px 13px;margin-top:6px;font-size:0.8rem;color:#795548;display:flex;align-items:flex-start;gap:8px;}
+    .cheaper-alt-nudge .alt-icon{font-size:1rem;flex-shrink:0;margin-top:1px;}
     .trolley-add-fab{position:fixed;bottom:80px;right:20px;z-index:210;width:48px;height:48px;border-radius:50%;background:var(--clay);color:white;border:none;font-size:1.4rem;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;transition:background 0.18s,transform 0.15s;}
     .trolley-add-fab:hover{background:var(--clay-dark);transform:scale(1.08);}
     .trolley-calc-fab{position:fixed;bottom:80px;right:76px;z-index:210;width:48px;height:48px;border-radius:50%;background:var(--dark);color:white;border:none;font-size:1.1rem;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;transition:background 0.18s,transform 0.15s;}
@@ -709,7 +724,7 @@ function mealRowAdmin(m){
   return`<div class="meal-item ${isCooked?'cooked':''}" id="meal-item-${r.id}"><div style="flex:1"><div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${r.name_en} ${advPrepTag} ${tierBadge}</div><div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${r.prep_time_minutes||'—'} min prep · ${r.cook_time_minutes||'—'} min cook${avgStr} ${scheduledLabel}</div>${sideHtml}${ratingHtml}${ratedHtml}</div><div class="meal-actions" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${actionHtml}${swapBtn}${removeBtn}${hibernateBtn}</div></div>`;
 }
 let inventoryItems=[],inventoryState={};
-let trolleyMode=false,trolleyItems={},usdRate=null;
+let trolleyMode=false,trolleyItems={},usdRate=null,trolleyBudget=0;
 
 /* ── SHOPPING STATE PERSISTENCE ─────────────── */
 function shoppingStateKey(){return currentPlan?`forknight_shopping_${currentPlan.id}`:null;}
@@ -725,7 +740,7 @@ function loadShoppingState(){
 function clearShoppingState(){const key=shoppingStateKey();if(key)localStorage.removeItem(key);}
 function saveTrolleyState(){
   const key=trolleyStateKey();if(!key)return;
-  try{localStorage.setItem(key,JSON.stringify({trolleyMode,trolleyItems,adhocItems,savedAt:Date.now()}));}catch(e){console.warn('Trolley state save failed:',e);}
+  try{localStorage.setItem(key,JSON.stringify({trolleyMode,trolleyItems,adhocItems,trolleyBudget,savedAt:Date.now()}));}catch(e){console.warn('Trolley state save failed:',e);}
 }
 function loadTrolleyState(){
   const key=trolleyStateKey();if(!key)return null;
@@ -753,6 +768,7 @@ async function restoreShoppingAndTrolleyState(){
     if(trolleyState&&trolleyState.trolleyMode){
       trolleyItems=trolleyState.trolleyItems||{};
       adhocItems=trolleyState.adhocItems||[];
+      trolleyBudget=trolleyState.trolleyBudget||0;
       trolleyMode=true;
       await fetchExchangeRate();
       if(btn)btn.style.display='none';
@@ -1540,7 +1556,39 @@ async function generateShoppingList(){
 }
 /* ── TROLLEY MODE ─────────────────────────────── */
 async function fetchExchangeRate(){if(usdRate)return usdRate;try{const r=await fetch('https://open.er-api.com/v6/latest/MXN');const d=await r.json();if(d&&d.rates&&d.rates.USD){usdRate=d.rates.USD;return usdRate;}}catch(e){console.warn('Exchange rate fetch failed:',e.message);}return null;}
-async function startTrolleyMode(){trolleyMode=true;trolleyItems={};await fetchExchangeRate();const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');if(genBtn)genBtn.style.display='none';if(ssBtn)ssBtn.style.display='none';document.querySelectorAll('.link-btn-group').forEach(el=>el.style.display='none');renderTrolleyUI();saveTrolleyState();showToast('Shopping mode on — tick items as you add them 🛒');}
+async function startTrolleyMode(){
+  trolleyMode=true;trolleyItems={};
+  // Restore saved budget or default 0
+  const savedBudget=localStorage.getItem('forknight_trolley_budget');
+  trolleyBudget=savedBudget?parseFloat(savedBudget):0;
+  await fetchExchangeRate();
+  const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');
+  if(genBtn)genBtn.style.display='none';if(ssBtn)ssBtn.style.display='none';
+  document.querySelectorAll('.link-btn-group').forEach(el=>el.style.display='none');
+  // Inject budget input + pre-estimate above shopping list
+  const content=document.getElementById('shopping-list-content');
+  if(content&&!document.getElementById('budget-input-wrap')){
+    // Pre-estimate from household_products last_price_mxn
+    let estimateHTML='';
+    try{
+      const allRows=content.querySelectorAll('.shop-row');
+      const ingIds=[...allRows].map(r=>r.id.replace('shop-row-','')).filter(id=>id&&!id.startsWith('rec-')&&!id.startsWith('ck-'));
+      if(ingIds.length>0){
+        const{data:prods}=await sb.from('household_products').select('ingredient_id,last_price_mxn').in('ingredient_id',ingIds).not('last_price_mxn','is',null);
+        if(prods&&prods.length>0){
+          const estMap={};for(const p of prods){if(!estMap[p.ingredient_id])estMap[p.ingredient_id]=p.last_price_mxn;}
+          const estTotal=Object.values(estMap).reduce((s,v)=>s+parseFloat(v||0),0);
+          const coveredCount=Object.keys(estMap).length;
+          if(estTotal>0)estimateHTML=`<div class="pre-estimate-banner"><div><div class="pre-estimate-label">Pre-shop estimate (${coveredCount} of ${ingIds.length} items have prices)</div></div><div class="pre-estimate-amt">~$${estTotal.toFixed(2)} MXN</div></div>`;
+        }
+      }
+    }catch(e){console.warn('Pre-estimate failed:',e);}
+    const wrap=document.createElement('div');wrap.id='budget-input-wrap';
+    wrap.innerHTML=`${estimateHTML}<div class="budget-input-wrap"><label>🎯 Budget</label><input class="budget-input" id="trolley-budget-input" type="number" min="0" step="50" placeholder="e.g. 2000" value="${trolleyBudget||''}" oninput="setTrolleyBudget(this.value)"><span style="font-size:0.82rem;color:var(--mid)">MXN</span></div>`;
+    content.insertBefore(wrap,content.firstChild);
+  }
+  renderTrolleyUI();saveTrolleyState();showToast('Shopping mode on — tick items as you add them 🛒');
+}
 async function finishTrolleyMode(){
   // Check for unsaved adhoc items first
   const shouldContinue=await checkUnsavedAdhocItems();
@@ -1588,6 +1636,7 @@ async function finishTrolleyMode(){
   if(genBtn){genBtn.style.display='';genBtn.textContent='Regenerate list';}
   if(ssBtn)ssBtn.style.display='';
   document.getElementById('trolley-banner')?.remove();
+  document.getElementById('budget-input-wrap')?.remove();
   document.getElementById('in-trolley-section')?.remove();
   document.getElementById('trolley-col-header')?.remove();
   document.getElementById('trolley-add-fab')?.remove();
@@ -1736,8 +1785,12 @@ function tickTrolleyItem(chk,row,itemId,itemName){
     row.classList.add('in-trolley');addInTrolleyRow(itemId,itemName,price);
   }else{
     delete trolleyItems[itemId];row.classList.remove('in-trolley');removeInTrolleyRow(itemId);
+    // Remove any cheaper alt nudge for this item
+    document.getElementById(`shop-row-${itemId}`)?.nextElementSibling?.classList.contains('cheaper-alt-nudge')&&document.getElementById(`shop-row-${itemId}`).nextElementSibling.remove();
   }
+  const newTotal=Object.values(trolleyItems).reduce((s,i)=>s+(i.price||0),0);
   updateTrolleyBanner();updateCatSubtotals();saveTrolleyState();
+  if(chk.checked)checkCheaperAlternative(itemId,itemName,newTotal);
 }
 function addInTrolleyRow(itemId,itemName,price){const list=document.getElementById('in-trolley-list');if(!list)return;const div=document.createElement('div');div.className='in-trolley-row';div.id=`introlley-row-${itemId}`;div.innerHTML=`<span class="in-trolley-name">${itemName}</span><input id="introlley-price-${itemId}" class="in-trolley-price-input" type="number" min="0" step="0.01" placeholder="0.00" value="${price>0?price:''}" oninput="inTrolleyPriceInput(this,'${itemId}')"><button class="trolley-uncheck-btn" onclick="uncheckTrolleyItem('${itemId}')">↑ Put back</button>`;list.appendChild(div);const countEl=document.getElementById('trolley-item-count');if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';}
 function updateInTrolleyRow(itemId){const priceEl=document.getElementById(`introlley-price-${itemId}`);if(priceEl&&trolleyItems[itemId]){const p=trolleyItems[itemId].price;priceEl.textContent=p>0?'$'+p.toFixed(2):'—';}}
@@ -1752,7 +1805,52 @@ function updateTrolleyBanner(){
   const cats={};for(const it of Object.values(trolleyItems)){const c=it.cat||'Other';cats[c]=(cats[c]||0)+(it.price||0);}
   const catLines=Object.entries(cats).filter(([,v])=>v>0).map(([c,v])=>`${c}: $${v.toFixed(2)}`).join(' · ');
   const catsHtml=catLines?`<div class="trolley-banner-cats">${catLines}</div>`:'';
-  banner.innerHTML=`<div><div class="trolley-total-label">Running total · ${count} item${count!==1?'s':''} in trolley</div><div class="trolley-total-mxn">$${totalMXN.toFixed(2)} <span style="font-size:0.9rem;font-weight:400;opacity:0.7">MXN</span></div>${usdStr}${catsHtml}</div><button class="trolley-finish-btn" onclick="finishTrolleyMode()">✓ Finish Shopping</button>`;
+  // Budget bar
+  let budgetHtml='';
+  if(trolleyBudget>0){
+    const pct=Math.min(totalMXN/trolleyBudget,1);
+    const over=totalMXN>trolleyBudget;
+    const warn=!over&&pct>=0.9;
+    const caution=!over&&!warn&&pct>=0.75;
+    const fillColor=over?'#ff5722':warn?'#ff9800':caution?'#ffc107':'#81c784';
+    const remaining=trolleyBudget-totalMXN;
+    const pctDisplay=Math.round(pct*100);
+    const labelClass=over?'budget-over':warn?'budget-warn':'';
+    const labelText=over?`$${Math.abs(remaining).toFixed(0)} over budget`:`$${remaining.toFixed(0)} remaining (${pctDisplay}%)`;
+    budgetHtml=`<div class="budget-bar-wrap"><div class="budget-bar-track"><div class="budget-bar-fill" style="width:${Math.min(pct*100,100)}%;background:${fillColor}"></div></div><div class="budget-bar-label ${labelClass}">${labelText}</div></div>`;
+  }
+  banner.innerHTML=`<div style="flex:1;min-width:0"><div class="trolley-total-label">Running total · ${count} item${count!==1?'s':''} in trolley</div><div class="trolley-total-mxn">$${totalMXN.toFixed(2)} <span style="font-size:0.9rem;font-weight:400;opacity:0.7">MXN</span></div>${usdStr}${catsHtml}${budgetHtml}</div><button class="trolley-finish-btn" onclick="finishTrolleyMode()">✓ Finish Shopping</button>`;
+}
+function setTrolleyBudget(val){
+  trolleyBudget=parseFloat(val)||0;
+  localStorage.setItem('forknight_trolley_budget',trolleyBudget);
+  saveTrolleyState();
+  updateTrolleyBanner();
+}
+async function checkCheaperAlternative(ingId,itemName,newTotal){
+  if(!trolleyBudget||newTotal<trolleyBudget*0.9)return;
+  // Only check if we just crossed 90%
+  try{
+    const{data:alts}=await sb.from('household_products')
+      .select('id,name_en,name_es,last_price_mxn,store_url')
+      .eq('ingredient_id',ingId)
+      .not('last_price_mxn','is',null)
+      .order('last_price_mxn',{ascending:true})
+      .limit(3);
+    if(!alts||alts.length<2)return;
+    const current=alts.find(a=>a.is_preferred_lacomer)||alts[alts.length-1];
+    const cheaper=alts.find(a=>a.id!==current?.id&&a.last_price_mxn<(current?.last_price_mxn||Infinity));
+    if(!cheaper)return;
+    const saving=(current?.last_price_mxn||0)-cheaper.last_price_mxn;
+    if(saving<2)return; // Not worth showing for <$2 saving
+    // Show nudge below the item row
+    const row=document.getElementById(`shop-row-${ingId}`)||document.getElementById(`introlley-row-${ingId}`);
+    if(!row||row.querySelector('.cheaper-alt-nudge'))return;
+    const nudge=document.createElement('div');nudge.className='cheaper-alt-nudge';
+    const link=cheaper.store_url?`<a href="${cheaper.store_url}" target="_blank" style="color:#e65100;font-weight:500">${cheaper.name_en||cheaper.name_es}</a>`:`<strong>${cheaper.name_en||cheaper.name_es}</strong>`;
+    nudge.innerHTML=`<span class="alt-icon">💡</span><span>Budget at ${Math.round((newTotal/trolleyBudget)*100)}% — ${link} is ~$${cheaper.last_price_mxn.toFixed(0)} (save $${saving.toFixed(0)} MXN)</span>`;
+    row.after(nudge);
+  }catch(e){console.warn('Cheaper alt check failed:',e);}
 }
 function updateCatSubtotals(){
   // recalculate per-category totals and update the span in each category label
