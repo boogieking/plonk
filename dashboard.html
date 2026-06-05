@@ -577,9 +577,25 @@ const KAREN_CATEGORY_RULES=[
   {cat:'Herbs, Vinegar & Condiments',words:['herb','thyme','parsley','basil','oregano','dill','cilantro','vinagre','tomillo']},
 ];
 function guessKarenCategory(name){const lower=name.toLowerCase();for(const rule of KAREN_CATEGORY_RULES){if(rule.words.some(w=>lower.includes(w)))return rule.cat;}return'Other';}
+function normaliseCat(cat){
+  if(!cat)return'Other';
+  const c=cat.trim();
+  if(/grain/i.test(c)||/pasta/i.test(c)||/bakery/i.test(c))return'Grains, Pasta & Bakery';
+  if(/herb/i.test(c)||/vinegar/i.test(c)||/condiment/i.test(c)||/sauce/i.test(c)||/spice/i.test(c))return'Herbs, Vinegar & Condiments';
+  if(/meat/i.test(c)||/egg/i.test(c)||/seafood/i.test(c)||/poultry/i.test(c))return'Meats & Eggs';
+  if(/canned/i.test(c)||/packaged/i.test(c)||/tinned/i.test(c))return'Canned & Packaged Foods';
+  if(/dairy/i.test(c))return'Dairy';
+  if(/produce/i.test(c)||/fruit/i.test(c)||/vegetable/i.test(c)||/\bveg\b/i.test(c))return'Produce';
+  if(/frozen/i.test(c))return'Frozen';
+  if(/beverage/i.test(c)||/drink/i.test(c))return'Beverages';
+  if(/household/i.test(c)||/cleaning/i.test(c)||/personal/i.test(c))return'Household & Cleaning';
+  return c;
+}
 let karenAdditions=[];
 async function loadKarenAdditions(){if(!currentPlan){karenAdditions=[];return;}const{data,error}=await sb.from('karen_additions').select('*').eq('plan_id',currentPlan.id).order('added_at',{ascending:true});karenAdditions=(!error&&data)?data:[];}
-async function addKarenItem(){if(!currentUserCan('add_shopping_items')){showToast('Adding items is not enabled for your account','error');return;}const input=document.getElementById('karen-add-input');if(!input)return;const name=input.value.trim();if(!name){showToast('Type an item first','error');return;}if(!currentPlan){showToast('No active plan','error');return;}if(karenAdditions.some(a=>a.name_en.toLowerCase()===name.toLowerCase())){showToast('That item is already on your additions list','error');return;}const{data:planMealIds}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id);const recipeIds=(planMealIds||[]).map(m=>m.recipe_id);let mealIngNames=new Set();if(recipeIds.length>0){const{data:ings}=await sb.from('ingredients').select('name_en').in('recipe_id',recipeIds);mealIngNames=new Set((ings||[]).map(i=>i.name_en.toLowerCase()));}if(mealIngNames.has(name.toLowerCase())){showToast(`"${name}" is already in this week's meal ingredients ✓`);return;}const cat=guessKarenCategory(name);const{data,error}=await sb.from('karen_additions').insert({plan_id:currentPlan.id,name_en:name,lacomer_category:cat,added_by:userProfile.id,added_at:new Date().toISOString()}).select().single();if(error){showToast('Error adding item: '+error.message,'error');return;}karenAdditions.push(data);input.value='';renderKarenAdditionsList();showToast(`"${name}" added to shopping list ✓`);}
+async function addKarenItem(){if(!currentUserCan('add_shopping_items')){showToast('Adding items is not enabled for your account','error');return;}const input=document.getElementById('karen-add-input');if(!input)return;let name=input.value.trim();// Strip any URLs that may have been pasted accidentally
+name=name.replace(/https?:\/\/\S+/g,'').trim();// Strip leftover punctuation from URL stripping
+name=name.replace(/\s+/g,' ').trim();if(!name){showToast('Type an item first','error');return;}if(!currentPlan){showToast('No active plan','error');return;}if(karenAdditions.some(a=>a.name_en.toLowerCase()===name.toLowerCase())){showToast('That item is already on your additions list','error');return;}const{data:planMealIds}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id);const recipeIds=(planMealIds||[]).map(m=>m.recipe_id);let mealIngNames=new Set();if(recipeIds.length>0){const{data:ings}=await sb.from('ingredients').select('name_en').in('recipe_id',recipeIds);mealIngNames=new Set((ings||[]).map(i=>i.name_en.toLowerCase()));}if(mealIngNames.has(name.toLowerCase())){showToast(`"${name}" is already in this week's meal ingredients ✓`);return;}const cat=guessKarenCategory(name);const{data,error}=await sb.from('karen_additions').insert({plan_id:currentPlan.id,name_en:name,lacomer_category:cat,added_by:userProfile.id,added_at:new Date().toISOString()}).select().single();if(error){showToast('Error adding item: '+error.message,'error');return;}karenAdditions.push(data);input.value='';renderKarenAdditionsList();showToast(`"${name}" added to shopping list ✓`);}
 async function removeKarenItem(id){const{error}=await sb.from('karen_additions').delete().eq('id',id);if(error){showToast('Error removing item','error');return;}karenAdditions=karenAdditions.filter(a=>a.id!==id);renderKarenAdditionsList();}
 function renderKarenAdditionsList(){const el=document.getElementById('karen-additions-list');if(!el)return;if(karenAdditions.length===0){el.innerHTML=`<div style="font-size:0.82rem;color:var(--mid)">No items added yet</div>`;return;}el.innerHTML=karenAdditions.map(a=>`<div class="karen-addition-item"><span>${a.name_en} <em style="font-size:0.72rem;color:var(--mid)">· ${a.lacomer_category}</em></span><button class="karen-rm-btn" onclick="removeKarenItem('${a.id}')" title="Remove">✕</button></div>`).join('');}
 const roleColor={admin:'#C8674A',planner:'#4A7C59',reviewer:'#2E5F8A'};
@@ -1441,7 +1457,7 @@ async function loadKarenShoppingPreview(){
 function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyItems=[],dueSoonItems=[]){
   const UNITS=['g','kg','ml','L','units','pcs','tbsp','tsp'];
   const groups={};
-  for(const ing of mealItems){const cat=ing.lacomer_category||'Other';if(!groups[cat])groups[cat]=[];const qty=ing.quantity?`${ing.quantity}${ing.unit?' '+ing.unit:''}`:'' ;groups[cat].push({...ing,_type:'ingredient',_qtyStr:qty});}
+  for(const ing of mealItems){const cat=normaliseCat(ing.lacomer_category||'Other');if(!groups[cat])groups[cat]=[];const qty=ing.quantity?`${ing.quantity}${ing.unit?' '+ing.unit:''}`:'' ;groups[cat].push({...ing,_type:'ingredient',_qtyStr:qty});}
   if(karenItems&&karenItems.length>0){const existingNames=new Set(mealItems.map(i=>i.name_en.toLowerCase()));for(const ka of karenItems){if(!existingNames.has(ka.name_en.toLowerCase())){const cat=ka.lacomer_category||'Other';if(!groups[cat])groups[cat]=[];groups[cat].push({...ka,_type:'karen',_qtyStr:''});}}}
   let html='';
   for(const cat of Object.keys(groups).sort()){
@@ -1570,18 +1586,19 @@ async function buildPreShopEstimate(mealItems){
   };
   function fallbackPrice(ing){
     const name=(ing.name_en||ing.name_es||'').toLowerCase();
-    const cat=(ing.lacomer_category||'other').toLowerCase();
+    const normCat=normaliseCat(ing.lacomer_category||'').toLowerCase();
     for(const[key,price] of Object.entries(FALLBACK_PRICES)){
       if(name.includes(key))return price;
     }
-    // Category fallback
-    if(cat.includes('produce'))return FALLBACK_PRICES['produce'];
-    if(cat.includes('meat')||cat.includes('seafood'))return FALLBACK_PRICES['meats'];
-    if(cat.includes('dairy'))return FALLBACK_PRICES['dairy'];
-    if(cat.includes('grain')||cat.includes('pasta')||cat.includes('bakery'))return FALLBACK_PRICES['grains'];
-    if(cat.includes('canned')||cat.includes('packaged'))return FALLBACK_PRICES['canned'];
-    if(cat.includes('condiment')||cat.includes('sauce'))return FALLBACK_PRICES['condiments'];
-    if(cat.includes('frozen'))return FALLBACK_PRICES['frozen'];
+    // Category fallback using normalised category
+    if(normCat.includes('produce'))return FALLBACK_PRICES['produce'];
+    if(normCat.includes('meat')||normCat.includes('seafood')||normCat.includes('egg'))return FALLBACK_PRICES['meats'];
+    if(normCat.includes('dairy'))return FALLBACK_PRICES['dairy'];
+    if(normCat.includes('grain')||normCat.includes('pasta')||normCat.includes('bakery'))return FALLBACK_PRICES['grains'];
+    if(normCat.includes('canned')||normCat.includes('packaged'))return FALLBACK_PRICES['canned'];
+    if(normCat.includes('herb')||normCat.includes('vinegar')||normCat.includes('condiment')||normCat.includes('sauce')||normCat.includes('spice'))return FALLBACK_PRICES['condiments'];
+    if(normCat.includes('frozen'))return FALLBACK_PRICES['frozen'];
+    if(normCat.includes('beverage')||normCat.includes('drink'))return FALLBACK_PRICES['beverages'];
     return FALLBACK_PRICES['other'];
   }
   try{
@@ -1603,7 +1620,7 @@ async function buildPreShopEstimate(mealItems){
     let realCount=0,fallbackCount=0;
     for(const ing of mealItems){
       const realPrice=priceMap[ing.id];
-      const cat=catMap[ing.id]||ing.lacomer_category||'Other';
+      const cat=normaliseCat(catMap[ing.id]||ing.lacomer_category||'Other');
       let mid,low,high;
       if(realPrice>0){
         mid=realPrice;low=realPrice*0.9;high=realPrice*1.15;// recorded price — tight range
