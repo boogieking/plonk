@@ -693,6 +693,11 @@ function renderCameron(recipes,name){
     ${sectionHeader('cam-shopping','Shopping list')}
     <div class="card" id="cameron-shopping-card">
       <div class="card-header" style="flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div class="card-title">La Comer + Casa King</div><div style="display:flex;gap:6px"><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button><button class="scan-btn" style="font-size:0.8rem" onclick="openReceiptScanner()">📄 Receipt</button></div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%"><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-secondary" id="consolidate-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="consolidateList()">🔀 Consolidate</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
+      <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+        <div style="font-size:0.78rem;font-weight:500;color:var(--mid);margin-bottom:8px">ADD EXTRA ITEM</div>
+        <div class="karen-add-row"><input class="karen-add-input" id="karen-add-input" placeholder="e.g. olive oil, chocolate, shampoo..." onkeydown="if(event.key==='Enter')addKarenItem()"><button class="btn-primary" style="padding:8px 16px;font-size:0.85rem" onclick="addKarenItem()">Add</button></div>
+        <div id="karen-additions-list"><div style="font-size:0.82rem;color:var(--mid)">No extra items added</div></div>
+      </div>
       <div id="shopping-list-content"><div class="empty"><span class="empty-icon">🛍️</span>${hasInventory?'Click Generate list to build your shopping list':'Complete inventory check first to generate the shopping list'}</div></div>
     </div>
     ${sectionEnd()}
@@ -812,23 +817,8 @@ async function loadInventory(){
   const recipeIds=[...new Set([...planMeals.map(m=>m.recipe_id),...currentDinners.map(m=>m.recipe_id)])];
   const{data,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category').in('recipe_id',recipeIds);
   if(error||!data){document.getElementById('inv-list').innerHTML='<div class="empty">Could not load ingredients</div>';return;}
-  // Build name→allIds map (same ingredient can appear in multiple recipes)
-  const seenByName={};inventoryItems=[];window._invNameToIds={};
-  for(const ing of data){
-    const key=ing.name_en.toLowerCase();
-    if(!window._invNameToIds[key])window._invNameToIds[key]=[];
-    window._invNameToIds[key].push(String(ing.id));
-    if(!seenByName[key]){seenByName[key]=ing;inventoryItems.push(ing);}
-    if(!inventoryState[String(ing.id)])inventoryState[String(ing.id)]='need';
-  }
-  // Sync all duplicate IDs to match their canonical (visible) ID's status
-  for(const[name,ids]of Object.entries(window._invNameToIds)){
-    if(ids.length>1){
-      // If any sibling is 'have', all should be 'have'
-      const anyHave=ids.some(id=>inventoryState[id]==='have');
-      if(anyHave)ids.forEach(id=>{inventoryState[id]='have';});
-    }
-  }
+  const seenByName={};inventoryItems=[];
+  for(const ing of data){const key=ing.name_en.toLowerCase();if(!seenByName[key]){seenByName[key]=ing;inventoryItems.push(ing);}if(!inventoryState[String(ing.id)])inventoryState[String(ing.id)]='need';}
   inventoryItems.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));
   renderInventoryList();
   if(userProfile.role==='planner')loadSiennaShoppingPreview();
@@ -848,26 +838,10 @@ function setInv(id,status,btn){
   id=String(id);inventoryState[id]=status;
   btn.parentElement?.querySelectorAll('button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
   const ing=inventoryItems.find(i=>String(i.id)===id);
-  if(ing){
-    const nameKey=ing.name_en.toLowerCase();
-    // Sync ALL IDs for this name — including hidden duplicates not in the UI
-    const allIds=window._invNameToIds?.[nameKey]||[];
-    allIds.forEach(oid=>{if(oid!==id)inventoryState[oid]=status;});
-    // Also update any visible rows with same name
-    document.querySelectorAll('.inv-row').forEach(el=>{if(el.dataset.name===nameKey&&String(el.dataset.id)!==id){el.querySelector('.have-btn')?.classList.toggle('active',status==='have');el.querySelector('.need-btn')?.classList.toggle('active',status==='need');}});
-  }
+  if(ing){const nameKey=ing.name_en.toLowerCase();document.querySelectorAll('.inv-row').forEach(el=>{if(el.dataset.name===nameKey&&String(el.dataset.id)!==id){inventoryState[String(el.dataset.id)]=status;el.querySelector('.have-btn')?.classList.toggle('active',status==='have');el.querySelector('.need-btn')?.classList.toggle('active',status==='need');}});}
 }
 async function submitInventory(){
   if(!currentPlan)return;
-  // Final sync — ensure all duplicate-name IDs match their sibling's status
-  if(window._invNameToIds){
-    for(const ids of Object.values(window._invNameToIds)){
-      if(ids.length>1){
-        const anyHave=ids.some(id=>inventoryState[id]==='have');
-        ids.forEach(id=>{inventoryState[id]=anyHave?'have':'need';});
-      }
-    }
-  }
   const{error}=await sb.from('weekly_plans').update({inventory:inventoryState}).eq('id',currentPlan.id);
   if(error){showToast('Error saving inventory: '+error.message,'error');return;}
   currentPlan.inventory={...inventoryState};await renderDashboard();showToast('Inventory saved ✓');
