@@ -2578,7 +2578,7 @@ async function renderProductsView(){
   if(userProfile.role!=='admin'){showToast('Products management is admin only','error');switchView('dashboard');return;}
   const content=document.getElementById('dashboard-content');
   const isTrends=productsSubView==='trends';
-  content.innerHTML=`<div class="fade-in"><div class="page-header"><h1>Products</h1><p>Manage the household products linked to recipe ingredients</p></div><div class="products-toolbar"><input class="search-input" id="product-search" placeholder="Search products…" oninput="filterProducts()" style="max-width:220px;${isTrends?'display:none':''}"><button class="filter-pill ${!isTrends&&productFilterStore==='all'?'active':''}" onclick="setProductSubViewProducts('all')">All stores</button><button class="filter-pill ${!isTrends&&productFilterStore==='La Comer'?'active':''}" onclick="setProductSubViewProducts('La Comer')">La Comer</button><button class="filter-pill ${!isTrends&&productFilterStore==='City Market'?'active':''}" onclick="setProductSubViewProducts('City Market')">City Market</button><button class="filter-pill ${isTrends?'active':''}" onclick="setProductsSubView('trends')">📈 Trends</button><button class="btn-primary" style="margin-left:auto;${isTrends?'display:none':''}" onclick="openAddProductModal()">+ Add product</button><button class="scan-btn" style="margin-left:8px;${isTrends?'display:none':''}" onclick="openBarcodeScanner('products')">📷 Scan</button><button class="scan-btn" style="margin-left:4px;${isTrends?'display:none':''}" onclick="openReceiptScanner()">📄 Receipt</button></div><div id="products-grid"><div class="empty"><span class="empty-icon">🛒</span>Loading...</div></div></div>`;
+  content.innerHTML=`<div class="fade-in"><div class="page-header"><h1>Products</h1><p>Manage the household products linked to recipe ingredients</p></div><div class="products-toolbar"><input class="search-input" id="product-search" placeholder="Search products…" oninput="filterProducts()" style="max-width:220px;${isTrends?'display:none':''}"><button class="filter-pill ${!isTrends&&productFilterStore==='all'?'active':''}" onclick="setProductSubViewProducts('all')">All stores</button><button class="filter-pill ${!isTrends&&productFilterStore==='La Comer'?'active':''}" onclick="setProductSubViewProducts('La Comer')">La Comer</button><button class="filter-pill ${!isTrends&&productFilterStore==='City Market'?'active':''}" onclick="setProductSubViewProducts('City Market')">City Market</button><button class="filter-pill ${isTrends?'active':''}" onclick="setProductsSubView('trends')">📈 Trends</button><button class="btn-primary" style="margin-left:auto;${isTrends?'display:none':''}" onclick="openAddProductModal()">+ Add product</button><button class="scan-btn" style="margin-left:8px;${isTrends?'display:none':''}" onclick="openBarcodeScanner('products')">📷 Scan</button><button class="scan-btn" style="margin-left:4px;${isTrends?'display:none':''}" onclick="openReceiptScanner()">📄 Receipt</button><button class="scan-btn" style="margin-left:4px;${isTrends?'display:none':''}" onclick="openMergeDuplicatesModal()">🔀 Merge dupes</button></div><div id="products-grid"><div class="empty"><span class="empty-icon">🛒</span>Loading...</div></div></div>`;
   if(isTrends){await renderPriceTrendsView();}else{await loadAndRenderProducts();}
 }
 function setProductSubViewProducts(store){productsSubView='products';productFilterStore=store;renderProductsView();}
@@ -2976,7 +2976,7 @@ async function renderScannerForm(barcode,prefill,existingProduct=null){
 
   // ── Duplicate check ──────────────────────────────────────────────────────
   if(!existingProduct){
-    const{data:existing}=await sb.from('household_products').select('*').ilike('notes',`%${barcode}%`).maybeSingle();
+    const{data:existing}=await sb.from('household_products').select('*').eq('barcode',barcode).maybeSingle();
     if(existing){
       resultEl.innerHTML=`
         <div class="scanner-result-card">
@@ -3050,7 +3050,8 @@ async function saveScanResult(barcode){
     ingredient_id:null,
     last_price_mxn:parseFloat(document.getElementById('scan-price')?.value)||null,
     is_preferred_lacomer:true,
-    notes:`Barcode: ${barcode}${isIncomplete?' | incomplete':''}`,
+    barcode:barcode||null,
+    notes:isIncomplete?'incomplete':null,
     added_by:userProfile.id,
     created_at:new Date().toISOString()
   };
@@ -3075,6 +3076,95 @@ async function saveScanResult(barcode){
   }
 }
 /* ── END BARCODE SCANNER ───────────────────────── */
+
+/* ── MERGE DUPLICATES ──────────────────────────── */
+async function openMergeDuplicatesModal(){
+  // Find likely duplicates: same name (fuzzy) or same barcode with multiple rows
+  const prods=productsCache||(await sb.from('household_products').select('*').order('name_es').then(r=>r.data||[]));
+  const groups=[];
+  const used=new Set();
+
+  for(let i=0;i<prods.length;i++){
+    if(used.has(prods[i].id))continue;
+    const a=prods[i];
+    const aName=(a.name_es||a.name_en||'').toLowerCase();
+    const matches=[a];
+    for(let j=i+1;j<prods.length;j++){
+      if(used.has(prods[j].id))continue;
+      const b=prods[j];
+      const bName=(b.name_es||b.name_en||'').toLowerCase();
+      // Match by barcode OR by name similarity (>=60% word overlap)
+      const sameBarcode=a.barcode&&b.barcode&&a.barcode===b.barcode;
+      const words=aName.split(' ').filter(w=>w.length>3);
+      const nameSim=words.length>0&&words.filter(w=>bName.includes(w)).length>=Math.ceil(words.length*0.6);
+      if(sameBarcode||nameSim){matches.push(b);used.add(b.id);}
+    }
+    if(matches.length>1){groups.push(matches);used.add(a.id);}
+  }
+
+  if(!groups.length){
+    showToast('No duplicates found ✓');
+    return;
+  }
+
+  const overlay=document.createElement('div');
+  overlay.id='merge-overlay';
+  overlay.className='receipt-overlay';
+  overlay.innerHTML=`
+    <div class="receipt-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <h3>🔀 Merge duplicates</h3>
+        <button onclick="document.getElementById('merge-overlay')?.remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid);padding:4px 8px">✕</button>
+      </div>
+      <p style="font-size:0.82rem;color:var(--mid);margin-bottom:14px">${groups.length} duplicate group${groups.length!==1?'s':''} found. Select which row to keep for each group — the others will be deleted.</p>
+      <div id="merge-groups">
+        ${groups.map((group,gi)=>`
+          <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid rgba(200,180,160,0.2)">
+            <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Group ${gi+1}</div>
+            ${group.map((p,pi)=>`
+              <label style="display:flex;align-items:flex-start;gap:10px;padding:8px;border-radius:8px;cursor:pointer;margin-bottom:4px;background:${pi===0?'rgba(74,124,89,0.07)':'transparent'}">
+                <input type="radio" name="merge-group-${gi}" value="${p.id}" ${pi===0?'checked':''} style="margin-top:3px;flex-shrink:0">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:0.88rem;font-weight:500">${p.name_en||p.name_es}</div>
+                  <div style="font-size:0.75rem;color:var(--mid)">${p.name_es}${p.barcode?` · ${p.barcode}`:''}${p.last_price_mxn?` · $${p.last_price_mxn} MXN`:''}</div>
+                  <div style="font-size:0.7rem;color:var(--mid)">${p.notes||''}</div>
+                </div>
+              </label>`).join('')}
+          </div>`).join('')}
+      </div>
+      <div style="display:flex;gap:10px;margin-top:4px">
+        <button class="btn-ghost" onclick="document.getElementById('merge-overlay')?.remove()">Cancel</button>
+        <button class="btn-primary" style="flex:1" onclick="executeMerge(${JSON.stringify(groups.map(g=>g.map(p=>p.id)))})">Merge selected ✓</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function executeMerge(groupIds){
+  const btn=document.querySelector('#merge-overlay .btn-primary');
+  if(btn){btn.disabled=true;btn.textContent='Merging…';}
+  let merged=0,errors=0;
+  for(let gi=0;gi<groupIds.length;gi++){
+    const ids=groupIds[gi];
+    const radio=document.querySelector(`input[name="merge-group-${gi}"]:checked`);
+    const keepId=radio?.value;
+    if(!keepId)continue;
+    const deleteIds=ids.filter(id=>id!==keepId);
+    // Move price_history to the kept row before deleting
+    for(const delId of deleteIds){
+      try{
+        await sb.from('price_history').update({product_id:keepId}).eq('product_id',delId);
+        await sb.from('household_products').delete().eq('id',delId);
+        merged++;
+      }catch(e){errors++;console.warn('Merge error:',e.message);}
+    }
+  }
+  document.getElementById('merge-overlay')?.remove();
+  productsCache=null;
+  await loadAndRenderProducts();
+  showToast(`Merged — ${merged} duplicate${merged!==1?'s':''} removed${errors?`, ${errors} errors`:''} ✓`);
+}
+/* ── END MERGE DUPLICATES ──────────────────────── */
 
 /* ── AI PRODUCT FILL ───────────────────────────── */
 async function aiFillProduct(productId){
@@ -3182,6 +3272,7 @@ Rules:
 - price_mxn: TOTAL price paid for that line
 - unit_price_mxn: unit/kg price if shown, otherwise same as price_mxn
 - weight_or_qty: the amount purchased (e.g. "1.456 kg", "2 pcs", "500 ml") — null if not shown
+- barcode: barcode/SKU number if visible on the receipt line (usually 7-13 digits), otherwise null
 - category_guess: one of: Meats & Eggs, Dairy, Produce, Grains Pasta & Bakery, Canned & Packaged Foods, Herbs Vinegar & Condiments, Frozen, Beverages, Household / Cleaning, Other
 - Skip non-product lines (IVA, totals, store info, payment info, DOBLE VALOR TIMBRE, OFERTAS Y DESCUENTOS)`}
           ]
@@ -3209,18 +3300,30 @@ async function renderReceiptResults(items){
   const{data:allIngs}=await sb.from('ingredients').select('id,name_en,name_es').order('name_en');
   const ingList=allIngs||[];
 
-  // Match against existing products AND ingredients
+  // Load all products with barcode column included
   const existing=productsCache||[];
+
+  // Extract barcodes from receipt items if AI found them (some receipts include barcodes)
+  // Also load all products keyed by barcode for fast lookup
+  const productsByBarcode={};
+  existing.forEach(p=>{if(p.barcode)productsByBarcode[p.barcode]=p;});
+
   const matched=items.map(item=>{
     const nameLower=(item.name_es||'').toLowerCase();
     const nameEnLower=(item.name_en||'').toLowerCase();
 
-    // Try to match existing household_product
-    const matchProduct=existing.find(p=>{
+    // 1. Barcode match (most reliable — if receipt includes barcode)
+    const barcodeMatch=item.barcode?productsByBarcode[item.barcode]||null:null;
+
+    // 2. Name similarity match (only if no barcode match)
+    const nameMatch=!barcodeMatch?existing.find(p=>{
       const pName=(p.name_es||p.name_en||'').toLowerCase();
       const words=pName.split(' ').filter(w=>w.length>3);
       return words.length>0&&words.filter(w=>nameLower.includes(w)||nameEnLower.includes(w)).length>=Math.ceil(words.length*0.5);
-    });
+    }):null;
+
+    // Barcode wins; name match as fallback
+    const matchProduct=barcodeMatch||nameMatch||null;
 
     // Try to auto-link to an ingredient by name_en similarity
     const matchIngredient=ingList.find(ing=>{
@@ -3248,7 +3351,9 @@ async function renderReceiptResults(items){
             <div class="receipt-item-name">${item.name_en||item.name_es}</div>
             <div style="font-size:0.75rem;color:var(--mid)">${item.name_es}${item.weight_or_qty?` · ${item.weight_or_qty}`:''}</div>
             <div class="receipt-item-sub">${item.existingProduct
-              ?`Updates: ${item.existingProduct.name_en||item.existingProduct.name_es}`
+              ?(item.barcode&&productsByBarcode[item.barcode]
+                ?`🔗 Barcode match: ${item.existingProduct.name_en||item.existingProduct.name_es}`
+                :`~ Name match: ${item.existingProduct.name_en||item.existingProduct.name_es}`)
               :item.matchedIngredient
                 ?`Links to: ${item.matchedIngredient.name_en}`
                 :'New product — no ingredient match'}</div>
