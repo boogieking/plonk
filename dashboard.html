@@ -3093,10 +3093,11 @@ async function openMergeDuplicatesModal(){
       if(used.has(prods[j].id))continue;
       const b=prods[j];
       const bName=(b.name_es||b.name_en||'').toLowerCase();
-      // Match by barcode OR by name similarity (>=60% word overlap)
+      // Match by barcode (exact) OR name similarity
+      // Requires 3+ meaningful words AND >=80% overlap to avoid brand name false matches
       const sameBarcode=a.barcode&&b.barcode&&a.barcode===b.barcode;
       const words=aName.split(' ').filter(w=>w.length>3);
-      const nameSim=words.length>0&&words.filter(w=>bName.includes(w)).length>=Math.ceil(words.length*0.6);
+      const nameSim=words.length>=3&&words.filter(w=>bName.includes(w)).length>=Math.ceil(words.length*0.8);
       if(sameBarcode||nameSim){matches.push(b);used.add(b.id);}
     }
     if(matches.length>1){groups.push(matches);used.add(a.id);}
