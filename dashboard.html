@@ -812,8 +812,23 @@ async function loadInventory(){
   const recipeIds=[...new Set([...planMeals.map(m=>m.recipe_id),...currentDinners.map(m=>m.recipe_id)])];
   const{data,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category').in('recipe_id',recipeIds);
   if(error||!data){document.getElementById('inv-list').innerHTML='<div class="empty">Could not load ingredients</div>';return;}
-  const seenByName={};inventoryItems=[];
-  for(const ing of data){const key=ing.name_en.toLowerCase();if(!seenByName[key]){seenByName[key]=ing;inventoryItems.push(ing);}if(!inventoryState[String(ing.id)])inventoryState[String(ing.id)]='need';}
+  // Build name→allIds map (same ingredient can appear in multiple recipes)
+  const seenByName={};inventoryItems=[];window._invNameToIds={};
+  for(const ing of data){
+    const key=ing.name_en.toLowerCase();
+    if(!window._invNameToIds[key])window._invNameToIds[key]=[];
+    window._invNameToIds[key].push(String(ing.id));
+    if(!seenByName[key]){seenByName[key]=ing;inventoryItems.push(ing);}
+    if(!inventoryState[String(ing.id)])inventoryState[String(ing.id)]='need';
+  }
+  // Sync all duplicate IDs to match their canonical (visible) ID's status
+  for(const[name,ids]of Object.entries(window._invNameToIds)){
+    if(ids.length>1){
+      // If any sibling is 'have', all should be 'have'
+      const anyHave=ids.some(id=>inventoryState[id]==='have');
+      if(anyHave)ids.forEach(id=>{inventoryState[id]='have';});
+    }
+  }
   inventoryItems.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));
   renderInventoryList();
   if(userProfile.role==='planner')loadSiennaShoppingPreview();
@@ -825,7 +840,7 @@ function renderInventoryList(){
   let html='';
   for(const[cat,items]of Object.entries(groups)){
     html+=`<div style="font-size:0.7rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin:12px 0 6px">${cat}</div>`;
-    for(const item of items){const status=inventoryState[String(item.id)]||'need';html+=`<div class="inv-row" data-id="${item.id}" data-name="${item.name_en.toLowerCase()}"><div><div class="inv-name">${item.name_en}</div><div style="font-size:0.72rem;color:var(--mid)">${item.name_es||''}</div></div><div class="inv-toggle"><button class="have-btn ${status==='have'?'active':''}" onclick="setInv('${item.id}','have',this)">Have</button><button class="need-btn ${status==='need'?'active':''}" onclick="setInv('${item.id}','need',this)">Need</button></div></div>`;}
+    for(const item of items){const status=inventoryState[String(item.id)]||'need';html+=`<div class="inv-row" data-id="${item.id}" data-name="${item.name_en.toLowerCase()}"><div><div class="inv-name">${item.name_en}</div><div style="font-size:0.72rem;color:var(--mid)">${item.name_es}</div></div><div class="inv-toggle"><button class="have-btn ${status==='have'?'active':''}" onclick="setInv('${item.id}','have',this)">Have</button><button class="need-btn ${status==='need'?'active':''}" onclick="setInv('${item.id}','need',this)">Need</button></div></div>`;}
   }
   el.innerHTML=html||'<div class="empty">No ingredients found</div>';
 }
@@ -833,16 +848,31 @@ function setInv(id,status,btn){
   id=String(id);inventoryState[id]=status;
   btn.parentElement?.querySelectorAll('button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
   const ing=inventoryItems.find(i=>String(i.id)===id);
-  if(ing){const nameKey=ing.name_en.toLowerCase();document.querySelectorAll('.inv-row').forEach(el=>{if(el.dataset.name===nameKey&&String(el.dataset.id)!==id){inventoryState[String(el.dataset.id)]=status;el.querySelector('.have-btn')?.classList.toggle('active',status==='have');el.querySelector('.need-btn')?.classList.toggle('active',status==='need');}});}
+  if(ing){
+    const nameKey=ing.name_en.toLowerCase();
+    // Sync ALL IDs for this name — including hidden duplicates not in the UI
+    const allIds=window._invNameToIds?.[nameKey]||[];
+    allIds.forEach(oid=>{if(oid!==id)inventoryState[oid]=status;});
+    // Also update any visible rows with same name
+    document.querySelectorAll('.inv-row').forEach(el=>{if(el.dataset.name===nameKey&&String(el.dataset.id)!==id){el.querySelector('.have-btn')?.classList.toggle('active',status==='have');el.querySelector('.need-btn')?.classList.toggle('active',status==='need');}});
+  }
 }
 async function submitInventory(){
   if(!currentPlan)return;
+  // Final sync — ensure all duplicate-name IDs match their sibling's status
+  if(window._invNameToIds){
+    for(const ids of Object.values(window._invNameToIds)){
+      if(ids.length>1){
+        const anyHave=ids.some(id=>inventoryState[id]==='have');
+        ids.forEach(id=>{inventoryState[id]=anyHave?'have':'need';});
+      }
+    }
+  }
   const{error}=await sb.from('weekly_plans').update({inventory:inventoryState}).eq('id',currentPlan.id);
   if(error){showToast('Error saving inventory: '+error.message,'error');return;}
   currentPlan.inventory={...inventoryState};await renderDashboard();showToast('Inventory saved ✓');
 }
 const TIER_INTERVALS={weekly:2,regular:4,occasional:8,rare:12,hibernated:Infinity};
-function normCat(c){if(!c)return'Other';return c.replace(/,/g,'').replace(/\s+/g,' ').trim();}
 const TIER_ORDER=['weekly','regular','occasional','rare'];
 const TIER_THRESHOLDS=[{min:4.5,tier:'weekly'},{min:3.5,tier:'regular'},{min:2.5,tier:'occasional'},{min:1.5,tier:'rare'},{min:0,tier:'hibernated'}];
 function tierFromRating(avg){for(const t of TIER_THRESHOLDS){if(avg>=t.min)return t.tier;}return'hibernated';}
@@ -1435,7 +1465,7 @@ async function loadKarenShoppingPreview(){
 function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyItems=[],dueSoonItems=[]){
   const UNITS=['g','kg','ml','L','units','pcs','tbsp','tsp'];
   const groups={};
-  for(const ing of mealItems){const cat=normCat(ing.lacomer_category);if(!groups[cat])groups[cat]=[];const qty=ing.quantity?`${ing.quantity}${ing.unit?' '+ing.unit:''}`:'' ;groups[cat].push({...ing,_type:'ingredient',_qtyStr:qty});}
+  for(const ing of mealItems){const cat=ing.lacomer_category||'Other';if(!groups[cat])groups[cat]=[];const qty=ing.quantity?`${ing.quantity}${ing.unit?' '+ing.unit:''}`:'' ;groups[cat].push({...ing,_type:'ingredient',_qtyStr:qty});}
   if(karenItems&&karenItems.length>0){const existingNames=new Set(mealItems.map(i=>i.name_en.toLowerCase()));for(const ka of karenItems){if(!existingNames.has(ka.name_en.toLowerCase())){const cat=ka.lacomer_category||'Other';if(!groups[cat])groups[cat]=[];groups[cat].push({...ka,_type:'karen',_qtyStr:''});}}}
   let html='';
   for(const cat of Object.keys(groups).sort()){
@@ -1551,34 +1581,23 @@ async function buildPreShopEstimate(mealItems){
       if(!priceMap[id]){priceMap[id]=parseFloat(p.last_price_mxn||0);catMap[id]=p.category||null;}
     }
     // Category totals — use ingredient's lacomer_category as fallback
-    // Rough averages per category (MXN) used when no real price exists
-    const CAT_AVG={'Meats & Eggs':110,'Produce':28,'Dairy':65,'Grains Pasta & Bakery':45,
-      'Canned & Packaged Foods':55,'Herbs & Condiments':40,'Herbs Vinegar & Condiments':40,
-      'Frozen':70,'Beverages':35,'Other':50};
     const catTotals={};
     let estTotal=0;
     let coveredCount=0;
-    let roughCount=0;
     for(const ing of mealItems){
       const price=priceMap[ing.id];
-      const cat=normCat(catMap[ing.id]||ing.lacomer_category||'Other');
       if(price>0){
+        const cat=catMap[ing.id]||ing.lacomer_category||'Other';
         catTotals[cat]=(catTotals[cat]||0)+price;
         estTotal+=price;
         coveredCount++;
-      } else {
-        const avg=CAT_AVG[cat]||CAT_AVG['Other'];
-        catTotals[cat]=(catTotals[cat]||0)+avg;
-        estTotal+=avg;
-        roughCount++;
       }
     }
     const unpricedCount=ingIds.length-coveredCount;
     const bkId='pre-estimate-bk-'+Date.now();
-    const roughLabel=roughCount>0?` <span style="font-size:0.72rem;background:#f59e0b;color:#fff;border-radius:4px;padding:1px 6px;margin-left:4px">rough est.</span>`:'';
     let breakdownRows=Object.entries(catTotals).sort((a,b)=>a[0].localeCompare(b[0])).map(([cat,tot])=>`<div class="pre-estimate-row"><span>${cat}</span><span>$${tot.toFixed(0)}</span></div>`).join('');
-    breakdownRows+=`<div class="pre-estimate-row total-row"><span>Estimated total${roughLabel}</span><span>$${estTotal.toFixed(0)} MXN</span></div>`;
-    const unpricedNote=roughCount>0?`<div class="pre-estimate-unpriced" style="color:var(--mid)">~ ${roughCount} item${roughCount>1?'s':''} estimated using category averages — add real prices in store for accuracy</div>`:'';
+    breakdownRows+=`<div class="pre-estimate-row total-row"><span>Estimated total</span><span>$${estTotal.toFixed(0)} MXN</span></div>`;
+    const unpricedNote=unpricedCount>0?`<div class="pre-estimate-unpriced">⚠ ${unpricedCount} item${unpricedCount>1?'s':''} have no price data — actual cost will be higher</div>`:'';
     return`<div class="pre-estimate-banner" id="pre-estimate-banner">
       <div style="display:flex;align-items:center;justify-content:space-between;width:100%;flex-wrap:wrap;gap:6px">
         <div><div class="pre-estimate-label">Pre-shop estimate · ${coveredCount} of ${ingIds.length} items priced</div>
@@ -1607,15 +1626,7 @@ async function generateShoppingList(){
     const{data:planIngredients}=await sb.from('ingredients').select('id,recipe_id').in('recipe_id',planRecipeIds);
     const ingToRecipes={};for(const i of (planIngredients||[])){if(!ingToRecipes[i.id])ingToRecipes[i.id]=[];ingToRecipes[i.id].push(i.recipe_id);}
     const validIds=new Set((planIngredients||[]).map(i=>String(i.id)));
-    // Build name→[ids] map so we can do name-level HAVE check
-    // (same ingredient can appear in multiple recipes with different IDs)
-    const{data:allIngNames}=await sb.from('ingredients').select('id,name_en').in('id',[...validIds]);
-    const nameToIds={};
-    for(const i of (allIngNames||[])){const k=i.name_en.toLowerCase();if(!nameToIds[k])nameToIds[k]=[];nameToIds[k].push(String(i.id));}
-    // A name is HAVE if any of its IDs is marked have
-    const haveNames=new Set();
-    for(const[id,s]of Object.entries(inventory)){if(s==='have'&&validIds.has(id)){const ing=allIngNames?.find(i=>String(i.id)===id);if(ing)haveNames.add(ing.name_en.toLowerCase());}}
-    const needIds=Object.entries(inventory).filter(([id,s])=>{if(s!=='need')return false;if(!validIds.has(id))return false;const ing=allIngNames?.find(i=>String(i.id)===id);if(!ing)return false;return!haveNames.has(ing.name_en.toLowerCase());}).map(([id])=>id);
+    const needIds=Object.entries(inventory).filter(([id,s])=>s==='need'&&validIds.has(id)).map(([id])=>id);
     if(needIds.length===0){content.innerHTML=`<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;btn.textContent='Generate list';btn.disabled=false;return;}
     const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;
     const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipes[ing.id]||[]).map(rid=>recipeNameMap[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
