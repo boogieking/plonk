@@ -2361,7 +2361,8 @@ async function renderRecipeListView(){
   const tabRecipes=allRecipesCache.filter(r=>recipeFilterType==='dinner'?r.is_dinner===true:r.is_dinner!==true);
   const total=tabRecipes.length;const withSteps=tabRecipes.filter(r=>r.steps&&r.steps.trim()).length;const pct=total>0?Math.round((withSteps/total)*100):0;
   const progressHtml=`<div class="steps-progress-bar"><span style="font-size:0.9rem">📋</span><div class="steps-progress-track"><div class="steps-progress-fill" style="width:${pct}%"></div></div><span class="steps-progress-count">${withSteps} of ${total}</span><span class="steps-progress-label">recipes have saved steps</span></div>`;
-  content.innerHTML=`<div class="fade-in" id="recipe-list-root"><div class="page-header"><h1>Recipes</h1><p>Browse and manage the full meal library</p></div>${progressHtml}<div class="recipes-toolbar"><div style="display:flex;gap:6px;margin-right:10px;background:rgba(200,180,160,0.2);border-radius:9px;padding:3px"><button class="filter-pill${recipeFilterType==='lunch'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('lunch')">🍽 Lunches</button><button class="filter-pill${recipeFilterType==='dinner'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('dinner')">🌙 Dinners</button></div><input class="search-input" id="recipe-search" placeholder="Search recipes…" oninput="filterRecipes()" value="${recipeFilterSearch}"><button class="filter-pill ${recipeFilterTier==='all'?'active':''}" onclick="setTierFilter('all')">All</button><button class="filter-pill ${recipeFilterTier==='weekly'?'active':''}" onclick="setTierFilter('weekly')">Weekly</button><button class="filter-pill ${recipeFilterTier==='regular'?'active':''}" onclick="setTierFilter('regular')">Regular</button><button class="filter-pill ${recipeFilterTier==='occasional'?'active':''}" onclick="setTierFilter('occasional')">Occasional</button><button class="filter-pill ${recipeFilterTier==='rare'?'active':''}" onclick="setTierFilter('rare')">Rare</button><button class="filter-pill ${recipeShowHibernated?'active':''}" onclick="toggleHibernated()">💤 Hibernated</button></div><div id="recipe-grid-container"><div class="empty"><span class="empty-icon">🍳</span>Loading recipes…</div></div></div>`;
+  const addRecipeBtn=userProfile?.role==='admin'?`<button class="btn-primary" style="font-size:0.82rem;padding:7px 14px;white-space:nowrap;margin-left:auto" onclick="openAddRecipeModal()">+ Add Recipe</button>`:'';
+  content.innerHTML=`<div class="fade-in" id="recipe-list-root"><div class="page-header"><h1>Recipes</h1><p>Browse and manage the full meal library</p></div>${progressHtml}<div class="recipes-toolbar"><div style="display:flex;gap:6px;margin-right:10px;background:rgba(200,180,160,0.2);border-radius:9px;padding:3px"><button class="filter-pill${recipeFilterType==='lunch'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('lunch')">🍽 Lunches</button><button class="filter-pill${recipeFilterType==='dinner'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('dinner')">🌙 Dinners</button></div><input class="search-input" id="recipe-search" placeholder="Search recipes…" oninput="filterRecipes()" value="${recipeFilterSearch}"><button class="filter-pill ${recipeFilterTier==='all'?'active':''}" onclick="setTierFilter('all')">All</button><button class="filter-pill ${recipeFilterTier==='weekly'?'active':''}" onclick="setTierFilter('weekly')">Weekly</button><button class="filter-pill ${recipeFilterTier==='regular'?'active':''}" onclick="setTierFilter('regular')">Regular</button><button class="filter-pill ${recipeFilterTier==='occasional'?'active':''}" onclick="setTierFilter('occasional')">Occasional</button><button class="filter-pill ${recipeFilterTier==='rare'?'active':''}" onclick="setTierFilter('rare')">Rare</button><button class="filter-pill ${recipeShowHibernated?'active':''}" onclick="toggleHibernated()">💤 Hibernated</button>${addRecipeBtn}</div><div id="recipe-grid-container"><div class="empty"><span class="empty-icon">🍳</span>Loading recipes…</div></div></div>`;
   renderFilteredRecipes();
 }
 function renderFilteredRecipes(){
@@ -2429,6 +2430,216 @@ function safeCloseRecipeDetail(recipeId){
   closeRecipeDetail();
 }
 function closeRecipeDetail(){document.getElementById('recipe-detail-overlay')?.remove();}
+
+// ── Add Recipe Modal ─────────────────────────────────────────────
+const AR_CATS=['Produce','Meats & Eggs','Dairy','Grains, Pasta & Bakery','Canned & Packaged Foods','Herbs, Vinegar & Condiments','Frozen','Beverages','Other'];
+const AR_UNITS=['g','kg','ml','L','pcs','tbsp','tsp','cup','slices','bunch','cloves','sprigs'];
+let addRecipeIngredients=[];
+
+function openAddRecipeModal(){
+  addRecipeIngredients=[{id:Date.now(),name_en:'',name_es:'',quantity:'',unit:'',category:''}];
+  document.body.insertAdjacentHTML('beforeend',`
+  <div class="modal-overlay" id="add-recipe-overlay" onclick="if(event.target===this)closeAddRecipeModal()">
+    <div class="recipe-modal" style="position:relative;max-width:560px">
+      <button class="recipe-modal-close" onclick="closeAddRecipeModal()">✕</button>
+      <div class="recipe-modal-header"><div class="recipe-modal-title">Add New Recipe</div></div>
+      <div style="display:flex;gap:0;margin:0 0 18px;background:rgba(200,180,160,0.15);border-radius:10px;padding:3px" id="add-recipe-tabs">
+        <button id="tab-manual" onclick="switchAddTab('manual')" style="flex:1;padding:8px;border:none;background:var(--clay);color:white;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:600;cursor:pointer">✏️ Enter manually</button>
+        <button id="tab-ai" onclick="switchAddTab('ai')" style="flex:1;padding:8px;border:none;background:transparent;color:var(--mid);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:500;cursor:pointer">✨ Generate with AI</button>
+      </div>
+      <div id="add-recipe-body" class="recipe-modal-body" style="max-height:60vh;overflow-y:auto">${renderManualTab()}</div>
+      <div class="recipe-modal-footer" id="add-recipe-footer">
+        <button class="btn-ghost" onclick="closeAddRecipeModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveNewRecipe()">Save Recipe</button>
+      </div>
+    </div>
+  </div>`);
+}
+
+function switchAddTab(tab){
+  document.getElementById('tab-manual').style.cssText=`flex:1;padding:8px;border:none;background:${tab==='manual'?'var(--clay)':'transparent'};color:${tab==='manual'?'white':'var(--mid)'};border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:${tab==='manual'?600:500};cursor:pointer`;
+  document.getElementById('tab-ai').style.cssText=`flex:1;padding:8px;border:none;background:${tab==='ai'?'var(--clay)':'transparent'};color:${tab==='ai'?'white':'var(--mid)'};border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:${tab==='ai'?600:500};cursor:pointer`;
+  const body=document.getElementById('add-recipe-body');
+  const footer=document.getElementById('add-recipe-footer');
+  if(tab==='manual'){
+    body.innerHTML=renderManualTab();
+    footer.innerHTML=`<button class="btn-ghost" onclick="closeAddRecipeModal()">Cancel</button><button class="btn-primary" onclick="saveNewRecipe()">Save Recipe</button>`;
+  }else{
+    body.innerHTML=renderAiTab();
+    footer.innerHTML=`<button class="btn-ghost" onclick="closeAddRecipeModal()">Cancel</button><button class="btn-primary" id="ai-generate-btn" onclick="runAiRecipeSearch()">✨ Generate</button>`;
+  }
+}
+
+function arIngRowsHtml(){
+  return addRecipeIngredients.map(ing=>`
+    <div class="ar-ing-row" id="ar-ing-${ing.id}" style="display:grid;grid-template-columns:1fr 1fr 60px 110px auto;gap:6px;align-items:center;margin-bottom:6px">
+      <input placeholder="Ingredient (EN)" value="${ing.name_en}" oninput="arIngUpdate(${ing.id},'name_en',this.value)" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none">
+      <input placeholder="Nombre (ES)" value="${ing.name_es}" oninput="arIngUpdate(${ing.id},'name_es',this.value)" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none">
+      <input placeholder="Qty" type="number" min="0" step="any" value="${ing.quantity}" oninput="arIngUpdate(${ing.id},'quantity',this.value)" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none">
+      <select oninput="arIngUpdate(${ing.id},'unit',this.value)" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;background:white">
+        <option value="">unit</option>${AR_UNITS.map(u=>`<option value="${u}"${ing.unit===u?' selected':''}>${u}</option>`).join('')}
+      </select>
+      <button onclick="arIngRemove(${ing.id})" style="background:none;border:none;color:var(--mid);font-size:1rem;cursor:pointer;padding:4px 6px;line-height:1">✕</button>
+    </div>
+    <div style="margin-bottom:10px">
+      <select oninput="arIngUpdate(${ing.id},'category',this.value)" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;background:white">
+        <option value="">— La Comer category —</option>${AR_CATS.map(c=>`<option value="${c}"${ing.category===c?' selected':''}>${c}</option>`).join('')}
+      </select>
+    </div>`).join('');
+}
+
+function renderManualTab(){
+  return`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div><label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Name (English)</label>
+        <input id="ar-name-en" placeholder="e.g. Chicken Parmigiana" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box"></div>
+      <div><label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Name (Spanish)</label>
+        <input id="ar-name-es" placeholder="e.g. Pollo a la Parmesana" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+      <div><label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Prep (min)</label>
+        <input id="ar-prep" type="number" min="0" placeholder="15" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box"></div>
+      <div><label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Cook (min)</label>
+        <input id="ar-cook" type="number" min="0" placeholder="30" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box"></div>
+      <div><label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Type</label>
+        <select id="ar-type" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white;box-sizing:border-box">
+          <option value="lunch">🍽 Lunch</option><option value="dinner">🌙 Dinner</option>
+        </select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--dark);cursor:pointer">
+        <input type="checkbox" id="ar-advance-prep" onchange="document.getElementById('ar-advance-note-wrap').style.display=this.checked?'block':'none'" style="width:16px;height:16px;accent-color:var(--clay)"> Advance prep required</label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--dark);cursor:pointer">
+        <input type="checkbox" id="ar-same-day" checked style="width:16px;height:16px;accent-color:var(--clay)"> Can cook same day</label>
+    </div>
+    <div id="ar-advance-note-wrap" style="display:none;margin-bottom:14px">
+      <input id="ar-advance-note" placeholder="e.g. Marinate overnight" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.85rem;outline:none;box-sizing:border-box">
+    </div>
+    <div style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Ingredients</div>
+    <div id="ar-ing-list">${arIngRowsHtml()}</div>
+    <button onclick="arIngAdd()" style="background:none;border:1.5px dashed var(--border);border-radius:8px;padding:7px 14px;font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--mid);cursor:pointer;width:100%;margin-top:2px">+ Add ingredient</button>`;
+}
+
+function renderAiTab(){
+  return`
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Describe what you want</label>
+      <textarea id="ai-recipe-prompt" rows="3" placeholder="e.g. A quick pork stir-fry with Asian flavours, no advance prep, serves 4, ingredients available at La Comer in Mexico" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.87rem;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div><label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Type</label>
+        <select id="ai-recipe-type" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white;box-sizing:border-box">
+          <option value="lunch">🍽 Lunch</option><option value="dinner">🌙 Dinner</option>
+        </select></div>
+      <div><label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Serves</label>
+        <input id="ai-recipe-serves" type="number" min="1" max="12" value="4" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box"></div>
+    </div>
+    <div id="ai-recipe-result" style="display:none"></div>`;
+}
+
+function arIngAdd(){
+  addRecipeIngredients.push({id:Date.now(),name_en:'',name_es:'',quantity:'',unit:'',category:''});
+  const el=document.getElementById('ar-ing-list');if(el)el.innerHTML=arIngRowsHtml();
+}
+function arIngUpdate(id,field,val){const ing=addRecipeIngredients.find(i=>i.id===id);if(ing)ing[field]=val;}
+function arIngRemove(id){
+  addRecipeIngredients=addRecipeIngredients.filter(i=>i.id!==id);
+  const el=document.getElementById('ar-ing-list');if(el)el.innerHTML=arIngRowsHtml();
+}
+function closeAddRecipeModal(){document.getElementById('add-recipe-overlay')?.remove();}
+
+async function runAiRecipeSearch(){
+  const prompt=document.getElementById('ai-recipe-prompt')?.value?.trim();
+  if(!prompt){showToast('Describe the recipe you want first','error');return;}
+  const type=document.getElementById('ai-recipe-type')?.value||'lunch';
+  const serves=document.getElementById('ai-recipe-serves')?.value||4;
+  const btn=document.getElementById('ai-generate-btn');
+  const resultEl=document.getElementById('ai-recipe-result');
+  btn.textContent='Generating…';btn.disabled=true;
+  resultEl.style.display='none';
+  const systemPrompt=`You are a recipe assistant for an Australian family living in Celaya, Mexico. They shop at La Comer supermarket. Generate a recipe based on the user's request. Respond ONLY with a valid JSON object — no markdown, no explanation, no backticks. The JSON must have this exact structure:
+{
+  "name_en": "Recipe Name in English",
+  "name_es": "Nombre de la Receta en Español",
+  "prep_time_minutes": 15,
+  "cook_time_minutes": 30,
+  "advance_prep_required": false,
+  "advance_prep_description": "",
+  "same_day_cookable": true,
+  "is_dinner": false,
+  "ingredients": [
+    {"name_en":"Ingredient","name_es":"Ingrediente","quantity":500,"unit":"g","category":"Meats & Eggs"},
+    ...
+  ]
+}
+IMPORTANT: The category field for each ingredient MUST be exactly one of these values (copy exactly, including punctuation):
+- Produce
+- Meats & Eggs
+- Dairy
+- Grains, Pasta & Bakery
+- Canned & Packaged Foods
+- Herbs, Vinegar & Condiments
+- Frozen
+- Beverages
+- Other
+Do not use any other category value. Keep it home-style, practical, serves ${serves}. Ingredients should be things available at a Mexican supermarket.`;
+  try{
+    const resp=await fetch('https://claude-proxy.cameronjohnking.workers.dev',{method:'POST',headers:{'Content-Type':'application/json','x-proxy-secret':'Oreo-Ginger-Neo-Ella_11!!'},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:1500,system:systemPrompt,messages:[{role:'user',content:`${prompt}. Type: ${type==='dinner'?'dinner':'lunch'}.`}]})});
+    const data=await resp.json();
+    const raw=data.content?.map(c=>c.text||'').join('').trim();
+    const clean=raw.replace(/```json|```/g,'').trim();
+    const recipe=JSON.parse(clean);
+    window._aiRecipeDraft=recipe;
+    const ingPreview=recipe.ingredients?.map(i=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.82rem"><span>${i.name_en}${i.name_es&&i.name_es!==i.name_en?` · <em style="color:var(--mid)">${i.name_es}</em>`:''}</span><span style="color:var(--mid);flex-shrink:0;margin-left:8px">${i.quantity?i.quantity+' '+(i.unit||''):''}</span></div>`).join('')||'';
+    resultEl.style.display='block';
+    resultEl.innerHTML=`
+      <div style="background:rgba(107,95,84,0.06);border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="font-size:1rem;font-weight:600;color:var(--dark)">${recipe.name_en}</div>
+        ${recipe.name_es?`<div style="font-size:0.82rem;color:var(--mid)">${recipe.name_es}</div>`:''}
+        <div style="display:flex;gap:12px;margin-top:8px;font-size:0.78rem;color:var(--mid)">
+          <span>⏱ Prep ${recipe.prep_time_minutes||0} min</span><span>🍳 Cook ${recipe.cook_time_minutes||0} min</span>
+          ${recipe.advance_prep_required?`<span style="color:#b07030">⏰ Advance prep</span>`:''}
+        </div>
+        <div style="margin-top:12px;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Ingredients (${recipe.ingredients?.length||0})</div>
+        ${ingPreview}
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary" style="flex:1" onclick="saveAiRecipe()">✓ Save this recipe</button>
+        <button class="btn-ghost" onclick="runAiRecipeSearch()">↺ Try again</button>
+      </div>`;
+  }catch(e){showToast('AI generation failed — try again','error');console.error(e);}
+  btn.textContent='✨ Generate';btn.disabled=false;
+}
+
+async function saveAiRecipe(){
+  const recipe=window._aiRecipeDraft;if(!recipe){showToast('No recipe to save','error');return;}
+  const isDinner=recipe.is_dinner||document.getElementById('ai-recipe-type')?.value==='dinner';
+  const{data:newRecipe,error:re}=await sb.from('recipes').insert({name_en:recipe.name_en,name_es:recipe.name_es||null,prep_time_minutes:recipe.prep_time_minutes||0,cook_time_minutes:recipe.cook_time_minutes||0,advance_prep_required:!!recipe.advance_prep_required,advance_prep_description:recipe.advance_prep_description||null,same_day_cookable:recipe.same_day_cookable!==false,is_dinner:isDinner||false,frequency_tier:'regular',frequency_override:false,hibernated:false,created_at:new Date().toISOString()}).select().single();
+  if(re){showToast('Error saving recipe: '+re.message,'error');return;}
+  if(recipe.ingredients?.length>0){const rows=recipe.ingredients.map(i=>({recipe_id:newRecipe.id,name_en:i.name_en,name_es:i.name_es||null,quantity:i.quantity||null,unit:i.unit||null,lacomer_category:normaliseCat(i.category||'Other')}));const{error:ie}=await sb.from('ingredients').insert(rows);if(ie)showToast('Recipe saved but ingredients failed: '+ie.message,'error');}
+  closeAddRecipeModal();allRecipesCache=null;await renderRecipeListView();
+  showToast(`"${recipe.name_en}" added ✓`,'success');
+}
+
+async function saveNewRecipe(){
+  const name_en=document.getElementById('ar-name-en')?.value?.trim();
+  if(!name_en){showToast('Recipe name is required','error');return;}
+  const name_es=document.getElementById('ar-name-es')?.value?.trim()||null;
+  const prep=parseInt(document.getElementById('ar-prep')?.value)||0;
+  const cook=parseInt(document.getElementById('ar-cook')?.value)||0;
+  const isDinner=document.getElementById('ar-type')?.value==='dinner';
+  const advancePrep=document.getElementById('ar-advance-prep')?.checked||false;
+  const advanceNote=document.getElementById('ar-advance-note')?.value?.trim()||null;
+  const sameDay=document.getElementById('ar-same-day')?.checked!==false;
+  const validIngs=addRecipeIngredients.filter(i=>i.name_en.trim());
+  const{data:newRecipe,error:re}=await sb.from('recipes').insert({name_en,name_es,prep_time_minutes:prep,cook_time_minutes:cook,advance_prep_required:advancePrep,advance_prep_description:advancePrep?advanceNote:null,same_day_cookable:sameDay,is_dinner:isDinner,frequency_tier:'regular',frequency_override:false,hibernated:false,created_at:new Date().toISOString()}).select().single();
+  if(re){showToast('Error saving recipe: '+re.message,'error');return;}
+  if(validIngs.length>0){const rows=validIngs.map(i=>({recipe_id:newRecipe.id,name_en:i.name_en.trim(),name_es:i.name_es.trim()||null,quantity:parseFloat(i.quantity)||null,unit:i.unit||null,lacomer_category:i.category||'Other'}));const{error:ie}=await sb.from('ingredients').insert(rows);if(ie)showToast('Recipe saved but ingredients failed: '+ie.message,'error');}
+  closeAddRecipeModal();allRecipesCache=null;await renderRecipeListView();
+  showToast(`"${name_en}" added ✓`,'success');
+}
+// ── End Add Recipe Modal ─────────────────────────────────────────
+
 function openTierOverrideFromList(recipeId,currentTier){const isLocked=allRecipesCache?.find(r=>r.id===recipeId)?.frequency_override||false;openTierModal(recipeId,currentTier,isLocked);}
 function consolidateList(){
   const ckSection=document.getElementById('ck-pre-consolidate');if(!ckSection)return;
