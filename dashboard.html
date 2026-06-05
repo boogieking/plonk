@@ -1365,7 +1365,14 @@ const{data:planIngs2}=await sb.from('ingredients').select('id').in('recipe_id',p
 const validIds2=new Set((planIngs2||[]).map(i=>String(i.id)));
 const needIds=Object.entries(currentPlan.inventory).filter(([id,s])=>s==='need'&&validIds2.has(id)).map(([id])=>id);
   if(needIds.length===0){el.innerHTML=`<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;return;}
-  try{const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();if(!deduped[key]||(!deduped[key].lacomer_url&&ing.lacomer_url))deduped[key]=ing;}const linked=await applyProductLinks(Object.values(deduped));const items=linked.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
+  try{
+    const{data:planMealsWithNames}=await sb.from('weekly_plan_meals').select('recipe_id, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',currentPlan.id);
+    const recipeNameMap2={};for(const m of (planMealsWithNames||[])){if(m.recipes)recipeNameMap2[m.recipe_id]=m.recipes.name_en;}
+    const{data:planIngsWithRec}=await sb.from('ingredients').select('id,recipe_id').in('recipe_id',planRecipeIds2);
+    const ingToRecipes2={};for(const i of (planIngsWithRec||[])){if(!ingToRecipes2[i.id])ingToRecipes2[i.id]=[];ingToRecipes2[i.id].push(i.recipe_id);}
+    const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;
+    const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipes2[ing.id]||[]).map(rid=>recipeNameMap2[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
+    const linked=await applyProductLinks(Object.values(deduped));const items=linked.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load preview: ${err.message}</div>`;}
 }
 function renderKaren(recipes,name){
@@ -1409,7 +1416,14 @@ async function loadKarenShoppingPreview(){
   const validIds2=new Set((planIngs2||[]).map(i=>String(i.id)));
   const needIds=Object.entries(currentPlan.inventory).filter(([id,s])=>s==='need'&&validIds2.has(id)).map(([id])=>id);
   if(needIds.length===0){el.innerHTML=`<div class="empty" style="color:var(--green)">✓ Everything is in stock!</div>`;return;}
-  try{const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();if(!deduped[key]||(!deduped[key].lacomer_url&&ing.lacomer_url))deduped[key]=ing;}const linked=await applyProductLinks(Object.values(deduped));const items=linked.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
+  try{
+    const{data:planMealsK}=await sb.from('weekly_plan_meals').select('recipe_id, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',currentPlan.id);
+    const recipeNameMapK={};for(const m of (planMealsK||[])){if(m.recipes)recipeNameMapK[m.recipe_id]=m.recipes.name_en;}
+    const{data:planIngsK}=await sb.from('ingredients').select('id,recipe_id').in('recipe_id',planRecipeIds2);
+    const ingToRecipesK={};for(const i of (planIngsK||[])){if(!ingToRecipesK[i.id])ingToRecipesK[i.id]=[];ingToRecipesK[i.id].push(i.recipe_id);}
+    const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;
+    const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipesK[ing.id]||[]).map(rid=>recipeNameMapK[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
+    const linked=await applyProductLinks(Object.values(deduped));const items=linked.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load list: ${err.message}</div>`;}
 }
 function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyItems=[],dueSoonItems=[]){
@@ -1433,7 +1447,7 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
           linkHtml=`<div class="shop-link-wrap"><a class="shop-link" href="${ing.lacomer_url}" target="_blank">🛒 La Comer</a></div>`;
         }
         const addLinkBtns=!ing.lacomer_url&&(!ing._products||ing._products.length===0)&&isAdmin?`<div class="link-btn-group"><button class="find-link-btn" onclick="findOnLaComer('${ing.id}','${(ing.name_es||ing.name_en).replace(/'/g,"\'").replace(/"/g,'&quot;')}',this)">🔍 Find</button><button class="add-link-btn" onclick="showAddLinkForm('${ing.id}',this)">+ Paste</button></div>`:'';
-        html+=`<div class="shop-row" id="shop-row-${ing.id}"><div class="shop-names"><div class="shop-name-en">${ing.name_en}${ing._qtyStr?`<span class="shop-qty"> · ${ing._qtyStr}</span>`:''}</div><div class="shop-name-es">${ing.name_es||''}</div></div>${linkHtml}${addLinkBtns}</div>`;
+        const mealTag=ing._mealNames&&ing._mealNames.length>0?`<div style="font-size:0.7rem;color:var(--mid);margin-top:1px">For: ${ing._mealNames.join(', ')}</div>`:'';        html+=`<div class="shop-row" id="shop-row-${ing.id}"><div class="shop-names"><div class="shop-name-en">${ing.name_en}${ing._qtyStr?`<span class="shop-qty"> · ${ing._qtyStr}</span>`:''}</div><div class="shop-name-es">${ing.name_es||''}</div>${mealTag}</div>${linkHtml}${addLinkBtns}</div>`;
       }
     }
   }
@@ -1519,14 +1533,16 @@ async function generateShoppingList(){
   const savedCKUnits={};document.querySelectorAll('[id^="ck-unit-"]').forEach(el=>{const id=el.id.replace('ck-unit-','');savedCKUnits[id]=el.value;});
   btn.disabled=true;btn.textContent='Loading...';content.innerHTML=`<div class="empty"><div class="spin" style="width:24px;height:24px;border-width:2px;margin:0 auto 8px"></div>Building your list...</div>`;
   try{const inventory=currentPlan?.inventory||{};
-   const{data:planMeals}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id);
+   const{data:planMeals}=await sb.from('weekly_plan_meals').select('recipe_id, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',currentPlan.id);
     const planRecipeIds=[...new Set((planMeals||[]).map(m=>m.recipe_id))];
-    const{data:planIngredients}=await sb.from('ingredients').select('id').in('recipe_id',planRecipeIds);
+    const recipeNameMap={};for(const m of (planMeals||[])){if(m.recipes)recipeNameMap[m.recipe_id]=m.recipes.name_en;}
+    const{data:planIngredients}=await sb.from('ingredients').select('id,recipe_id').in('recipe_id',planRecipeIds);
+    const ingToRecipes={};for(const i of (planIngredients||[])){if(!ingToRecipes[i.id])ingToRecipes[i.id]=[];ingToRecipes[i.id].push(i.recipe_id);}
     const validIds=new Set((planIngredients||[]).map(i=>String(i.id)));
     const needIds=Object.entries(inventory).filter(([id,s])=>s==='need'&&validIds.has(id)).map(([id])=>id);
     if(needIds.length===0){content.innerHTML=`<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;btn.textContent='Generate list';btn.disabled=false;return;}
     const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;
-    const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();if(!deduped[key]||(!deduped[key].lacomer_url&&ing.lacomer_url))deduped[key]=ing;}
+    const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipes[ing.id]||[]).map(rid=>recipeNameMap[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
     const linkedIngredients=await applyProductLinks(Object.values(deduped));
     const mealItems=linkedIngredients.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));
     let ckItems=[];try{ckItems=await ckFetch('ck_items?cat=eq.shopping&done=eq.false&select=id,text,done&order=text.asc');}catch(e){console.warn('Casa King fetch failed:',e.message);}
