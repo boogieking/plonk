@@ -388,6 +388,11 @@
     .pre-estimate-banner{background:rgba(74,124,89,0.07);border:1.5px solid rgba(74,124,89,0.18);border-radius:10px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
     .pre-estimate-label{font-size:0.78rem;color:var(--mid);}
     .pre-estimate-amt{font-size:1rem;font-weight:600;color:var(--green);}
+    .pre-estimate-breakdown{width:100%;margin-top:8px;border-top:1px solid rgba(74,124,89,0.15);padding-top:8px;display:flex;flex-direction:column;gap:3px;}
+    .pre-estimate-row{display:flex;justify-content:space-between;font-size:0.76rem;color:var(--mid);}
+    .pre-estimate-row.total-row{font-weight:600;color:var(--dark);font-size:0.82rem;border-top:1px solid rgba(74,124,89,0.15);margin-top:3px;padding-top:4px;}
+    .pre-estimate-unpriced{font-size:0.74rem;color:var(--clay);margin-top:5px;padding:4px 8px;background:rgba(180,90,50,0.07);border-radius:6px;}
+    .pre-estimate-toggle{background:none;border:none;font-size:0.74rem;color:var(--blue);cursor:pointer;padding:0;margin-top:4px;text-decoration:underline;}
     .cheaper-alt-nudge{background:#fff8e1;border:1.5px solid #ffc107;border-radius:9px;padding:9px 13px;margin-top:6px;font-size:0.8rem;color:#795548;display:flex;align-items:flex-start;gap:8px;}
     .cheaper-alt-nudge .alt-icon{font-size:1rem;flex-shrink:0;margin-top:1px;}
     .trolley-add-fab{position:fixed;bottom:80px;right:20px;z-index:210;width:48px;height:48px;border-radius:50%;background:var(--clay);color:white;border:none;font-size:1.4rem;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;transition:background 0.18s,transform 0.15s;}
@@ -1526,6 +1531,57 @@ function removeRecurringFromList(productId,btn){
   const list=document.querySelector('.recurring-list');
   if(list&&list.children.length===0)document.querySelector('.recurring-section')?.remove();
 }
+async function buildPreShopEstimate(mealItems){
+  // Returns HTML string for the pre-shop estimate banner with category breakdown
+  try{
+    const ingIds=mealItems.map(i=>i.id).filter(Boolean);
+    if(ingIds.length===0)return'';
+    // Fetch last_price_mxn and lacomer_category for all relevant ingredients
+    const{data:prods}=await sb.from('household_products')
+      .select('ingredient_id,last_price_mxn,category')
+      .in('ingredient_id',ingIds)
+      .not('last_price_mxn','is',null);
+    if(!prods||prods.length===0)return`<div class="pre-estimate-banner"><div class="pre-estimate-label">Pre-shop estimate unavailable — no prices on record yet</div></div>`;
+    // Build best price per ingredient (prefer linked product price)
+    const priceMap={};
+    const catMap={};
+    for(const p of prods){
+      const id=p.ingredient_id;
+      if(!priceMap[id]){priceMap[id]=parseFloat(p.last_price_mxn||0);catMap[id]=p.category||null;}
+    }
+    // Category totals — use ingredient's lacomer_category as fallback
+    const catTotals={};
+    let estTotal=0;
+    let coveredCount=0;
+    for(const ing of mealItems){
+      const price=priceMap[ing.id];
+      if(price>0){
+        const cat=catMap[ing.id]||ing.lacomer_category||'Other';
+        catTotals[cat]=(catTotals[cat]||0)+price;
+        estTotal+=price;
+        coveredCount++;
+      }
+    }
+    const unpricedCount=ingIds.length-coveredCount;
+    const bkId='pre-estimate-bk-'+Date.now();
+    let breakdownRows=Object.entries(catTotals).sort((a,b)=>a[0].localeCompare(b[0])).map(([cat,tot])=>`<div class="pre-estimate-row"><span>${cat}</span><span>$${tot.toFixed(0)}</span></div>`).join('');
+    breakdownRows+=`<div class="pre-estimate-row total-row"><span>Estimated total</span><span>$${estTotal.toFixed(0)} MXN</span></div>`;
+    const unpricedNote=unpricedCount>0?`<div class="pre-estimate-unpriced">⚠ ${unpricedCount} item${unpricedCount>1?'s':''} have no price data — actual cost will be higher</div>`:'';
+    return`<div class="pre-estimate-banner" id="pre-estimate-banner">
+      <div style="display:flex;align-items:center;justify-content:space-between;width:100%;flex-wrap:wrap;gap:6px">
+        <div><div class="pre-estimate-label">Pre-shop estimate · ${coveredCount} of ${ingIds.length} items priced</div>
+          <button class="pre-estimate-toggle" onclick="const bk=document.getElementById('${bkId}');bk.style.display=bk.style.display==='none'?'':'none';this.textContent=bk.style.display==='none'?'▼ Show breakdown':'▲ Hide breakdown'">▲ Hide breakdown</button>
+        </div>
+        <div class="pre-estimate-amt">~$${estTotal.toFixed(0)} MXN</div>
+      </div>
+      <div class="pre-estimate-breakdown" id="${bkId}">
+        ${breakdownRows}
+        ${unpricedNote}
+        <div style="font-size:0.72rem;color:var(--mid);margin-top:4px">Prices from last recorded shop — may vary in store</div>
+      </div>
+    </div>`;
+  }catch(e){console.warn('Pre-shop estimate failed:',e);return'';}
+}
 async function generateShoppingList(){
   clearShoppingState();
   const btn=document.getElementById('generate-btn');const content=document.getElementById('shopping-list-content');
@@ -1561,6 +1617,9 @@ async function generateShoppingList(){
       userPickedDueSoon=await showDueSoonNudge(dueSoonItems);
     }
     content.innerHTML=renderShoppingListHTML(mealItems,ckItems,true,karenAdditions,alwaysBuyItems,[...userPickedDueSoon]);
+    // Inject pre-shop estimate banner at top of shopping list
+    const estimateBannerHTML=await buildPreShopEstimate(mealItems);
+    if(estimateBannerHTML){const estimateWrap=document.createElement('div');estimateWrap.id='preshop-estimate-wrap';estimateWrap.innerHTML=estimateBannerHTML;content.insertBefore(estimateWrap,content.firstChild);}
     const consolidateBtn=document.getElementById('consolidate-btn');if(consolidateBtn)consolidateBtn.style.display=ckItems.length>0?'':'none';
     for(const[id,val]of Object.entries(savedCKQtys)){const el=document.getElementById(`ck-qty-${id}`);if(el)el.value=val;}
     for(const[id,val]of Object.entries(savedCKUnits)){const el=document.getElementById(`ck-unit-${id}`);if(el)el.value=val;}
@@ -1584,23 +1643,9 @@ async function startTrolleyMode(){
   // Inject budget input + pre-estimate above shopping list
   const content=document.getElementById('shopping-list-content');
   if(content&&!document.getElementById('budget-input-wrap')){
-    // Pre-estimate from household_products last_price_mxn
-    let estimateHTML='';
-    try{
-      const allRows=content.querySelectorAll('.shop-row');
-      const ingIds=[...allRows].map(r=>r.id.replace('shop-row-','')).filter(id=>id&&!id.startsWith('rec-')&&!id.startsWith('ck-'));
-      if(ingIds.length>0){
-        const{data:prods}=await sb.from('household_products').select('ingredient_id,last_price_mxn').in('ingredient_id',ingIds).not('last_price_mxn','is',null);
-        if(prods&&prods.length>0){
-          const estMap={};for(const p of prods){if(!estMap[p.ingredient_id])estMap[p.ingredient_id]=p.last_price_mxn;}
-          const estTotal=Object.values(estMap).reduce((s,v)=>s+parseFloat(v||0),0);
-          const coveredCount=Object.keys(estMap).length;
-          if(estTotal>0)estimateHTML=`<div class="pre-estimate-banner"><div><div class="pre-estimate-label">Pre-shop estimate (${coveredCount} of ${ingIds.length} items have prices)</div></div><div class="pre-estimate-amt">~$${estTotal.toFixed(2)} MXN</div></div>`;
-        }
-      }
-    }catch(e){console.warn('Pre-estimate failed:',e);}
+    // Pre-estimate banner already injected by generateShoppingList — no need to re-query
     const wrap=document.createElement('div');wrap.id='budget-input-wrap';
-    wrap.innerHTML=`${estimateHTML}<div class="budget-input-wrap"><label>🎯 Budget</label><input class="budget-input" id="trolley-budget-input" type="number" min="0" step="50" placeholder="e.g. 2000" value="${trolleyBudget||''}" oninput="setTrolleyBudget(this.value)"><span style="font-size:0.82rem;color:var(--mid)">MXN</span></div>`;
+    wrap.innerHTML=`<div class="budget-input-wrap"><label>🎯 Budget</label><input class="budget-input" id="trolley-budget-input" type="number" min="0" step="50" placeholder="e.g. 2000" value="${trolleyBudget||''}" oninput="setTrolleyBudget(this.value)"><span style="font-size:0.82rem;color:var(--mid)">MXN</span></div>`;
     content.insertBefore(wrap,content.firstChild);
   }
   renderTrolleyUI();saveTrolleyState();showToast('Shopping mode on — tick items as you add them 🛒');
