@@ -579,7 +579,7 @@ const KAREN_CATEGORY_RULES=[
 function guessKarenCategory(name){const lower=name.toLowerCase();for(const rule of KAREN_CATEGORY_RULES){if(rule.words.some(w=>lower.includes(w)))return rule.cat;}return'Other';}
 let karenAdditions=[];
 async function loadKarenAdditions(){if(!currentPlan){karenAdditions=[];return;}const{data,error}=await sb.from('karen_additions').select('*').eq('plan_id',currentPlan.id).order('added_at',{ascending:true});karenAdditions=(!error&&data)?data:[];}
-async function addKarenItem(){const input=document.getElementById('karen-add-input');if(!input)return;const name=input.value.trim();if(!name){showToast('Type an item first','error');return;}if(!currentPlan){showToast('No active plan','error');return;}if(karenAdditions.some(a=>a.name_en.toLowerCase()===name.toLowerCase())){showToast('That item is already on your additions list','error');return;}const{data:planMealIds}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id);const recipeIds=(planMealIds||[]).map(m=>m.recipe_id);let mealIngNames=new Set();if(recipeIds.length>0){const{data:ings}=await sb.from('ingredients').select('name_en').in('recipe_id',recipeIds);mealIngNames=new Set((ings||[]).map(i=>i.name_en.toLowerCase()));}if(mealIngNames.has(name.toLowerCase())){showToast(`"${name}" is already in this week's meal ingredients ✓`);return;}const cat=guessKarenCategory(name);const{data,error}=await sb.from('karen_additions').insert({plan_id:currentPlan.id,name_en:name,lacomer_category:cat,added_by:userProfile.id,added_at:new Date().toISOString()}).select().single();if(error){showToast('Error adding item: '+error.message,'error');return;}karenAdditions.push(data);input.value='';renderKarenAdditionsList();showToast(`"${name}" added to shopping list ✓`);}
+async function addKarenItem(){if(!currentUserCan('add_shopping_items')){showToast('Adding items is not enabled for your account','error');return;}const input=document.getElementById('karen-add-input');if(!input)return;const name=input.value.trim();if(!name){showToast('Type an item first','error');return;}if(!currentPlan){showToast('No active plan','error');return;}if(karenAdditions.some(a=>a.name_en.toLowerCase()===name.toLowerCase())){showToast('That item is already on your additions list','error');return;}const{data:planMealIds}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id);const recipeIds=(planMealIds||[]).map(m=>m.recipe_id);let mealIngNames=new Set();if(recipeIds.length>0){const{data:ings}=await sb.from('ingredients').select('name_en').in('recipe_id',recipeIds);mealIngNames=new Set((ings||[]).map(i=>i.name_en.toLowerCase()));}if(mealIngNames.has(name.toLowerCase())){showToast(`"${name}" is already in this week's meal ingredients ✓`);return;}const cat=guessKarenCategory(name);const{data,error}=await sb.from('karen_additions').insert({plan_id:currentPlan.id,name_en:name,lacomer_category:cat,added_by:userProfile.id,added_at:new Date().toISOString()}).select().single();if(error){showToast('Error adding item: '+error.message,'error');return;}karenAdditions.push(data);input.value='';renderKarenAdditionsList();showToast(`"${name}" added to shopping list ✓`);}
 async function removeKarenItem(id){const{error}=await sb.from('karen_additions').delete().eq('id',id);if(error){showToast('Error removing item','error');return;}karenAdditions=karenAdditions.filter(a=>a.id!==id);renderKarenAdditionsList();}
 function renderKarenAdditionsList(){const el=document.getElementById('karen-additions-list');if(!el)return;if(karenAdditions.length===0){el.innerHTML=`<div style="font-size:0.82rem;color:var(--mid)">No items added yet</div>`;return;}el.innerHTML=karenAdditions.map(a=>`<div class="karen-addition-item"><span>${a.name_en} <em style="font-size:0.72rem;color:var(--mid)">· ${a.lacomer_category}</em></span><button class="karen-rm-btn" onclick="removeKarenItem('${a.id}')" title="Remove">✕</button></div>`).join('');}
 const roleColor={admin:'#C8674A',planner:'#4A7C59',reviewer:'#2E5F8A'};
@@ -835,6 +835,7 @@ function renderInventoryList(){
   el.innerHTML=html||'<div class="empty">No ingredients found</div>';
 }
 function setInv(id,status,btn){
+  if(!currentUserCan('mark_inventory')){showToast('Inventory check is not enabled for your account','error');return;}
   id=String(id);inventoryState[id]=status;
   btn.parentElement?.querySelectorAll('button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
   const ing=inventoryItems.find(i=>String(i.id)===id);
@@ -1035,6 +1036,7 @@ function isWithin24Hours(cookedAt){if(!cookedAt)return false;return(new Date()-n
 function ratingPromptHTML(recipeId){return`<div class="rating-prompt" id="rating-prompt-${recipeId}"><div class="rating-prompt-label">⭐ Rate this meal (window closes in 24hrs)</div><div class="star-row" id="stars-${recipeId}">${[1,2,3,4,5].map(n=>`<button class="star-btn" data-val="${n}" onclick="selectStar('${recipeId}',${n})">☆</button>`).join('')}<button class="rating-submit-btn" id="rate-submit-${recipeId}" style="display:none" onclick="submitRating('${recipeId}')">Submit</button></div></div>`;}
 function selectStar(recipeId,val){const row=document.getElementById(`stars-${recipeId}`);if(!row)return;row.querySelectorAll('.star-btn').forEach(btn=>{const n=parseInt(btn.dataset.val);btn.textContent=n<=val?'★':'☆';btn.classList.toggle('active',n<=val);});row.dataset.selected=val;const submitBtn=document.getElementById(`rate-submit-${recipeId}`);if(submitBtn)submitBtn.style.display='inline-block';}
 async function submitRating(recipeId){
+  if(!currentUserCan('rate_meals')){showToast('Rating is not enabled for your account','error');return;}
   const row=document.getElementById(`stars-${recipeId}`);if(!row)return;const val=parseInt(row.dataset.selected);if(!val){showToast('Pick a star rating first','error');return;}
   const submitBtn=document.getElementById(`rate-submit-${recipeId}`);if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Saving...';}
   try{
@@ -1538,54 +1540,101 @@ function removeRecurringFromList(productId,btn){
 }
 async function buildPreShopEstimate(mealItems){
   // Returns HTML string for the pre-shop estimate banner with category breakdown
+  // Fallback price table — mid price, low multiplier 0.75, high multiplier 1.35
+  const FALLBACK_PRICES={
+    // Produce
+    'tomato':22,'jitomate':22,'onion':18,'cebolla':18,'garlic':12,'ajo':12,'potato':25,'papa':25,
+    'carrot':15,'zanahoria':15,'pumpkin':35,'calabaza':35,'avocado':28,'aguacate':28,
+    'lemon':18,'limon':18,'orange':20,'naranja':20,'apple':30,'manzana':30,'ginger':20,'jengibre':20,
+    'mushroom':45,'champiñon':45,'sweet potato':30,'camote':30,'capsicum':35,'pimiento':35,
+    'pineapple':40,'piña':40,'lettuce':22,'lechuga':22,'corn':18,'elote':18,'peas':28,'chicharo':28,
+    // Meats
+    'chicken':85,'pollo':85,'beef':120,'res':120,'pork':95,'cerdo':95,'mince':90,'molida':90,
+    'sausage':75,'salchicha':75,'ham':65,'jamon':65,'bacon':75,'tuna':32,'atun':32,'lamb':130,'cordero':130,
+    // Dairy
+    'cheese':80,'queso':80,'milk':28,'leche':28,'cream':45,'crema':45,'butter':55,'mantequilla':55,
+    'egg':38,'huevo':38,'yogurt':40,
+    // Grains & Pasta
+    'pasta':32,'rice':28,'arroz':28,'flour':22,'harina':22,'bread':38,'pan':38,'tortilla':30,
+    'gnocchi':55,'ñoqui':55,'lasagna':45,'breadcrumb':25,
+    // Canned & Packaged
+    'stock':35,'caldo':35,'tomato paste':22,'pasta de tomate':22,'coconut milk':45,'leche de coco':45,
+    'soy sauce':35,'salsa de soya':35,'oyster sauce':42,'cornflour':20,'maizena':20,
+    'peanut butter':85,'vinegar':28,'vinagre':28,'sugar':18,'azucar':18,
+    // Pantry
+    'olive oil':90,'aceite':45,'oil':40,'mustard':38,'mostaza':38,'ketchup':30,
+    'worcestershire':42,'paprika':28,'cumin':22,'comino':22,'curry':30,'thyme':22,'tomillo':22,
+    'parsley':15,'perejil':15,'dill':20,'wine':95,'vino':95,
+    // Other defaults by category
+    'produce':25,'meats':95,'dairy':45,'grains':35,'canned':38,'condiments':35,'frozen':55,'bakery':40,'other':40
+  };
+  function fallbackPrice(ing){
+    const name=(ing.name_en||ing.name_es||'').toLowerCase();
+    const cat=(ing.lacomer_category||'other').toLowerCase();
+    for(const[key,price] of Object.entries(FALLBACK_PRICES)){
+      if(name.includes(key))return price;
+    }
+    // Category fallback
+    if(cat.includes('produce'))return FALLBACK_PRICES['produce'];
+    if(cat.includes('meat')||cat.includes('seafood'))return FALLBACK_PRICES['meats'];
+    if(cat.includes('dairy'))return FALLBACK_PRICES['dairy'];
+    if(cat.includes('grain')||cat.includes('pasta')||cat.includes('bakery'))return FALLBACK_PRICES['grains'];
+    if(cat.includes('canned')||cat.includes('packaged'))return FALLBACK_PRICES['canned'];
+    if(cat.includes('condiment')||cat.includes('sauce'))return FALLBACK_PRICES['condiments'];
+    if(cat.includes('frozen'))return FALLBACK_PRICES['frozen'];
+    return FALLBACK_PRICES['other'];
+  }
   try{
     const ingIds=mealItems.map(i=>i.id).filter(Boolean);
     if(ingIds.length===0)return'';
-    // Fetch last_price_mxn and lacomer_category for all relevant ingredients
+    // Fetch recorded prices
     const{data:prods}=await sb.from('household_products')
       .select('ingredient_id,last_price_mxn,category')
       .in('ingredient_id',ingIds)
       .not('last_price_mxn','is',null);
-    if(!prods||prods.length===0)return`<div class="pre-estimate-banner"><div class="pre-estimate-label">Pre-shop estimate unavailable — no prices on record yet</div></div>`;
-    // Build best price per ingredient (prefer linked product price)
-    const priceMap={};
-    const catMap={};
-    for(const p of prods){
+    const priceMap={};const catMap={};
+    for(const p of (prods||[])){
       const id=p.ingredient_id;
       if(!priceMap[id]){priceMap[id]=parseFloat(p.last_price_mxn||0);catMap[id]=p.category||null;}
     }
-    // Category totals — use ingredient's lacomer_category as fallback
-    const catTotals={};
-    let estTotal=0;
-    let coveredCount=0;
+    // Build totals — use real price if available, fallback otherwise
+    const catTotalsMid={};
+    let totalMid=0,totalLow=0,totalHigh=0;
+    let realCount=0,fallbackCount=0;
     for(const ing of mealItems){
-      const price=priceMap[ing.id];
-      if(price>0){
-        const cat=catMap[ing.id]||ing.lacomer_category||'Other';
-        catTotals[cat]=(catTotals[cat]||0)+price;
-        estTotal+=price;
-        coveredCount++;
+      const realPrice=priceMap[ing.id];
+      const cat=catMap[ing.id]||ing.lacomer_category||'Other';
+      let mid,low,high;
+      if(realPrice>0){
+        mid=realPrice;low=realPrice*0.9;high=realPrice*1.15;// recorded price — tight range
+        realCount++;
+      }else{
+        mid=fallbackPrice(ing);low=mid*0.75;high=mid*1.35;// fallback — wider range
+        fallbackCount++;
       }
+      catTotalsMid[cat]=(catTotalsMid[cat]||0)+mid;
+      totalMid+=mid;totalLow+=low;totalHigh+=high;
     }
-    const unpricedCount=ingIds.length-coveredCount;
     const bkId='pre-estimate-bk-'+Date.now();
-    let breakdownRows=Object.entries(catTotals).sort((a,b)=>a[0].localeCompare(b[0])).map(([cat,tot])=>`<div class="pre-estimate-row"><span>${cat}</span><span>$${tot.toFixed(0)}</span></div>`).join('');
-    breakdownRows+=`<div class="pre-estimate-row total-row"><span>Estimated total</span><span>$${estTotal.toFixed(0)} MXN</span></div>`;
-    const unpricedNote=unpricedCount>0?`<div class="pre-estimate-unpriced">⚠ ${unpricedCount} item${unpricedCount>1?'s':''} have no price data — actual cost will be higher</div>`:'';
+    let breakdownRows=Object.entries(catTotalsMid).sort((a,b)=>a[0].localeCompare(b[0])).map(([cat,tot])=>`<div class="pre-estimate-row"><span>${cat}</span><span>$${Math.round(tot)}</span></div>`).join('');
+    breakdownRows+=`<div class="pre-estimate-row total-row"><span>Estimated total</span><span>$${Math.round(totalMid)} MXN</span></div>`;
+    const fallbackNote=fallbackCount>0?`<div class="pre-estimate-unpriced">⚠ ${fallbackCount} item${fallbackCount>1?'s':''} using estimated prices — shop actual prices may differ</div>`:'';
     return`<div class="pre-estimate-banner" id="pre-estimate-banner">
+      <div style="text-align:right;font-size:0.72rem;color:#b0a898;margin-bottom:2px">could be as low as ~$${Math.round(totalLow)} MXN</div>
       <div style="display:flex;align-items:center;justify-content:space-between;width:100%;flex-wrap:wrap;gap:6px">
-        <div><div class="pre-estimate-label">Pre-shop estimate · ${coveredCount} of ${ingIds.length} items priced</div>
+        <div><div class="pre-estimate-label">Pre-shop estimate · ${realCount} real + ${fallbackCount} estimated</div>
           <button class="pre-estimate-toggle" onclick="const bk=document.getElementById('${bkId}');bk.style.display=bk.style.display==='none'?'':'none';this.textContent=bk.style.display==='none'?'▼ Show breakdown':'▲ Hide breakdown'">▲ Hide breakdown</button>
         </div>
-        <div class="pre-estimate-amt">~$${estTotal.toFixed(0)} MXN</div>
+        <div class="pre-estimate-amt">~$${Math.round(totalMid)} MXN</div>
       </div>
       <div class="pre-estimate-breakdown" id="${bkId}">
         ${breakdownRows}
-        ${unpricedNote}
-        <div style="font-size:0.72rem;color:var(--mid);margin-top:4px">Prices from last recorded shop — may vary in store</div>
+        ${fallbackNote}
+        <div style="font-size:0.72rem;color:var(--mid);margin-top:4px">${realCount>0?'Real prices from last shop · ':''}Estimates based on typical La Comer prices</div>
       </div>
+      <div style="text-align:right;font-size:0.72rem;color:#b0a898;margin-top:4px">could be as high as ~$${Math.round(totalHigh)} MXN</div>
     </div>`;
-  }catch(e){console.warn('Pre-shop estimate failed:',e);return'';}
+  }catch(e){console.warn('Pre-shop estimate failed:',e);return '';}
 }
 async function generateShoppingList(){
   clearShoppingState();
@@ -2287,7 +2336,7 @@ async function checkHibernationWakeUps(){
   wokenUp.forEach(r=>showToast(`🌅 ${r.name} is back! Restored to ${TIER_LABELS[r.tier]}`,'success'));
 }
 let currentView='dashboard';
-function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){renderRecipeListView();}else if(view==='products'){renderProductsView();}else if(view==='history'){renderHistoryView();}else if(view==='permissions'){renderPermissionsView();}}
+function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){if(!currentUserCan('view_recipes')&&userProfile?.role!=='admin'){showToast('Recipe library is not enabled for your account','error');switchView('dashboard');return;}renderRecipeListView();}else if(view==='products'){renderProductsView();}else if(view==='history'){renderHistoryView();}else if(view==='permissions'){renderPermissionsView();}}
 let recipeFilterTier='all',recipeFilterSearch='',recipeShowHibernated=false,allRecipesCache=null,recipeFilterType='lunch';
 async function renderRecipeListView(){
   const content=document.getElementById('dashboard-content');
@@ -2295,8 +2344,7 @@ async function renderRecipeListView(){
   const tabRecipes=allRecipesCache.filter(r=>recipeFilterType==='dinner'?r.is_dinner===true:r.is_dinner!==true);
   const total=tabRecipes.length;const withSteps=tabRecipes.filter(r=>r.steps&&r.steps.trim()).length;const pct=total>0?Math.round((withSteps/total)*100):0;
   const progressHtml=`<div class="steps-progress-bar"><span style="font-size:0.9rem">📋</span><div class="steps-progress-track"><div class="steps-progress-fill" style="width:${pct}%"></div></div><span class="steps-progress-count">${withSteps} of ${total}</span><span class="steps-progress-label">recipes have saved steps</span></div>`;
-  const addRecipeBtn=userProfile?.role==='admin'?`<button class="btn-primary" style="font-size:0.82rem;padding:7px 14px;white-space:nowrap;margin-left:auto" onclick="openAddRecipeModal()">+ Add Recipe</button>`:'';
-  content.innerHTML=`<div class="fade-in" id="recipe-list-root"><div class="page-header"><h1>Recipes</h1><p>Browse and manage the full meal library</p></div>${progressHtml}<div class="recipes-toolbar"><div style="display:flex;gap:6px;margin-right:10px;background:rgba(200,180,160,0.2);border-radius:9px;padding:3px"><button class="filter-pill${recipeFilterType==='lunch'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('lunch')">🍽 Lunches</button><button class="filter-pill${recipeFilterType==='dinner'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('dinner')">🌙 Dinners</button></div><input class="search-input" id="recipe-search" placeholder="Search recipes…" oninput="filterRecipes()" value="${recipeFilterSearch}"><button class="filter-pill ${recipeFilterTier==='all'?'active':''}" onclick="setTierFilter('all')">All</button><button class="filter-pill ${recipeFilterTier==='weekly'?'active':''}" onclick="setTierFilter('weekly')">Weekly</button><button class="filter-pill ${recipeFilterTier==='regular'?'active':''}" onclick="setTierFilter('regular')">Regular</button><button class="filter-pill ${recipeFilterTier==='occasional'?'active':''}" onclick="setTierFilter('occasional')">Occasional</button><button class="filter-pill ${recipeFilterTier==='rare'?'active':''}" onclick="setTierFilter('rare')">Rare</button><button class="filter-pill ${recipeShowHibernated?'active':''}" onclick="toggleHibernated()">💤 Hibernated</button>${addRecipeBtn}</div><div id="recipe-grid-container"><div class="empty"><span class="empty-icon">🍳</span>Loading recipes…</div></div></div>`;
+  content.innerHTML=`<div class="fade-in" id="recipe-list-root"><div class="page-header"><h1>Recipes</h1><p>Browse and manage the full meal library</p></div>${progressHtml}<div class="recipes-toolbar"><div style="display:flex;gap:6px;margin-right:10px;background:rgba(200,180,160,0.2);border-radius:9px;padding:3px"><button class="filter-pill${recipeFilterType==='lunch'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('lunch')">🍽 Lunches</button><button class="filter-pill${recipeFilterType==='dinner'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('dinner')">🌙 Dinners</button></div><input class="search-input" id="recipe-search" placeholder="Search recipes…" oninput="filterRecipes()" value="${recipeFilterSearch}"><button class="filter-pill ${recipeFilterTier==='all'?'active':''}" onclick="setTierFilter('all')">All</button><button class="filter-pill ${recipeFilterTier==='weekly'?'active':''}" onclick="setTierFilter('weekly')">Weekly</button><button class="filter-pill ${recipeFilterTier==='regular'?'active':''}" onclick="setTierFilter('regular')">Regular</button><button class="filter-pill ${recipeFilterTier==='occasional'?'active':''}" onclick="setTierFilter('occasional')">Occasional</button><button class="filter-pill ${recipeFilterTier==='rare'?'active':''}" onclick="setTierFilter('rare')">Rare</button><button class="filter-pill ${recipeShowHibernated?'active':''}" onclick="toggleHibernated()">💤 Hibernated</button></div><div id="recipe-grid-container"><div class="empty"><span class="empty-icon">🍳</span>Loading recipes…</div></div></div>`;
   renderFilteredRecipes();
 }
 function renderFilteredRecipes(){
@@ -2364,221 +2412,6 @@ function safeCloseRecipeDetail(recipeId){
   closeRecipeDetail();
 }
 function closeRecipeDetail(){document.getElementById('recipe-detail-overlay')?.remove();}
-
-// ── Add Recipe Modal ────────────────────────────────────────────────
-let addRecipeIngredients=[];
-function openAddRecipeModal(){
-  addRecipeIngredients=[{id:Date.now(),name_en:'',name_es:'',quantity:'',unit:'',category:''}];
-  document.body.insertAdjacentHTML('beforeend',`
-  <div class="modal-overlay" id="add-recipe-overlay" onclick="if(event.target===this)closeAddRecipeModal()">
-    <div class="recipe-modal" style="position:relative;max-width:560px">
-      <button class="recipe-modal-close" onclick="closeAddRecipeModal()">✕</button>
-      <div class="recipe-modal-header"><div class="recipe-modal-title">Add New Recipe</div></div>
-      <div style="display:flex;gap:0;margin:0 0 18px;background:rgba(200,180,160,0.15);border-radius:10px;padding:3px" id="add-recipe-tabs">
-        <button id="tab-manual" onclick="switchAddTab('manual')" style="flex:1;padding:8px;border:none;background:var(--clay);color:white;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:600;cursor:pointer">✏️ Enter manually</button>
-        <button id="tab-ai" onclick="switchAddTab('ai')" style="flex:1;padding:8px;border:none;background:transparent;color:var(--mid);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:500;cursor:pointer">✨ Generate with AI</button>
-      </div>
-      <div id="add-recipe-body" class="recipe-modal-body" style="max-height:60vh;overflow-y:auto">
-        ${renderManualTab()}
-      </div>
-      <div class="recipe-modal-footer" id="add-recipe-footer">
-        <button class="btn-ghost" onclick="closeAddRecipeModal()">Cancel</button>
-        <button class="btn-primary" id="add-recipe-save-btn" onclick="saveNewRecipe()">Save Recipe</button>
-      </div>
-    </div>
-  </div>`);
-}
-function switchAddTab(tab){
-  document.getElementById('tab-manual').style.cssText=`flex:1;padding:8px;border:none;background:${tab==='manual'?'var(--clay)':'transparent'};color:${tab==='manual'?'white':'var(--mid)'};border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:${tab==='manual'?600:500};cursor:pointer`;
-  document.getElementById('tab-ai').style.cssText=`flex:1;padding:8px;border:none;background:${tab==='ai'?'var(--clay)':'transparent'};color:${tab==='ai'?'white':'var(--mid)'};border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:${tab==='ai'?600:500};cursor:pointer`;
-  const body=document.getElementById('add-recipe-body');
-  const footer=document.getElementById('add-recipe-footer');
-  if(tab==='manual'){
-    body.innerHTML=renderManualTab();
-    footer.innerHTML=`<button class="btn-ghost" onclick="closeAddRecipeModal()">Cancel</button><button class="btn-primary" onclick="saveNewRecipe()">Save Recipe</button>`;
-  } else {
-    body.innerHTML=renderAiTab();
-    footer.innerHTML=`<button class="btn-ghost" onclick="closeAddRecipeModal()">Cancel</button><button class="btn-primary" id="ai-generate-btn" onclick="runAiRecipeSearch()">✨ Generate</button>`;
-  }
-}
-function renderManualTab(){
-  const UNITS=['g','kg','ml','L','pcs','tbsp','tsp','cup','slices','bunch','cloves','sprigs'];
-  const CATS=['Produce','Meats & Seafood','Dairy','Grains & Pasta','Canned & Packaged','Condiments & Sauces','Frozen','Bakery','Beverages','Other'];
-  const ingRows=addRecipeIngredients.map((ing,i)=>`
-    <div class="ar-ing-row" id="ar-ing-${ing.id}" style="display:grid;grid-template-columns:1fr 1fr 60px 110px auto;gap:6px;align-items:center;margin-bottom:6px">
-      <input placeholder="Ingredient (EN)" value="${ing.name_en}" oninput="arIngUpdate(${ing.id},'name_en',this.value)" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none">
-      <input placeholder="Nombre (ES)" value="${ing.name_es}" oninput="arIngUpdate(${ing.id},'name_es',this.value)" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none">
-      <input placeholder="Qty" type="number" min="0" step="any" value="${ing.quantity}" oninput="arIngUpdate(${ing.id},'quantity',this.value)" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none">
-      <select oninput="arIngUpdate(${ing.id},'unit',this.value)" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;background:white">
-        <option value="">unit</option>${UNITS.map(u=>`<option value="${u}"${ing.unit===u?' selected':''}>${u}</option>`).join('')}
-      </select>
-      <button onclick="arIngRemove(${ing.id})" style="background:none;border:none;color:var(--mid);font-size:1rem;cursor:pointer;padding:4px 6px;line-height:1">✕</button>
-    </div>
-    <div style="margin-bottom:10px">
-      <select oninput="arIngUpdate(${ing.id},'category',this.value)" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;background:white;color:${ing.category?'var(--dark)':'var(--mid)'}">
-        <option value="">— La Comer category —</option>${CATS.map(c=>`<option value="${c}"${ing.category===c?' selected':''}>${c}</option>`).join('')}
-      </select>
-    </div>`).join('');
-  return`
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-      <div><label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Name (English)</label>
-        <input id="ar-name-en" placeholder="e.g. Chicken Parmigiana" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box"></div>
-      <div><label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Name (Spanish)</label>
-        <input id="ar-name-es" placeholder="e.g. Pollo a la Parmesana" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box"></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
-      <div><label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Prep (min)</label>
-        <input id="ar-prep" type="number" min="0" placeholder="15" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box"></div>
-      <div><label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Cook (min)</label>
-        <input id="ar-cook" type="number" min="0" placeholder="30" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box"></div>
-      <div><label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Type</label>
-        <select id="ar-type" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white;box-sizing:border-box">
-          <option value="lunch">🍽 Lunch</option><option value="dinner">🌙 Dinner</option>
-        </select></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-      <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--dark);cursor:pointer">
-        <input type="checkbox" id="ar-advance-prep" style="width:16px;height:16px;accent-color:var(--clay)"> Advance prep required</label>
-      <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--dark);cursor:pointer">
-        <input type="checkbox" id="ar-same-day" checked style="width:16px;height:16px;accent-color:var(--clay)"> Can cook same day</label>
-    </div>
-    <div id="ar-advance-note-wrap" style="display:none;margin-bottom:14px">
-      <input id="ar-advance-note" placeholder="e.g. Marinate overnight" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.85rem;outline:none;box-sizing:border-box">
-    </div>
-    <div style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Ingredients</div>
-    <div id="ar-ing-list">${ingRows}</div>
-    <button onclick="arIngAdd()" style="background:none;border:1.5px dashed var(--border);border-radius:8px;padding:7px 14px;font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--mid);cursor:pointer;width:100%;margin-top:2px">+ Add ingredient</button>
-    <script>document.getElementById('ar-advance-prep').addEventListener('change',function(){document.getElementById('ar-advance-note-wrap').style.display=this.checked?'block':'none';});<\/script>`;
-}
-function renderAiTab(){
-  return`
-    <div style="margin-bottom:14px">
-      <label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Describe what you want</label>
-      <textarea id="ai-recipe-prompt" rows="3" placeholder="e.g. A quick pork stir-fry with Asian flavours, no advance prep, serves 4, ingredients available at La Comer in Mexico" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.87rem;outline:none;resize:vertical;box-sizing:border-box"></textarea>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-      <div><label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Type</label>
-        <select id="ai-recipe-type" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white;box-sizing:border-box">
-          <option value="lunch">🍽 Lunch</option><option value="dinner">🌙 Dinner</option>
-        </select></div>
-      <div><label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Serves</label>
-        <input id="ai-recipe-serves" type="number" min="1" max="12" value="4" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box"></div>
-    </div>
-    <div id="ai-recipe-result" style="display:none"></div>`;
-}
-function arIngAdd(){
-  addRecipeIngredients.push({id:Date.now(),name_en:'',name_es:'',quantity:'',unit:'',category:''});
-  document.getElementById('ar-ing-list').innerHTML=renderManualTab().match(/<div id="ar-ing-list">([\s\S]*?)<\/div>\s*<button onclick="arIngAdd/)?.[1]||'';
-  // Re-render just the ingredient section
-  const UNITS=['g','kg','ml','L','pcs','tbsp','tsp','cup','slices','bunch','cloves','sprigs'];
-  const CATS=['Produce','Meats & Seafood','Dairy','Grains & Pasta','Canned & Packaged','Condiments & Sauces','Frozen','Bakery','Beverages','Other'];
-  const el=document.getElementById('ar-ing-list');
-  el.innerHTML=addRecipeIngredients.map(ing=>`
-    <div class="ar-ing-row" id="ar-ing-${ing.id}" style="display:grid;grid-template-columns:1fr 1fr 60px 110px auto;gap:6px;align-items:center;margin-bottom:6px">
-      <input placeholder="Ingredient (EN)" value="${ing.name_en}" oninput="arIngUpdate(${ing.id},'name_en',this.value)" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none">
-      <input placeholder="Nombre (ES)" value="${ing.name_es}" oninput="arIngUpdate(${ing.id},'name_es',this.value)" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none">
-      <input placeholder="Qty" type="number" min="0" step="any" value="${ing.quantity}" oninput="arIngUpdate(${ing.id},'quantity',this.value)" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none">
-      <select oninput="arIngUpdate(${ing.id},'unit',this.value)" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;background:white">
-        <option value="">unit</option>${UNITS.map(u=>`<option value="${u}"${ing.unit===u?' selected':''}>${u}</option>`).join('')}
-      </select>
-      <button onclick="arIngRemove(${ing.id})" style="background:none;border:none;color:var(--mid);font-size:1rem;cursor:pointer;padding:4px 6px;line-height:1">✕</button>
-    </div>
-    <div style="margin-bottom:10px">
-      <select oninput="arIngUpdate(${ing.id},'category',this.value)" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;background:white;color:${ing.category?'var(--dark)':'var(--mid)'}">
-        <option value="">— La Comer category —</option>${CATS.map(c=>`<option value="${c}"${ing.category===c?' selected':''}>${c}</option>`).join('')}
-      </select>
-    </div>`).join('');
-}
-function arIngUpdate(id,field,val){const ing=addRecipeIngredients.find(i=>i.id===id);if(ing)ing[field]=val;}
-function arIngRemove(id){addRecipeIngredients=addRecipeIngredients.filter(i=>i.id!==id);arIngAdd();/* re-render */addRecipeIngredients=addRecipeIngredients;const el=document.getElementById('ar-ing-list');if(!el)return;const UNITS=['g','kg','ml','L','pcs','tbsp','tsp','cup','slices','bunch','cloves','sprigs'];const CATS=['Produce','Meats & Seafood','Dairy','Grains & Pasta','Canned & Packaged','Condiments & Sauces','Frozen','Bakery','Beverages','Other'];el.innerHTML=addRecipeIngredients.map(ing=>`<div class="ar-ing-row" id="ar-ing-${ing.id}" style="display:grid;grid-template-columns:1fr 1fr 60px 110px auto;gap:6px;align-items:center;margin-bottom:6px"><input placeholder="Ingredient (EN)" value="${ing.name_en}" oninput="arIngUpdate(${ing.id},'name_en',this.value)" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none"><input placeholder="Nombre (ES)" value="${ing.name_es}" oninput="arIngUpdate(${ing.id},'name_es',this.value)" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none"><input placeholder="Qty" type="number" min="0" step="any" value="${ing.quantity}" oninput="arIngUpdate(${ing.id},'quantity',this.value)" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none"><select oninput="arIngUpdate(${ing.id},'unit',this.value)" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;background:white"><option value="">unit</option>${UNITS.map(u=>`<option value="${u}"${ing.unit===u?' selected':''}>${u}</option>`).join('')}</select><button onclick="arIngRemove(${ing.id})" style="background:none;border:none;color:var(--mid);font-size:1rem;cursor:pointer;padding:4px 6px;line-height:1">✕</button></div><div style="margin-bottom:10px"><select oninput="arIngUpdate(${ing.id},'category',this.value)" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;background:white;color:${ing.category?'var(--dark)':'var(--mid)'}"><option value="">— La Comer category —</option>${CATS.map(c=>`<option value="${c}"${ing.category===c?' selected':''}>${c}</option>`).join('')}</select></div>`).join('');}
-function closeAddRecipeModal(){document.getElementById('add-recipe-overlay')?.remove();}
-
-async function runAiRecipeSearch(){
-  const prompt=document.getElementById('ai-recipe-prompt')?.value?.trim();
-  if(!prompt){showToast('Describe the recipe you want first','error');return;}
-  const type=document.getElementById('ai-recipe-type')?.value||'lunch';
-  const serves=document.getElementById('ai-recipe-serves')?.value||4;
-  const btn=document.getElementById('ai-generate-btn');
-  const resultEl=document.getElementById('ai-recipe-result');
-  btn.textContent='Generating…';btn.disabled=true;
-  resultEl.style.display='none';
-  const systemPrompt=`You are a recipe assistant for an Australian family living in Celaya, Mexico. They shop at La Comer supermarket. Generate a recipe based on the user's request. Respond ONLY with a valid JSON object — no markdown, no explanation, no backticks. The JSON must have this exact structure:
-{
-  "name_en": "Recipe Name in English",
-  "name_es": "Nombre de la Receta en Español",
-  "prep_time_minutes": 15,
-  "cook_time_minutes": 30,
-  "advance_prep_required": false,
-  "advance_prep_description": "",
-  "same_day_cookable": true,
-  "is_dinner": false,
-  "ingredients": [
-    {"name_en":"Ingredient","name_es":"Ingrediente","quantity":500,"unit":"g","category":"Meats & Seafood"},
-    ...
-  ]
-}
-Categories must be one of: Produce, Meats & Seafood, Dairy, Grains & Pasta, Canned & Packaged, Condiments & Sauces, Frozen, Bakery, Beverages, Other.
-Keep it home-style, practical, serves ${serves}. Ingredients should be things available at a Mexican supermarket.`;
-  try{
-    const resp=await fetch('https://claude-proxy.cameronjohnking.workers.dev',{method:'POST',headers:{'Content-Type':'application/json','x-proxy-secret':'Oreo-Ginger-Neo-Ella_11!!'},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:1500,system:systemPrompt,messages:[{role:'user',content:`${prompt}. Type: ${type==='dinner'?'dinner':'lunch'}.`}]})});
-    const data=await resp.json();
-    const raw=data.content?.map(c=>c.text||'').join('').trim();
-    const clean=raw.replace(/```json|```/g,'').trim();
-    const recipe=JSON.parse(clean);
-    // Store for saving
-    window._aiRecipeDraft=recipe;
-    // Show preview
-    const ingPreview=recipe.ingredients?.map(i=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.82rem"><span>${i.name_en}${i.name_es&&i.name_es!==i.name_en?` · <em style="color:var(--mid)">${i.name_es}</em>`:''}</span><span style="color:var(--mid);flex-shrink:0;margin-left:8px">${i.quantity?i.quantity+' '+(i.unit||''):''}</span></div>`).join('')||'';
-    resultEl.style.display='block';
-    resultEl.innerHTML=`
-      <div style="background:rgba(107,95,84,0.06);border-radius:10px;padding:14px;margin-bottom:12px">
-        <div style="font-size:1rem;font-weight:600;color:var(--dark)">${recipe.name_en}</div>
-        ${recipe.name_es?`<div style="font-size:0.82rem;color:var(--mid)">${recipe.name_es}</div>`:''}
-        <div style="display:flex;gap:12px;margin-top:8px;font-size:0.78rem;color:var(--mid)">
-          <span>⏱ Prep ${recipe.prep_time_minutes||0} min</span>
-          <span>🍳 Cook ${recipe.cook_time_minutes||0} min</span>
-          ${recipe.advance_prep_required?`<span style="color:#b07030">⏰ Advance prep</span>`:''}
-        </div>
-        <div style="margin-top:12px;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Ingredients (${recipe.ingredients?.length||0})</div>
-        ${ingPreview}
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn-primary" style="flex:1" onclick="saveAiRecipe()">✓ Save this recipe</button>
-        <button class="btn-ghost" onclick="runAiRecipeSearch()">↺ Try again</button>
-      </div>`;
-  }catch(e){showToast('AI generation failed — try again','error');console.error(e);}
-  btn.textContent='✨ Generate';btn.disabled=false;
-}
-
-async function saveAiRecipe(){
-  const recipe=window._aiRecipeDraft;if(!recipe){showToast('No recipe to save','error');return;}
-  const isDinner=recipe.is_dinner||document.getElementById('ai-recipe-type')?.value==='dinner';
-  const{data:newRecipe,error:re}=await sb.from('recipes').insert({name_en:recipe.name_en,name_es:recipe.name_es||null,prep_time_minutes:recipe.prep_time_minutes||0,cook_time_minutes:recipe.cook_time_minutes||0,advance_prep_required:!!recipe.advance_prep_required,advance_prep_description:recipe.advance_prep_description||null,same_day_cookable:recipe.same_day_cookable!==false,is_dinner:isDinner||false,frequency_tier:'regular',frequency_override:false,hibernated:false,created_at:new Date().toISOString()}).select().single();
-  if(re){showToast('Error saving recipe: '+re.message,'error');return;}
-  if(recipe.ingredients?.length>0){const rows=recipe.ingredients.map(i=>({recipe_id:newRecipe.id,name_en:i.name_en,name_es:i.name_es||null,quantity:i.quantity||null,unit:i.unit||null,lacomer_category:i.category||'Other'}));const{error:ie}=await sb.from('ingredients').insert(rows);if(ie)showToast('Recipe saved but ingredients failed: '+ie.message,'error');}
-  closeAddRecipeModal();allRecipesCache=null;await renderRecipeListView();
-  showToast(`"${recipe.name_en}" added ✓`,'success');
-}
-
-async function saveNewRecipe(){
-  const name_en=document.getElementById('ar-name-en')?.value?.trim();
-  if(!name_en){showToast('Recipe name is required','error');return;}
-  const name_es=document.getElementById('ar-name-es')?.value?.trim()||null;
-  const prep=parseInt(document.getElementById('ar-prep')?.value)||0;
-  const cook=parseInt(document.getElementById('ar-cook')?.value)||0;
-  const isDinner=document.getElementById('ar-type')?.value==='dinner';
-  const advancePrep=document.getElementById('ar-advance-prep')?.checked||false;
-  const advanceNote=document.getElementById('ar-advance-note')?.value?.trim()||null;
-  const sameDay=document.getElementById('ar-same-day')?.checked!==false;
-  const validIngs=addRecipeIngredients.filter(i=>i.name_en.trim());
-  const{data:newRecipe,error:re}=await sb.from('recipes').insert({name_en,name_es,prep_time_minutes:prep,cook_time_minutes:cook,advance_prep_required:advancePrep,advance_prep_description:advancePrep?advanceNote:null,same_day_cookable:sameDay,is_dinner:isDinner,frequency_tier:'regular',frequency_override:false,hibernated:false,created_at:new Date().toISOString()}).select().single();
-  if(re){showToast('Error saving recipe: '+re.message,'error');return;}
-  if(validIngs.length>0){const rows=validIngs.map(i=>({recipe_id:newRecipe.id,name_en:i.name_en.trim(),name_es:i.name_es.trim()||null,quantity:parseFloat(i.quantity)||null,unit:i.unit||null,lacomer_category:i.category||'Other'}));const{error:ie}=await sb.from('ingredients').insert(rows);if(ie)showToast('Recipe saved but ingredients failed: '+ie.message,'error');}
-  closeAddRecipeModal();allRecipesCache=null;await renderRecipeListView();
-  showToast(`"${name_en}" added ✓`,'success');
-}
-// ── End Add Recipe Modal ────────────────────────────────────────────
-
 function openTierOverrideFromList(recipeId,currentTier){const isLocked=allRecipesCache?.find(r=>r.id===recipeId)?.frequency_override||false;openTierModal(recipeId,currentTier,isLocked);}
 function consolidateList(){
   const ckSection=document.getElementById('ck-pre-consolidate');if(!ckSection)return;
@@ -4021,21 +3854,25 @@ const PERMISSION_DEFS = [
   { key:'manage_dinners',    label:'Manage dinners',          sub:'Choose or change dinner pairings',      group:'actions' },
   { key:'view_shopping',     label:'View shopping list',      sub:'See the generated shopping list',       group:'actions' },
   { key:'generate_shopping', label:'Generate shopping list',  sub:'Create and finalise shopping list',     group:'actions' },
-  { key:'suggest_meals',     label:'Suggest new meals',       sub:'Propose new recipes for the rotation',  group:'actions' },
-  { key:'approve_plan',      label:'Approve the plan',        sub:"Sign off the week's meal plan",         group:'actions' },
+  { key:'suggest_meals',      label:'Suggest new meals',          sub:'Propose new recipes for the rotation',       group:'actions' },
+  { key:'approve_plan',       label:'Approve the plan',           sub:"Sign off the week's meal plan",              group:'actions' },
+  { key:'rate_meals',         label:'Rate meals',                 sub:'Submit post-cook star ratings',              group:'actions' },
+  { key:'add_shopping_items', label:'Add items to shopping list', sub:'Add extra items beyond meal ingredients',    group:'actions' },
+  { key:'view_recipes',       label:'View recipe library',        sub:'Browse and open recipe details',             group:'actions' },
+  { key:'mark_inventory',     label:'Do inventory check',         sub:'Mark ingredients as HAVE or NEED',           group:'actions' },
   // Visible sections — hide sections the user doesn't need
-  { key:'show_prep_reminders', label:'Prep reminders',        sub:'Advance prep warnings for the week',    group:'sections' },
-  { key:'show_inventory',      label:'Inventory check',       sub:'Fridge & freezer check before shopping',group:'sections' },
-  { key:'show_leftovers',      label:'Leftovers & open packets', sub:'Track leftovers and part-used items',group:'sections' },
-  { key:'show_requests',       label:'Requests section',      sub:'Submit swap / hibernation / new meal requests', group:'sections' },
-  { key:'show_ratings',        label:'Idea ratings',          sub:'Rate new meal suggestions',             group:'sections' },
-  { key:'show_dinners',        label:'Dinners this week',     sub:'See and manage dinner pairings',        group:'sections' },
+  { key:'show_prep_reminders', label:'Prep reminders',            sub:'Advance prep warnings for the week',         group:'sections' },
+  { key:'show_inventory',      label:'Inventory section',         sub:'Fridge & freezer check before shopping',     group:'sections' },
+  { key:'show_leftovers',      label:'Leftovers & open packets',  sub:'Track leftovers and part-used items',        group:'sections' },
+  { key:'show_requests',       label:'Requests section',          sub:'Submit swap / hibernation / new meal requests', group:'sections' },
+  { key:'show_ratings',        label:'Idea ratings',              sub:'Rate new meal suggestions',                  group:'sections' },
+  { key:'show_dinners',        label:'Dinners this week',         sub:'See and manage dinner pairings',             group:'sections' },
 ];
 
 // Default permissions per role (used when no DB row exists yet)
 const PERMISSION_DEFAULTS = {
-  planner:  { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true,  carry_over_meals:false, manage_dinners:true,  view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true },
-  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true },
+  planner:  { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true,  carry_over_meals:false, manage_dinners:true,  view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:true,  show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true },
+  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:false, show_prep_reminders:true, show_inventory:false, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true },
 };
 
 // Loaded at init — keyed by user_id
