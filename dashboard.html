@@ -766,13 +766,42 @@ function loadShoppingState(){
 function clearShoppingState(){const key=shoppingStateKey();if(key)localStorage.removeItem(key);}
 function saveTrolleyState(){
   const key=trolleyStateKey();if(!key)return;
-  try{localStorage.setItem(key,JSON.stringify({trolleyMode,trolleyItems,adhocItems,trolleyBudget,savedAt:Date.now()}));}catch(e){console.warn('Trolley state save failed:',e);}
+  const state={trolleyMode,trolleyItems,adhocItems,trolleyBudget,savedAt:Date.now()};
+  try{localStorage.setItem(key,JSON.stringify(state));}catch(e){console.warn('Trolley localStorage save failed:',e);}
+  // Also save to Supabase as backup (fire and forget)
+  if(currentPlan){
+    sb.from('weekly_plans').update({trolley_state:state}).eq('id',currentPlan.id).then(({error})=>{
+      if(error)console.warn('Trolley Supabase save failed:',error.message);
+    });
+  }
 }
 function loadTrolleyState(){
   const key=trolleyStateKey();if(!key)return null;
-  try{const raw=localStorage.getItem(key);if(!raw)return null;return JSON.parse(raw);}catch(e){return null;}
+  try{const raw=localStorage.getItem(key);if(raw)return JSON.parse(raw);}catch(e){}
+  return null;
 }
-function clearTrolleyState(){const key=trolleyStateKey();if(key)localStorage.removeItem(key);}
+async function loadTrolleyStateWithFallback(){
+  // Try localStorage first
+  const local=loadTrolleyState();
+  if(local&&local.trolleyMode)return local;
+  // Fall back to Supabase
+  if(!currentPlan)return null;
+  try{
+    const {data,error}=await sb.from('weekly_plans').select('trolley_state').eq('id',currentPlan.id).single();
+    if(!error&&data&&data.trolley_state&&data.trolley_state.trolleyMode){
+      console.log('Trolley restored from Supabase backup');
+      return data.trolley_state;
+    }
+  }catch(e){console.warn('Trolley Supabase fallback failed:',e);}
+  return null;
+}
+function clearTrolleyState(){
+  const key=trolleyStateKey();if(key)localStorage.removeItem(key);
+  // Also clear Supabase backup
+  if(currentPlan){
+    sb.from('weekly_plans').update({trolley_state:null}).eq('id',currentPlan.id).then(()=>{});
+  }
+}
 
 async function restoreShoppingAndTrolleyState(){
   if(!currentPlan||currentPlan.status!=='approved')return;
@@ -790,7 +819,7 @@ async function restoreShoppingAndTrolleyState(){
       if(consolidateBtn)consolidateBtn.style.display=(shopState.ckItems&&shopState.ckItems.length>0)?'':'none';
     }
     // Now restore trolley on top if it was active
-    const trolleyState=loadTrolleyState();
+    const trolleyState=await loadTrolleyStateWithFallback();
     if(trolleyState&&trolleyState.trolleyMode){
       trolleyItems=trolleyState.trolleyItems||{};
       adhocItems=trolleyState.adhocItems||[];
