@@ -2124,7 +2124,7 @@ function openPresetManager(){
   const modal=document.createElement('div');modal.id='preset-manager-modal';
   modal.className='modal-overlay';
   modal.innerHTML=`
-    <div style="background:var(--card);border-radius:18px;padding:24px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;box-shadow:0 8px 40px rgba(26,22,18,0.22);">
+    <div class="modal" style="max-width:480px;max-height:85vh;overflow-y:auto;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
         <div class="card-title">🗺️ Shopping Routes</div>
         <button onclick="document.getElementById('preset-manager-modal').remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid)">✕</button>
@@ -2185,7 +2185,7 @@ function editPresetOrder(id){
   // Add any missing categories at the end
   ALL_CATEGORIES.forEach(c=>{if(!order.includes(c))order.push(c);});
   modal.innerHTML=`
-    <div style="background:var(--card);border-radius:18px;padding:24px;width:100%;max-width:420px;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(26,22,18,0.22);">
+    <div class="modal" style="max-width:420px;max-height:88vh;overflow-y:auto;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
         <div class="card-title">Edit: ${preset.name}</div>
         <button onclick="document.getElementById('preset-order-modal').remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid)">✕</button>
