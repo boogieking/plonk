@@ -568,30 +568,98 @@ const EMAIL_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 async function sendEmail(type,data={}){
   try{await fetch(EMAIL_FN_URL,{method:'POST',headers:{'Authorization':`Bearer ${EMAIL_ANON_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({type,data})});}catch(e){console.warn('Email failed:',e.message);}
 }
+const ALL_CATEGORIES=[
+  'Fruit & Vegetables','Meat & Eggs','Deli','Dairy','Bakery','Pasta & Grains','Baking',
+  'Canned & Packaged Foods','Herbs, Spices & Condiments','Coffee & Tea','Water',
+  'Soft Drinks','Wine & Spirits','Frozen','International',
+  'Household & Cleaning','Paper Products','Health & Beauty','Cookware & Kitchen',
+  'Stationery & Office','Hardware & Tools','Automotive','Electrical & Lighting','Other'
+];
 const KAREN_CATEGORY_RULES=[
-  {cat:'Meats & Eggs',words:['chicken','beef','pork','steak','egg','eggs','lamb','fish','tuna','mince','ham','sausage','bacon','arrachera','milanesa','muslo','huevo']},
+  {cat:'Meat & Eggs',words:['chicken','beef','pork','steak','egg','eggs','lamb','fish','tuna','mince','ham','sausage','bacon','arrachera','milanesa','muslo','huevo']},
   {cat:'Dairy',words:['milk','cream','butter','cheese','yogurt','queso','crema','leche','mantequilla','parmesan','mozzarella']},
-  {cat:'Produce',words:['tomato','onion','garlic','carrot','potato','lemon','lime','orange','avocado','mushroom','lettuce','apple','pumpkin','capsicum','ginger','zucchini','cebolla','jitomate','zanahoria','papa','naranja','aguacate','champiñon','jengibre','calabaza','camote','sweet potato']},
-  {cat:'Grains, Pasta & Bakery',words:['pasta','rice','bread','flour','tortilla','noodle','yeast','arroz','harina','pan','lasagna','gnocchi','pastry']},
-  {cat:'Canned & Packaged',words:['canned','tin','sauce','paste','stock','broth','cornflour','coconut','soy','ketchup','peanut','jam','vinegar','oil','olive','sugar','salt','pepper','spice','paprika','cumin','curry','mustard','chili','salsa','pesto','worcestershire','oyster','dijon','maple','honey']},
-  {cat:'Herbs, Vinegar & Condiments',words:['herb','thyme','parsley','basil','oregano','dill','cilantro','vinagre','tomillo']},
+  {cat:'Fruit & Vegetables',words:['tomato','onion','garlic','carrot','potato','lemon','lime','orange','avocado','mushroom','lettuce','apple','pumpkin','capsicum','ginger','zucchini','cebolla','jitomate','zanahoria','papa','naranja','aguacate','champiñon','jengibre','calabaza','camote','sweet potato']},
+  {cat:'Pasta & Grains',words:['pasta','rice','arroz','noodle','lasagna','gnocchi','tortilla']},
+  {cat:'Bakery',words:['bread','pan','roll','bun','bagel','loaf']},
+  {cat:'Baking',words:['flour','harina','yeast','levadura','pastry','sugar','azucar','cornflour','maizena','baking powder','vanilla']},
+  {cat:'Canned & Packaged Foods',words:['canned','tin','sauce','paste','stock','broth','coconut','soy','ketchup','peanut','jam','salsa','pesto','worcestershire','oyster','dijon','maple','honey']},
+  {cat:'Herbs, Spices & Condiments',words:['herb','thyme','parsley','basil','oregano','dill','cilantro','vinagre','tomillo','vinegar','oil','olive','mustard','paprika','cumin','curry','chili','pepper','spice','condiment']},
+  {cat:'Coffee & Tea',words:['coffee','cafe','tea','te','nescafe']},
+  {cat:'Water',words:['water','agua']},
+  {cat:'Soft Drinks',words:['soda','refresco','cola','juice','jugo','squash','cordial']},
+  {cat:'Wine & Spirits',words:['wine','vino','beer','cerveza','spirit','whisky','tequila','mezcal','rum']},
+  {cat:'Frozen',words:['frozen','congelado']},
+  {cat:'Household & Cleaning',words:['detergent','cleaner','bleach','limpiador','cloro','sponge','soap','jabon','fabric','laundry','lavanda']},
+  {cat:'Paper Products',words:['paper towel','toilet paper','serviette','tissue','napkin','toalla','papel']},
+  {cat:'Health & Beauty',words:['shampoo','conditioner','toothpaste','deodorant','lotion','cream','vitamins']},
 ];
 function guessKarenCategory(name){const lower=name.toLowerCase();for(const rule of KAREN_CATEGORY_RULES){if(rule.words.some(w=>lower.includes(w)))return rule.cat;}return'Other';}
 function normaliseCat(cat){
   if(!cat)return'Other';
   const c=cat.trim();
-  if(/grain/i.test(c)||/pasta/i.test(c)||/bakery/i.test(c))return'Grains, Pasta & Bakery';
-  if(/herb/i.test(c)||/vinegar/i.test(c)||/condiment/i.test(c)||/sauce/i.test(c)||/spice/i.test(c))return'Herbs, Vinegar & Condiments';
-  if(/meat/i.test(c)||/egg/i.test(c)||/seafood/i.test(c)||/poultry/i.test(c))return'Meats & Eggs';
+  // New canonical names — pass through directly if already correct
+  if(ALL_CATEGORIES.includes(c))return c;
+  // Legacy mappings from old DB values
+  if(/produce/i.test(c)||/fruit/i.test(c)||/vegetable/i.test(c)||/\bveg\b/i.test(c))return'Fruit & Vegetables';
+  if(/meat/i.test(c)||/egg/i.test(c)||/seafood/i.test(c)||/poultry/i.test(c))return'Meat & Eggs';
+  if(/grain/i.test(c)||/pasta/i.test(c))return'Pasta & Grains';
+  if(/bakery/i.test(c)||/bread/i.test(c))return'Bakery';
+  if(/bak/i.test(c)&&/ing/i.test(c))return'Baking';
+  if(/herb/i.test(c)||/vinegar/i.test(c)||/condiment/i.test(c)||/spice/i.test(c))return'Herbs, Spices & Condiments';
   if(/canned/i.test(c)||/packaged/i.test(c)||/tinned/i.test(c))return'Canned & Packaged Foods';
   if(/dairy/i.test(c))return'Dairy';
-  if(/produce/i.test(c)||/fruit/i.test(c)||/vegetable/i.test(c)||/\bveg\b/i.test(c))return'Produce';
   if(/frozen/i.test(c))return'Frozen';
-  if(/beverage/i.test(c)||/drink/i.test(c))return'Beverages';
+  if(/beverage/i.test(c)||/drink/i.test(c))return'Soft Drinks';
   if(/household/i.test(c)||/cleaning/i.test(c)||/personal/i.test(c))return'Household & Cleaning';
-  return c;
+  if(/paper/i.test(c))return'Paper Products';
+  if(/coffee/i.test(c)||/tea/i.test(c))return'Coffee & Tea';
+  if(/water/i.test(c))return'Water';
+  if(/wine/i.test(c)||/spirit/i.test(c)||/beer/i.test(c))return'Wine & Spirits';
+  if(/deli/i.test(c))return'Deli';
+  if(/international/i.test(c))return'International';
+  if(/health/i.test(c)||/beauty/i.test(c))return'Health & Beauty';
+  if(/cookware/i.test(c)||/kitchen/i.test(c))return'Cookware & Kitchen';
+  if(/stationery/i.test(c)||/office/i.test(c))return'Stationery & Office';
+  if(/hardware/i.test(c)||/tool/i.test(c))return'Hardware & Tools';
+  if(/automotive/i.test(c)||/car/i.test(c))return'Automotive';
+  if(/electrical/i.test(c)||/lighting/i.test(c))return'Electrical & Lighting';
+  return'Other';
 }
 let karenAdditions=[];
+// Shopping route presets
+let shopPresets=[];
+let activePreset=null;
+const LAST_PRESET_KEY='forknight_last_preset_id';
+
+async function loadShopPresets(){
+  const{data,error}=await sb.from('shopping_route_presets').select('*').order('created_at',{ascending:true});
+  if(!error&&data){
+    shopPresets=data;
+    // Restore last used preset
+    const lastId=localStorage.getItem(LAST_PRESET_KEY);
+    if(lastId) activePreset=shopPresets.find(p=>p.id===lastId)||null;
+    if(!activePreset) activePreset=shopPresets.find(p=>p.is_default)||shopPresets[0]||null;
+  }
+}
+async function saveNewPreset(name,categoryOrder){
+  const{data,error}=await sb.from('shopping_route_presets').insert({name,category_order:categoryOrder,created_by:userProfile?.id,is_default:false}).select().single();
+  if(!error&&data){shopPresets.push(data);return data;}
+  return null;
+}
+async function updatePreset(id,changes){
+  const{error}=await sb.from('shopping_route_presets').update(changes).eq('id',id);
+  if(!error){const idx=shopPresets.findIndex(p=>p.id===id);if(idx>=0)shopPresets[idx]={...shopPresets[idx],...changes};}
+  return!error;
+}
+async function deletePreset(id){
+  const{error}=await sb.from('shopping_route_presets').delete().eq('id',id);
+  if(!error){shopPresets=shopPresets.filter(p=>p.id!==id);if(activePreset?.id===id)activePreset=shopPresets[0]||null;}
+  return!error;
+}
+function setActivePreset(id){
+  activePreset=shopPresets.find(p=>p.id===id)||null;
+  if(activePreset)localStorage.setItem(LAST_PRESET_KEY,activePreset.id);
+}
 async function loadKarenAdditions(){if(!currentPlan){karenAdditions=[];return;}const{data,error}=await sb.from('karen_additions').select('*').eq('plan_id',currentPlan.id).order('added_at',{ascending:true});karenAdditions=(!error&&data)?data:[];}
 async function addKarenItem(){if(!currentUserCan('add_shopping_items')){showToast('Adding items is not enabled for your account','error');return;}const input=document.getElementById('karen-add-input');if(!input)return;let name=input.value.trim();// Strip any URLs that may have been pasted accidentally
 name=name.replace(/https?:\/\/\S+/g,'').trim();// Strip leftover punctuation from URL stripping
@@ -635,7 +703,7 @@ async function loadWeekData(){
 async function loadRecipes(){const{data}=await sb.from('recipes').select('*').neq('is_dinner',true).order('name_en');return data||[];}
 async function renderDashboard(){
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
-  await loadKarenAdditions();await loadPendingIdeaRatings();
+  await loadKarenAdditions();await loadPendingIdeaRatings();await loadShopPresets();
   if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();}
   else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);if(currentUserCan('show_inventory'))await loadInventory();}
   else{content.innerHTML=renderKaren(recipes,userProfile.name);renderKarenAdditionsList();loadKarenShoppingPreview();}
@@ -766,42 +834,13 @@ function loadShoppingState(){
 function clearShoppingState(){const key=shoppingStateKey();if(key)localStorage.removeItem(key);}
 function saveTrolleyState(){
   const key=trolleyStateKey();if(!key)return;
-  const state={trolleyMode,trolleyItems,adhocItems,trolleyBudget,savedAt:Date.now()};
-  try{localStorage.setItem(key,JSON.stringify(state));}catch(e){console.warn('Trolley localStorage save failed:',e);}
-  // Also save to Supabase as backup (fire and forget)
-  if(currentPlan){
-    sb.from('weekly_plans').update({trolley_state:state}).eq('id',currentPlan.id).then(({error})=>{
-      if(error)console.warn('Trolley Supabase save failed:',error.message);
-    });
-  }
+  try{localStorage.setItem(key,JSON.stringify({trolleyMode,trolleyItems,adhocItems,trolleyBudget,savedAt:Date.now()}));}catch(e){console.warn('Trolley state save failed:',e);}
 }
 function loadTrolleyState(){
   const key=trolleyStateKey();if(!key)return null;
-  try{const raw=localStorage.getItem(key);if(raw)return JSON.parse(raw);}catch(e){}
-  return null;
+  try{const raw=localStorage.getItem(key);if(!raw)return null;return JSON.parse(raw);}catch(e){return null;}
 }
-async function loadTrolleyStateWithFallback(){
-  // Try localStorage first
-  const local=loadTrolleyState();
-  if(local&&local.trolleyMode)return local;
-  // Fall back to Supabase
-  if(!currentPlan)return null;
-  try{
-    const {data,error}=await sb.from('weekly_plans').select('trolley_state').eq('id',currentPlan.id).single();
-    if(!error&&data&&data.trolley_state&&data.trolley_state.trolleyMode){
-      console.log('Trolley restored from Supabase backup');
-      return data.trolley_state;
-    }
-  }catch(e){console.warn('Trolley Supabase fallback failed:',e);}
-  return null;
-}
-function clearTrolleyState(){
-  const key=trolleyStateKey();if(key)localStorage.removeItem(key);
-  // Also clear Supabase backup
-  if(currentPlan){
-    sb.from('weekly_plans').update({trolley_state:null}).eq('id',currentPlan.id).then(()=>{});
-  }
-}
+function clearTrolleyState(){const key=trolleyStateKey();if(key)localStorage.removeItem(key);}
 
 async function restoreShoppingAndTrolleyState(){
   if(!currentPlan||currentPlan.status!=='approved')return;
@@ -819,7 +858,7 @@ async function restoreShoppingAndTrolleyState(){
       if(consolidateBtn)consolidateBtn.style.display=(shopState.ckItems&&shopState.ckItems.length>0)?'':'none';
     }
     // Now restore trolley on top if it was active
-    const trolleyState=await loadTrolleyStateWithFallback();
+    const trolleyState=loadTrolleyState();
     if(trolleyState&&trolleyState.trolleyMode){
       trolleyItems=trolleyState.trolleyItems||{};
       adhocItems=trolleyState.adhocItems||[];
@@ -1488,8 +1527,12 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
   const groups={};
   for(const ing of mealItems){const cat=normaliseCat(ing.lacomer_category||'Other');if(!groups[cat])groups[cat]=[];const qty=ing.quantity?`${ing.quantity}${ing.unit?' '+ing.unit:''}`:'' ;groups[cat].push({...ing,_type:'ingredient',_qtyStr:qty});}
   if(karenItems&&karenItems.length>0){const existingNames=new Set(mealItems.map(i=>i.name_en.toLowerCase()));for(const ka of karenItems){if(!existingNames.has(ka.name_en.toLowerCase())){const cat=ka.lacomer_category||'Other';if(!groups[cat])groups[cat]=[];groups[cat].push({...ka,_type:'karen',_qtyStr:''});}}}
+  // Sort categories by active preset order, uncovered cats appended alphabetically
+  const presetOrder=activePreset?activePreset.category_order:ALL_CATEGORIES;
+  const catKeys=Object.keys(groups);
+  const orderedCats=[...presetOrder.filter(c=>catKeys.includes(c)),...catKeys.filter(c=>!presetOrder.includes(c)).sort()];
   let html='';
-  for(const cat of Object.keys(groups).sort()){
+  for(const cat of orderedCats){
     html+=`<div class="shop-category-label">${cat}</div>`;
     for(const ing of groups[cat]){
       if(ing._type==='karen'){html+=`<div class="shop-row"><div class="shop-names"><div class="shop-name-en">${ing.name_en}</div><div class="shop-name-es" style="color:var(--blue);font-size:0.7rem">Karen's addition</div></div><span style="font-size:0.72rem;color:var(--mid)">—</span></div>`;}
@@ -1620,14 +1663,14 @@ async function buildPreShopEstimate(mealItems){
       if(name.includes(key))return price;
     }
     // Category fallback using normalised category
-    if(normCat.includes('produce'))return FALLBACK_PRICES['produce'];
+    if(normCat.includes('fruit')||normCat.includes('vegetable'))return FALLBACK_PRICES['produce'];
     if(normCat.includes('meat')||normCat.includes('seafood')||normCat.includes('egg'))return FALLBACK_PRICES['meats'];
     if(normCat.includes('dairy'))return FALLBACK_PRICES['dairy'];
-    if(normCat.includes('grain')||normCat.includes('pasta')||normCat.includes('bakery'))return FALLBACK_PRICES['grains'];
+    if(normCat.includes('pasta')||normCat.includes('grain')||normCat.includes('bakery')||normCat.includes('baking'))return FALLBACK_PRICES['grains'];
     if(normCat.includes('canned')||normCat.includes('packaged'))return FALLBACK_PRICES['canned'];
-    if(normCat.includes('herb')||normCat.includes('vinegar')||normCat.includes('condiment')||normCat.includes('sauce')||normCat.includes('spice'))return FALLBACK_PRICES['condiments'];
+    if(normCat.includes('herb')||normCat.includes('spice')||normCat.includes('condiment'))return FALLBACK_PRICES['condiments'];
     if(normCat.includes('frozen'))return FALLBACK_PRICES['frozen'];
-    if(normCat.includes('beverage')||normCat.includes('drink'))return FALLBACK_PRICES['beverages'];
+    if(normCat.includes('soft drink')||normCat.includes('water')||normCat.includes('wine')||normCat.includes('coffee')||normCat.includes('tea'))return FALLBACK_PRICES['beverages'];
     return FALLBACK_PRICES['other'];
   }
   try{
@@ -1866,12 +1909,28 @@ function renderTrolleyUI(){
   let banner=document.getElementById('trolley-banner');
   if(!banner){banner=document.createElement('div');banner.id='trolley-banner';banner.className='trolley-banner';document.body.appendChild(banner);}
   updateTrolleyBanner();
-  // Add column header row once — insert after the consolidate button div if present, otherwise at top
+  // Add preset route dropdown — insert before column header
+  if(!document.getElementById('trolley-preset-bar')&&shopPresets.length>0){
+    const bar=document.createElement('div');bar.id='trolley-preset-bar';
+    bar.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;background:var(--card);border:1px solid var(--border);border-radius:10px;';
+    const label=document.createElement('span');label.textContent='🗺️ Route:';label.style.cssText='font-size:0.78rem;font-weight:500;color:var(--mid);white-space:nowrap;';
+    const sel=document.createElement('select');sel.id='trolley-preset-select';
+    sel.style.cssText='flex:1;border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:0.82rem;background:var(--bg);color:var(--dark);';
+    shopPresets.forEach(p=>{const opt=document.createElement('option');opt.value=p.id;opt.textContent=p.name;if(activePreset&&p.id===activePreset.id)opt.selected=true;sel.appendChild(opt);});
+    sel.onchange=function(){setActivePreset(this.value);reRenderShoppingListOrder();};
+    bar.appendChild(label);bar.appendChild(sel);
+    const consolidateDiv=content.querySelector('[style*="justify-content:flex-end"]');
+    if(consolidateDiv&&consolidateDiv.nextSibling){content.insertBefore(bar,consolidateDiv.nextSibling);}
+    else{content.insertBefore(bar,content.firstChild);}
+  }
+  // Add column header row once — insert after preset bar or at top
   if(!document.getElementById('trolley-col-header')){
     const hdr=document.createElement('div');hdr.id='trolley-col-header';hdr.className='trolley-col-header';
     hdr.innerHTML=`<span class="trolley-col-label">In trolley?</span><span style="flex:1"></span><span class="trolley-col-label-price">Price (MXN)</span>`;
+    const presetBar=document.getElementById('trolley-preset-bar');
     const consolidateDiv=content.querySelector('[style*="justify-content:flex-end"]');
-    if(consolidateDiv&&consolidateDiv.nextSibling){content.insertBefore(hdr,consolidateDiv.nextSibling);}
+    const anchor=presetBar||consolidateDiv;
+    if(anchor&&anchor.nextSibling){content.insertBefore(hdr,anchor.nextSibling);}
     else{content.insertBefore(hdr,content.firstChild);}
   }
   // Add checkbox wrap + price wrap to each shop-row
@@ -2026,6 +2085,159 @@ function updateCatSubtotals(){
 }
 /* ── ADHOC ITEMS ──────────────────────────────── */
 let adhocItems=[];
+function reRenderShoppingListOrder(){
+  // Re-sort category blocks in the shopping list DOM according to active preset
+  const content=document.getElementById('shopping-list-content');if(!content)return;
+  const presetOrder=activePreset?activePreset.category_order:ALL_CATEGORIES;
+  const catLabels=[...content.querySelectorAll('.shop-category-label')];
+  if(catLabels.length===0)return;
+  // Build map of cat name → block (label + following rows until next label)
+  const blocks=[];
+  catLabels.forEach((lbl,i)=>{
+    const name=lbl.textContent.replace(/[$0-9.,\s]+$/,'').trim();
+    const nodes=[lbl];
+    let sib=lbl.nextSibling;
+    while(sib&&(!sib.classList||!sib.classList.contains('shop-category-label'))&&
+          (!sib.id||sib.id!=='trolley-preset-bar')&&(!sib.id||sib.id!=='trolley-col-header')&&
+          (!sib.id||sib.id!=='in-trolley-section')){
+      nodes.push(sib);sib=sib.nextSibling;
+    }
+    blocks.push({name,nodes});
+  });
+  const inTrolleySection=document.getElementById('in-trolley-section');
+  const ordered=[...presetOrder.filter(n=>blocks.find(b=>b.name===n)),...blocks.filter(b=>!presetOrder.includes(b.name)).map(b=>b.name)];
+  ordered.forEach(catName=>{
+    const block=blocks.find(b=>b.name===catName);if(!block)return;
+    block.nodes.forEach(n=>{
+      if(inTrolleySection){content.insertBefore(n,inTrolleySection);}
+      else{content.appendChild(n);}
+    });
+  });
+  // Update preset select if it exists
+  const sel=document.getElementById('trolley-preset-select');
+  if(sel&&activePreset)sel.value=activePreset.id;
+}
+
+function openPresetManager(){
+  let modal=document.getElementById('preset-manager-modal');
+  if(modal){modal.style.display='flex';renderPresetManagerUI();return;}
+  modal=document.createElement('div');modal.id='preset-manager-modal';
+  modal.style.cssText='position:fixed;inset:0;z-index:1000;background:rgba(26,22,18,0.55);display:flex;align-items:center;justify-content:center;padding:16px;';
+  modal.innerHTML=`
+    <div style="background:var(--card);border-radius:18px;padding:24px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;box-shadow:0 8px 40px rgba(26,22,18,0.22);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+        <div class="card-title">🗺️ Shopping Routes</div>
+        <button onclick="document.getElementById('preset-manager-modal').style.display='none'" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid)">✕</button>
+      </div>
+      <div id="preset-list-container"></div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <div style="font-size:0.82rem;font-weight:500;margin-bottom:8px;color:var(--mid)">New route</div>
+        <div style="display:flex;gap:8px">
+          <input id="new-preset-name" placeholder="Route name e.g. Cold last" style="flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:0.85rem;background:var(--bg)">
+          <button class="btn-primary" style="padding:8px 16px;font-size:0.82rem" onclick="createPresetFromUI()">Add</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  renderPresetManagerUI();
+}
+
+function renderPresetManagerUI(){
+  const container=document.getElementById('preset-list-container');if(!container)return;
+  if(shopPresets.length===0){container.innerHTML=`<div style="color:var(--mid);font-size:0.85rem">No routes yet. Add one below.</div>`;return;}
+  container.innerHTML=shopPresets.map(p=>`
+    <div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:var(--bg)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-weight:500;font-size:0.9rem">${p.name}${p.is_default?'<span style="font-size:0.7rem;color:var(--blue);margin-left:6px">default</span>':''}</div>
+        <div style="display:flex;gap:6px">
+          <button onclick="editPresetOrder('${p.id}')" style="font-size:0.75rem;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);cursor:pointer">Edit order</button>
+          ${!p.is_default?`<button onclick="confirmDeletePreset('${p.id}')" style="font-size:0.75rem;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);cursor:pointer;color:var(--red)">Delete</button>`:''}
+        </div>
+      </div>
+      <div style="font-size:0.72rem;color:var(--mid);line-height:1.7">${(p.category_order||[]).slice(0,8).join(' → ')}${(p.category_order||[]).length>8?` … +${p.category_order.length-8} more`:''}</div>
+    </div>`).join('');
+}
+
+async function createPresetFromUI(){
+  const input=document.getElementById('new-preset-name');if(!input)return;
+  const name=input.value.trim();if(!name){showToast('Enter a route name','error');return;}
+  // Start with default ALL_CATEGORIES order
+  const preset=await saveNewPreset(name,[...ALL_CATEGORIES]);
+  if(preset){input.value='';renderPresetManagerUI();showToast(`Route "${name}" created — tap Edit order to customise`);}
+  else{showToast('Could not save route','error');}
+}
+
+async function confirmDeletePreset(id){
+  const p=shopPresets.find(x=>x.id===id);if(!p)return;
+  if(!confirm(`Delete route "${p.name}"?`))return;
+  const ok=await deletePreset(id);
+  if(ok){renderPresetManagerUI();showToast('Route deleted');}
+  else{showToast('Could not delete route','error');}
+}
+
+function editPresetOrder(id){
+  const preset=shopPresets.find(p=>p.id===id);if(!preset)return;
+  let modal=document.getElementById('preset-order-modal');
+  if(modal)modal.remove();
+  modal=document.createElement('div');modal.id='preset-order-modal';
+  modal.style.cssText='position:fixed;inset:0;z-index:1001;background:rgba(26,22,18,0.65);display:flex;align-items:center;justify-content:center;padding:16px;';
+  const order=[...preset.category_order];
+  // Add any missing categories at the end
+  ALL_CATEGORIES.forEach(c=>{if(!order.includes(c))order.push(c);});
+  modal.innerHTML=`
+    <div style="background:var(--card);border-radius:18px;padding:24px;width:100%;max-width:420px;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(26,22,18,0.22);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div class="card-title">Edit: ${preset.name}</div>
+        <button onclick="document.getElementById('preset-order-modal').remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid)">✕</button>
+      </div>
+      <div style="font-size:0.78rem;color:var(--mid);margin-bottom:14px">Drag to reorder categories</div>
+      <div id="preset-order-list" style="display:flex;flex-direction:column;gap:6px">
+        ${order.map((cat,i)=>`
+          <div class="preset-order-row" draggable="true" data-cat="${cat}" data-idx="${i}"
+            style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);cursor:grab;font-size:0.85rem;user-select:none;"
+            ondragstart="presetDragStart(event)" ondragover="presetDragOver(event)" ondrop="presetDrop(event,'${id}')">
+            <span style="color:var(--mid);font-size:1rem">⠿</span>
+            <span style="flex:1">${cat}</span>
+          </div>`).join('')}
+      </div>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="document.getElementById('preset-order-modal').remove()" style="padding:9px 18px;border:1px solid var(--border);border-radius:8px;background:var(--card);cursor:pointer;font-size:0.85rem">Cancel</button>
+        <button class="btn-primary" onclick="savePresetOrder('${id}')" style="padding:9px 18px;font-size:0.85rem">Save order</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  initPresetDragDrop();
+}
+
+let _dragSrcEl=null;
+function presetDragStart(e){_dragSrcEl=e.currentTarget;e.dataTransfer.effectAllowed='move';}
+function presetDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';return false;}
+function presetDrop(e,presetId){
+  e.stopPropagation();e.preventDefault();
+  if(_dragSrcEl===e.currentTarget)return;
+  const list=document.getElementById('preset-order-list');
+  const rows=[...list.querySelectorAll('.preset-order-row')];
+  const srcIdx=rows.indexOf(_dragSrcEl);
+  const tgtIdx=rows.indexOf(e.currentTarget);
+  if(srcIdx<0||tgtIdx<0)return;
+  if(srcIdx<tgtIdx){list.insertBefore(_dragSrcEl,e.currentTarget.nextSibling);}
+  else{list.insertBefore(_dragSrcEl,e.currentTarget);}
+  return false;
+}
+function initPresetDragDrop(){/* drag handlers are inline */}
+
+async function savePresetOrder(id){
+  const list=document.getElementById('preset-order-list');if(!list)return;
+  const newOrder=[...list.querySelectorAll('.preset-order-row')].map(r=>r.dataset.cat);
+  const ok=await updatePreset(id,{category_order:newOrder});
+  if(ok){
+    if(activePreset&&activePreset.id===id)activePreset=shopPresets.find(p=>p.id===id);
+    document.getElementById('preset-order-modal')?.remove();
+    renderPresetManagerUI();
+    showToast('Route order saved ✓');
+  } else {showToast('Could not save order','error');}
+}
+
 function openAddAdhocModal(){
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
   el.innerHTML=`<div class="modal" style="max-width:360px">
@@ -2950,7 +3162,7 @@ async function renderProductsView(){
   if(userProfile.role!=='admin'){showToast('Products management is admin only','error');switchView('dashboard');return;}
   const content=document.getElementById('dashboard-content');
   const isTrends=productsSubView==='trends';
-  content.innerHTML=`<div class="fade-in"><div class="page-header"><h1>Products</h1><p>Manage the household products linked to recipe ingredients</p></div><div class="products-toolbar"><input class="search-input" id="product-search" placeholder="Search products…" oninput="filterProducts()" style="max-width:220px;${isTrends?'display:none':''}"><button class="filter-pill ${!isTrends&&productFilterStore==='all'?'active':''}" onclick="setProductSubViewProducts('all')">All stores</button><button class="filter-pill ${!isTrends&&productFilterStore==='La Comer'?'active':''}" onclick="setProductSubViewProducts('La Comer')">La Comer</button><button class="filter-pill ${!isTrends&&productFilterStore==='City Market'?'active':''}" onclick="setProductSubViewProducts('City Market')">City Market</button><button class="filter-pill ${isTrends?'active':''}" onclick="setProductsSubView('trends')">📈 Trends</button><button class="btn-primary" style="margin-left:auto;${isTrends?'display:none':''}" onclick="openAddProductModal()">+ Add product</button><button class="scan-btn" style="margin-left:8px;${isTrends?'display:none':''}" onclick="openBarcodeScanner('products')">📷 Scan</button><button class="scan-btn" style="margin-left:4px;${isTrends?'display:none':''}" onclick="openReceiptScanner()">📄 Receipt</button><button class="scan-btn" style="margin-left:4px;${isTrends?'display:none':''}" onclick="openMergeDuplicatesModal()">🔀 Merge dupes</button></div><div id="products-grid"><div class="empty"><span class="empty-icon">🛒</span>Loading...</div></div></div>`;
+  content.innerHTML=`<div class="fade-in"><div class="page-header"><h1>Products</h1><p>Manage the household products linked to recipe ingredients</p></div><div class="products-toolbar"><input class="search-input" id="product-search" placeholder="Search products…" oninput="filterProducts()" style="max-width:220px;${isTrends?'display:none':''}"><button class="filter-pill ${!isTrends&&productFilterStore==='all'?'active':''}" onclick="setProductSubViewProducts('all')">All stores</button><button class="filter-pill ${!isTrends&&productFilterStore==='La Comer'?'active':''}" onclick="setProductSubViewProducts('La Comer')">La Comer</button><button class="filter-pill ${!isTrends&&productFilterStore==='City Market'?'active':''}" onclick="setProductSubViewProducts('City Market')">City Market</button><button class="filter-pill ${isTrends?'active':''}" onclick="setProductsSubView('trends')">📈 Trends</button><button class="btn-primary" style="margin-left:auto;${isTrends?'display:none':''}" onclick="openAddProductModal()">+ Add product</button><button class="scan-btn" style="margin-left:8px;${isTrends?'display:none':''}" onclick="openBarcodeScanner('products')">📷 Scan</button><button class="scan-btn" style="margin-left:4px;${isTrends?'display:none':''}" onclick="openReceiptScanner()">📄 Receipt</button><button class="scan-btn" style="margin-left:4px;${isTrends?'display:none':''}" onclick="openMergeDuplicatesModal()">🔀 Merge dupes</button><button class="scan-btn" style="margin-left:4px;${isTrends?'display:none':''}" onclick="openPresetManager()">🗺️ Routes</button></div><div id="products-grid"><div class="empty"><span class="empty-icon">🛒</span>Loading...</div></div></div>`;
   if(isTrends){await renderPriceTrendsView();}else{await loadAndRenderProducts();}
 }
 function setProductSubViewProducts(store){productsSubView='products';productFilterStore=store;renderProductsView();}
