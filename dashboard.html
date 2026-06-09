@@ -2780,6 +2780,7 @@ async function openRecipeDetail(recipeId){
         ${ingredients.length>0?`<div class="modal-section-label">Ingredients</div>${ingredientHtml}`:'<div style="font-size:0.85rem;color:var(--mid)">No ingredients loaded yet</div>'}
         <div id="steps-container-${r.id}" style="display:none"></div>
       </div>
+      <div id="modal-timers-slot-${r.id}" style="display:none;padding:0 28px 10px;flex-shrink:0"></div>
       <div class="recipe-modal-footer">
         ${adminFooterBtns}
         <button id="steps-btn-${r.id}" class="btn-secondary" onclick="handleStepsBtn('${r.id}')">${stepsBtnLabel}</button>
@@ -3092,10 +3093,12 @@ function stopTimer(timerId){
   renderActiveTimersBar(recipeId);
 }
 function renderActiveTimersBar(recipeId){
-  const bar=document.getElementById(`timers-bar-${recipeId}`);if(!bar)return;
+  // Also hide the old in-steps bar (kept in DOM but unused)
+  const oldBar=document.getElementById(`timers-bar-${recipeId}`);if(oldBar){oldBar.style.display='none';}
+  const slot=document.getElementById(`modal-timers-slot-${recipeId}`);if(!slot)return;
   const relevant=Object.entries(activeTimers).filter(([id])=>id.startsWith(recipeId+'-'));
-  if(relevant.length===0){bar.style.display='none';bar.innerHTML='';return;}
-  bar.style.display='block';
+  if(relevant.length===0){slot.style.display='none';slot.innerHTML='';return;}
+  slot.style.display='block';
   const items=relevant.map(([id,t])=>{
     const remaining=Math.max(0,Math.round((t.endTime-Date.now())/1000));
     const m=Math.floor(remaining/60),s=remaining%60;
@@ -3104,7 +3107,7 @@ function renderActiveTimersBar(recipeId){
     const barColor=pct>50?'#6aaa6a':pct>20?'#e0a040':'#c44';
     return`<div class="active-timer-item"><div class="active-timer-top"><span class="active-timer-label">⏱ ${t.label}</span><div style="display:flex;align-items:center;gap:8px"><span class="active-timer-countdown${remaining<=30&&remaining>0?' urgent':''}" id="timer-count-${id}">${timeStr}</span><button class="active-timer-stop" onclick="stopTimer('${id}')">✕</button></div></div><div class="active-timer-progress-track"><div class="active-timer-progress-fill" id="timer-bar-${id}" style="width:${pct}%;background:${barColor}"></div></div></div>`;
   }).join('');
-  bar.innerHTML=`<div class="active-timers-bar-title">Active timers</div>${items}`;
+  slot.innerHTML=`<div class="active-timers-bar"><div class="active-timers-bar-title">Active timers</div>${items}</div>`;
 }
 // ── END TIMER ENGINE ───────────────────────────────────────────────────────
 
