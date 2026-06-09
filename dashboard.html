@@ -454,6 +454,13 @@
     .step-timer-btn:disabled{opacity:0.5;cursor:default;}
     .step-timer-label{font-size:0.75rem;color:var(--mid);}
     .active-timers-bar{margin-top:14px;padding:10px 12px;background:rgba(166,124,82,0.1);border:1px solid rgba(166,124,82,0.25);border-radius:10px;display:flex;flex-direction:column;gap:8px;}
+    .alarm-stack{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:10px;align-items:center;z-index:99999;pointer-events:none;width:calc(100% - 40px);max-width:420px;}
+    .alarm-banner{background:#fff;border:2px solid var(--clay);border-radius:14px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,0.18);pointer-events:all;width:100%;box-sizing:border-box;animation:alarmSlideUp 0.25s ease;}
+    .alarm-banner-label{font-size:0.95rem;font-weight:600;color:var(--dark);flex:1;}
+    .alarm-banner-sub{font-size:0.75rem;color:var(--mid);margin-top:2px;}
+    .alarm-banner-stop{background:var(--clay);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:0.85rem;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+    .alarm-banner-stop:hover{opacity:0.85;}
+    @keyframes alarmSlideUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
     .active-timers-bar-title{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--clay);margin-bottom:2px;}
     .active-timer-item{display:flex;align-items:center;gap:10px;justify-content:space-between;}
     .active-timer-label{font-size:0.83rem;color:var(--dark);font-weight:500;}
@@ -3060,12 +3067,9 @@ function tickTimer(timerId){
     clearInterval(t.interval);
     const btn=document.getElementById(`timer-btn-${timerId}`);
     if(btn){btn.disabled=false;btn.textContent='▶ Restart';}
-    // Ring alert — three short dings
-    try{const ctx=new AudioContext();[0,0.35,0.7].forEach(offset=>{const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=880;o.type='sine';g.gain.setValueAtTime(0,ctx.currentTime+offset);g.gain.linearRampToValueAtTime(0.45,ctx.currentTime+offset+0.02);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+offset+0.28);o.start(ctx.currentTime+offset);o.stop(ctx.currentTime+offset+0.3);});}catch(e){}
-    showToast(`⏱ ${t.label} — done!`,'success');
     if(countEl){countEl.textContent='Done!';countEl.classList.remove('urgent');}
-    // Remove from active after 3s
-    setTimeout(()=>{delete activeTimers[timerId];renderActiveTimersBar(t.recipeId);},3000);
+    startAlarm(timerId,t.label,t.recipeId);
+    setTimeout(()=>{delete activeTimers[timerId];renderActiveTimersBar(t.recipeId);},500);
   }
 }
 function stopTimer(timerId){
@@ -3091,6 +3095,53 @@ function renderActiveTimersBar(recipeId){
   bar.innerHTML=`<div class="active-timers-bar-title">Active timers</div>${items}`;
 }
 // ── END TIMER ENGINE ───────────────────────────────────────────────────────
+
+// ── ALARM ENGINE ───────────────────────────────────────────────────────────
+const activeAlarms={};
+function playDingSequence(){
+  try{
+    const ctx=new AudioContext();
+    [0,0.35,0.7].forEach(offset=>{
+      const o=ctx.createOscillator();const g=ctx.createGain();
+      o.connect(g);g.connect(ctx.destination);
+      o.frequency.value=880;o.type='sine';
+      g.gain.setValueAtTime(0,ctx.currentTime+offset);
+      g.gain.linearRampToValueAtTime(0.45,ctx.currentTime+offset+0.02);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+offset+0.28);
+      o.start(ctx.currentTime+offset);o.stop(ctx.currentTime+offset+0.3);
+    });
+  }catch(e){}
+}
+function ensureAlarmStack(){
+  let stack=document.getElementById('alarm-stack');
+  if(!stack){stack=document.createElement('div');stack.id='alarm-stack';stack.className='alarm-stack';document.body.appendChild(stack);}
+  return stack;
+}
+function startAlarm(timerId,label,recipeId){
+  if(activeAlarms[timerId])stopAlarmById(timerId);
+  const stack=ensureAlarmStack();
+  const banner=document.createElement('div');
+  banner.className='alarm-banner';
+  banner.id=`alarm-banner-${timerId}`;
+  banner.innerHTML=`<div><div class="alarm-banner-label">⏱ ${label}</div><div class="alarm-banner-sub">Timer finished — tap to dismiss</div></div><button class="alarm-banner-stop" onclick="stopAlarmById('${timerId}')">Stop</button>`;
+  stack.appendChild(banner);
+  // Play immediately then repeat every 2 seconds
+  playDingSequence();
+  const intervalId=setInterval(()=>playDingSequence(),2000);
+  // Stop automatically after 60 seconds if not dismissed
+  const autoStop=setTimeout(()=>stopAlarmById(timerId),60000);
+  activeAlarms[timerId]={intervalId,autoStop,banner};
+}
+function stopAlarmById(timerId){
+  const a=activeAlarms[timerId];if(!a)return;
+  clearInterval(a.intervalId);clearTimeout(a.autoStop);
+  a.banner?.remove();
+  delete activeAlarms[timerId];
+  // Clean up stack element if empty
+  const stack=document.getElementById('alarm-stack');
+  if(stack&&stack.children.length===0)stack.remove();
+}
+// ── END ALARM ENGINE ───────────────────────────────────────────────────────
 
 function renderSavedSteps(recipeId,stepsText){
   const stepsContainer=document.getElementById(`steps-container-${recipeId}`);const stepsBtn=document.getElementById(`steps-btn-${recipeId}`);if(!stepsContainer)return;
