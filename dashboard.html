@@ -1827,6 +1827,10 @@ async function finishTrolleyMode(){
   const snapshot={...trolleyItems};
   const snapTotal=Object.values(snapshot).filter(i=>!i.notFound).reduce((s,i)=>s+(i.price||0),0);
   showReceiptModal(snapshot,snapTotal,savedCount);
+  // Show prep guide popup if user has permission
+  if(currentUserCan('show_prep_guide')){
+    setTimeout(()=>openPrepGuide(),800);
+  }
   // Update last_bought_at for any recurring items that were in the trolley
   const recurringRows=document.querySelectorAll('.recurring-item');
   if(recurringRows.length>0){
@@ -2236,6 +2240,98 @@ async function savePresetOrder(id){
     renderPresetManagerUI();
     showToast('Route order saved ✓');
   } else {showToast('Could not save order','error');}
+}
+
+async function openPrepGuide(){
+  if(!currentPlan)return;
+  // Load meals for this week with their prep_tasks
+  const{data:planMeals,error}=await sb.from('weekly_plan_meals')
+    .select('recipes!weekly_plan_meals_recipe_id_fkey(id,name_en,prep_tasks)')
+    .eq('plan_id',currentPlan.id)
+    .neq('is_dinner',true);
+  if(error||!planMeals)return;
+  // Filter to meals that have prep tasks
+  const mealsWithTasks=planMeals
+    .map(m=>m.recipes)
+    .filter(r=>r&&r.prep_tasks&&r.prep_tasks.length>0);
+  if(mealsWithTasks.length===0)return;
+  // Load saved tick state from localStorage
+  const PREP_GUIDE_KEY=`prep_guide_${currentPlan.id}`;
+  let tickState={};
+  try{const saved=localStorage.getItem(PREP_GUIDE_KEY);if(saved)tickState=JSON.parse(saved);}catch(e){}
+  function saveTicks(){try{localStorage.setItem(PREP_GUIDE_KEY,JSON.stringify(tickState));}catch(e){}}
+  // Remove existing modal
+  document.getElementById('prep-guide-modal')?.remove();
+  const modal=document.createElement('div');
+  modal.id='prep-guide-modal';
+  modal.className='modal-overlay';
+  // Build tasks list HTML
+  function buildTasksHTML(){
+    let html='';
+    for(const recipe of mealsWithTasks){
+      const tasks=recipe.prep_tasks||[];
+      // Sort: incomplete first, done at bottom
+      const incomplete=tasks.filter(t=>{const key=`${recipe.id}__${t}`;return!tickState[key];});
+      const done=tasks.filter(t=>{const key=`${recipe.id}__${t}`;return tickState[key];});
+      const sorted=[...incomplete,...done];
+      html+=`<div class="prep-meal-group" id="prep-group-${recipe.id}">
+        <div style="font-size:0.78rem;font-weight:500;color:var(--mid);text-transform:uppercase;letter-spacing:0.05em;margin:16px 0 8px">${recipe.name_en}</div>`;
+      for(const task of sorted){
+        const key=`${recipe.id}__${task}`;
+        const done=!!tickState[key];
+        const isOptional=task.toLowerCase().startsWith('optional');
+        html+=`<div class="prep-task-row${done?' prep-task-done':''}" id="prep-task-${CSS.escape(key)}" onclick="togglePrepTask('${recipe.id}','${task.replace(/'/g,"\'")}')">
+          <div class="prep-task-check">${done?'<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7L5.5 10L11.5 4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}</div>
+          <div class="prep-task-text${isOptional?' prep-task-optional':''}">${task}</div>
+        </div>`;
+      }
+      html+='</div>';
+    }
+    return html;
+  }
+  const totalTasks=mealsWithTasks.reduce((s,r)=>s+(r.prep_tasks?.length||0),0);
+  function getDoneCount(){return Object.values(tickState).filter(Boolean).length;}
+  modal.innerHTML=`
+    <div class="modal" style="max-width:500px;max-height:88vh;overflow-y:auto;">
+      <style>
+        .prep-task-row{display:flex;align-items:flex-start;gap:12px;padding:10px 12px;border-radius:10px;cursor:pointer;transition:background 0.15s;margin-bottom:4px;border:1px solid var(--border);}
+        .prep-task-row:hover{background:var(--bg);}
+        .prep-task-done{opacity:0.45;}
+        .prep-task-check{width:22px;height:22px;min-width:22px;border-radius:6px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;transition:all 0.15s;margin-top:1px;}
+        .prep-task-done .prep-task-check{background:var(--clay);border-color:var(--clay);}
+        .prep-task-text{font-size:0.88rem;line-height:1.45;color:var(--dark);}
+        .prep-task-done .prep-task-text{text-decoration:line-through;color:var(--mid);}
+        .prep-task-optional{color:var(--mid);font-style:italic;}
+        .prep-progress-bar{height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin:12px 0 4px;}
+        .prep-progress-fill{height:100%;background:var(--clay);border-radius:3px;transition:width 0.3s;}
+      </style>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div class="card-title">🧑‍🍳 This week's prep</div>
+        <button onclick="document.getElementById('prep-guide-modal').remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid)">✕</button>
+      </div>
+      <div style="font-size:0.8rem;color:var(--mid);margin-bottom:8px">Tick off as you go — saves your progress</div>
+      <div class="prep-progress-bar"><div class="prep-progress-fill" id="prep-progress-fill" style="width:${Math.round(getDoneCount()/totalTasks*100)}%"></div></div>
+      <div style="font-size:0.75rem;color:var(--mid);text-align:right;margin-bottom:8px" id="prep-progress-label">${getDoneCount()} of ${totalTasks} done</div>
+      <div id="prep-tasks-list">${buildTasksHTML()}</div>
+      <div style="margin-top:16px;text-align:center">
+        <button onclick="document.getElementById('prep-guide-modal').remove()" class="btn-primary" style="padding:10px 32px">Done for now</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  // Make togglePrepTask global for onclick handlers
+  window.togglePrepTask=function(recipeId,task){
+    const key=`${recipeId}__${task}`;
+    tickState[key]=!tickState[key];
+    saveTicks();
+    // Re-render task list
+    document.getElementById('prep-tasks-list').innerHTML=buildTasksHTML();
+    // Update progress
+    const pct=Math.round(getDoneCount()/totalTasks*100);
+    const fill=document.getElementById('prep-progress-fill');
+    const lbl=document.getElementById('prep-progress-label');
+    if(fill)fill.style.width=pct+'%';
+    if(lbl)lbl.textContent=`${getDoneCount()} of ${totalTasks} done`;
+  };
 }
 
 function openAddAdhocModal(){
@@ -4331,6 +4427,7 @@ const PERMISSION_DEFS = [
   { key:'mark_inventory',     label:'Do inventory check',         sub:'Mark ingredients as HAVE or NEED',           group:'actions' },
   // Visible sections — hide sections the user doesn't need
   { key:'show_prep_reminders', label:'Prep reminders',            sub:'Advance prep warnings for the week',         group:'sections' },
+  { key:'show_prep_guide',     label:'Post-shop prep guide',       sub:'Popup after shopping with weekly advance prep tasks', group:'sections' },
   { key:'show_inventory',      label:'Inventory section',         sub:'Fridge & freezer check before shopping',     group:'sections' },
   { key:'show_leftovers',      label:'Leftovers & open packets',  sub:'Track leftovers and part-used items',        group:'sections' },
   { key:'show_requests',       label:'Requests section',          sub:'Submit swap / hibernation / new meal requests', group:'sections' },
@@ -4340,8 +4437,8 @@ const PERMISSION_DEFS = [
 
 // Default permissions per role (used when no DB row exists yet)
 const PERMISSION_DEFAULTS = {
-  planner:  { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true,  carry_over_meals:false, manage_dinners:true,  view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:true,  show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true },
-  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:false, show_prep_reminders:true, show_inventory:false, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true },
+  planner:  { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true,  carry_over_meals:false, manage_dinners:true,  view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:true,  show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:true },
+  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:false, show_prep_reminders:true, show_inventory:false, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:false },
 };
 
 // Loaded at init — keyed by user_id
