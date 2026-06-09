@@ -462,12 +462,15 @@
     .alarm-banner-stop:hover{opacity:0.85;}
     @keyframes alarmSlideUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
     .active-timers-bar-title{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--clay);margin-bottom:2px;}
-    .active-timer-item{display:flex;align-items:center;gap:10px;justify-content:space-between;}
+    .active-timer-item{display:flex;flex-direction:column;gap:5px;}
+    .active-timer-top{display:flex;align-items:center;gap:10px;justify-content:space-between;}
     .active-timer-label{font-size:0.83rem;color:var(--dark);font-weight:500;}
     .active-timer-countdown{font-family:'Playfair Display',serif;font-size:1rem;color:var(--clay);font-weight:700;min-width:52px;text-align:right;}
     .active-timer-countdown.urgent{color:#c44;animation:timerPulse 1s ease-in-out infinite;}
-    .active-timer-stop{background:none;border:1px solid var(--border);border-radius:5px;padding:2px 8px;font-size:0.75rem;color:var(--mid);cursor:pointer;}
+    .active-timer-stop{background:none;border:1px solid var(--border);border-radius:5px;padding:2px 8px;font-size:0.75rem;color:var(--mid);cursor:pointer;flex-shrink:0;}
     .active-timer-stop:hover{border-color:#c44;color:#c44;}
+    .active-timer-progress-track{height:5px;background:rgba(107,95,84,0.12);border-radius:99px;overflow:hidden;}
+    .active-timer-progress-fill{height:100%;border-radius:99px;transition:width 0.9s linear,background-color 0.5s ease;}
     @keyframes timerPulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
     .steps-edit-area{width:100%;padding:12px 14px;border:1.5px solid var(--clay);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.85rem;line-height:1.6;resize:vertical;min-height:200px;outline:none;color:var(--dark);margin-top:10px;transition:border-color 0.2s;}
     .steps-edit-area:focus{border-color:var(--clay-dark)}
@@ -3049,7 +3052,7 @@ function startStepTimer(timerId,label,stepIdx,recipeId){
   const endTime=Date.now()+totalSecs*1000;
   const btn=document.getElementById(`timer-btn-${timerId}`);
   if(btn){btn.disabled=true;btn.textContent='⏳ Running…';}
-  activeTimers[timerId]={label,endTime,interval:null,recipeId};
+  activeTimers[timerId]={label,endTime,totalSecs,interval:null,recipeId};
   activeTimers[timerId].interval=setInterval(()=>tickTimer(timerId),500);
   renderActiveTimersBar(recipeId);
 }
@@ -3062,6 +3065,13 @@ function tickTimer(timerId){
     const m=Math.floor(remaining/60),s=remaining%60;
     countEl.textContent=`${m}:${s.toString().padStart(2,'0')}`;
     if(remaining<=30)countEl.classList.add('urgent'); else countEl.classList.remove('urgent');
+  }
+  // Update progress bar
+  const fillEl=document.getElementById(`timer-bar-${timerId}`);
+  if(fillEl&&t.totalSecs>0){
+    const pct=Math.round((remaining/t.totalSecs)*100);
+    fillEl.style.width=pct+'%';
+    fillEl.style.backgroundColor=pct>50?'#6aaa6a':pct>20?'#e0a040':'#c44';
   }
   if(remaining<=0){
     clearInterval(t.interval);
@@ -3090,7 +3100,9 @@ function renderActiveTimersBar(recipeId){
     const remaining=Math.max(0,Math.round((t.endTime-Date.now())/1000));
     const m=Math.floor(remaining/60),s=remaining%60;
     const timeStr=remaining>0?`${m}:${s.toString().padStart(2,'0')}`:'Done!';
-    return`<div class="active-timer-item"><span class="active-timer-label">⏱ ${t.label}</span><div style="display:flex;align-items:center;gap:8px"><span class="active-timer-countdown${remaining<=30&&remaining>0?' urgent':''}" id="timer-count-${id}">${timeStr}</span><button class="active-timer-stop" onclick="stopTimer('${id}')">✕</button></div></div>`;
+    const pct=t.totalSecs>0?Math.round((remaining/t.totalSecs)*100):100;
+    const barColor=pct>50?'#6aaa6a':pct>20?'#e0a040':'#c44';
+    return`<div class="active-timer-item"><div class="active-timer-top"><span class="active-timer-label">⏱ ${t.label}</span><div style="display:flex;align-items:center;gap:8px"><span class="active-timer-countdown${remaining<=30&&remaining>0?' urgent':''}" id="timer-count-${id}">${timeStr}</span><button class="active-timer-stop" onclick="stopTimer('${id}')">✕</button></div></div><div class="active-timer-progress-track"><div class="active-timer-progress-fill" id="timer-bar-${id}" style="width:${pct}%;background:${barColor}"></div></div></div>`;
   }).join('');
   bar.innerHTML=`<div class="active-timers-bar-title">Active timers</div>${items}`;
 }
