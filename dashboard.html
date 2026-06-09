@@ -447,6 +447,21 @@
     .recipe-step-num{font-family:'Playfair Display',serif;font-size:1rem;color:var(--clay);font-weight:700;flex-shrink:0;min-width:24px;line-height:1.4;}
     .recipe-step-text{font-size:0.87rem;color:var(--dark);line-height:1.55}
     .recipe-step-note{font-size:0.83rem;color:var(--mid);font-style:italic;padding:6px 10px;background:rgba(107,95,84,0.06);border-radius:6px;margin-top:4px;}
+    .step-timer-row{display:flex;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap;}
+    .step-timer-input{width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;text-align:center;background:var(--surface);color:var(--dark);}
+    .step-timer-btn{background:var(--clay);color:#fff;border:none;border-radius:6px;padding:4px 11px;font-size:0.78rem;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;}
+    .step-timer-btn:hover{opacity:0.85;}
+    .step-timer-btn:disabled{opacity:0.5;cursor:default;}
+    .step-timer-label{font-size:0.75rem;color:var(--mid);}
+    .active-timers-bar{margin-top:14px;padding:10px 12px;background:rgba(166,124,82,0.1);border:1px solid rgba(166,124,82,0.25);border-radius:10px;display:flex;flex-direction:column;gap:8px;}
+    .active-timers-bar-title{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--clay);margin-bottom:2px;}
+    .active-timer-item{display:flex;align-items:center;gap:10px;justify-content:space-between;}
+    .active-timer-label{font-size:0.83rem;color:var(--dark);font-weight:500;}
+    .active-timer-countdown{font-family:'Playfair Display',serif;font-size:1rem;color:var(--clay);font-weight:700;min-width:52px;text-align:right;}
+    .active-timer-countdown.urgent{color:#c44;animation:timerPulse 1s ease-in-out infinite;}
+    .active-timer-stop{background:none;border:1px solid var(--border);border-radius:5px;padding:2px 8px;font-size:0.75rem;color:var(--mid);cursor:pointer;}
+    .active-timer-stop:hover{border-color:#c44;color:#c44;}
+    @keyframes timerPulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
     .steps-edit-area{width:100%;padding:12px 14px;border:1.5px solid var(--clay);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.85rem;line-height:1.6;resize:vertical;min-height:200px;outline:none;color:var(--dark);margin-top:10px;transition:border-color 0.2s;}
     .steps-edit-area:focus{border-color:var(--clay-dark)}
     .steps-save-bar{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;}
@@ -3005,14 +3020,88 @@ async function handleStepsBtn(recipeId){
   if(userProfile.role==='reviewer'){stepsContainer.innerHTML=`<div style="font-size:0.85rem;color:var(--mid);padding:12px 0">No saved steps yet for this recipe.</div>`;stepsContainer.dataset.loaded='true';stepsContainer.style.display='block';stepsBtn.textContent='▲ Hide';return;}
   await generateRecipeSteps(recipeId);
 }
+// ── STEP TIMER ENGINE ──────────────────────────────────────────────────────
+const activeTimers={};
+function parseTimerTag(stepText){
+  // Returns {cleanText, minutes, label} or {cleanText:stepText, minutes:null, label:null}
+  const match=stepText.match(/\[TIMER:(\d+)min:([^\]]+)\]/i);
+  if(!match)return{cleanText:stepText,minutes:null,label:null};
+  return{cleanText:stepText.replace(match[0],'').trim(),minutes:parseInt(match[1]),label:match[2].trim()};
+}
+function buildStepHtml(num,rawStepText,recipeId,stepIdx){
+  const{cleanText,minutes,label}=parseTimerTag(rawStepText);
+  const timerId=`${recipeId}-step-${stepIdx}`;
+  const timerRow=minutes!=null?`<div class="step-timer-row"><span class="step-timer-label">⏱</span><input class="step-timer-input" id="timer-input-${timerId}" type="number" min="1" max="999" value="${minutes}"><span class="step-timer-label">min</span><button class="step-timer-btn" id="timer-btn-${timerId}" onclick="startStepTimer('${timerId}','${label.replace(/'/g,"\\'")}',${stepIdx},'${recipeId}')">▶ Start timer</button></div>`:'';
+  return`<div class="recipe-step"><div class="recipe-step-num">${num}</div><div style="flex:1"><div class="recipe-step-text">${cleanText}</div>${timerRow}</div></div>`;
+}
+function startStepTimer(timerId,label,stepIdx,recipeId){
+  if(activeTimers[timerId]){clearInterval(activeTimers[timerId].interval);delete activeTimers[timerId];}
+  const input=document.getElementById(`timer-input-${timerId}`);
+  const minutes=parseInt(input?.value)||1;
+  const totalSecs=minutes*60;
+  const endTime=Date.now()+totalSecs*1000;
+  const btn=document.getElementById(`timer-btn-${timerId}`);
+  if(btn){btn.disabled=true;btn.textContent='⏳ Running…';}
+  activeTimers[timerId]={label,endTime,interval:null,recipeId};
+  activeTimers[timerId].interval=setInterval(()=>tickTimer(timerId),500);
+  renderActiveTimersBar(recipeId);
+}
+function tickTimer(timerId){
+  const t=activeTimers[timerId];if(!t)return;
+  const remaining=Math.max(0,Math.round((t.endTime-Date.now())/1000));
+  // Update countdown in bar
+  const countEl=document.getElementById(`timer-count-${timerId}`);
+  if(countEl){
+    const m=Math.floor(remaining/60),s=remaining%60;
+    countEl.textContent=`${m}:${s.toString().padStart(2,'0')}`;
+    if(remaining<=30)countEl.classList.add('urgent'); else countEl.classList.remove('urgent');
+  }
+  if(remaining<=0){
+    clearInterval(t.interval);
+    const btn=document.getElementById(`timer-btn-${timerId}`);
+    if(btn){btn.disabled=false;btn.textContent='▶ Restart';}
+    // Ring alert
+    try{const ctx=new AudioContext();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=880;g.gain.setValueAtTime(0.4,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+1.2);o.start();o.stop(ctx.currentTime+1.2);}catch(e){}
+    showToast(`⏱ ${t.label} — done!`,'success');
+    if(countEl){countEl.textContent='Done!';countEl.classList.remove('urgent');}
+    // Remove from active after 3s
+    setTimeout(()=>{delete activeTimers[timerId];renderActiveTimersBar(t.recipeId);},3000);
+  }
+}
+function stopTimer(timerId){
+  const t=activeTimers[timerId];if(!t)return;
+  clearInterval(t.interval);
+  const btn=document.getElementById(`timer-btn-${timerId}`);
+  if(btn){btn.disabled=false;btn.textContent='▶ Start timer';}
+  const recipeId=t.recipeId;
+  delete activeTimers[timerId];
+  renderActiveTimersBar(recipeId);
+}
+function renderActiveTimersBar(recipeId){
+  const bar=document.getElementById(`timers-bar-${recipeId}`);if(!bar)return;
+  const relevant=Object.entries(activeTimers).filter(([id])=>id.startsWith(recipeId+'-'));
+  if(relevant.length===0){bar.style.display='none';bar.innerHTML='';return;}
+  bar.style.display='block';
+  const items=relevant.map(([id,t])=>{
+    const remaining=Math.max(0,Math.round((t.endTime-Date.now())/1000));
+    const m=Math.floor(remaining/60),s=remaining%60;
+    const timeStr=remaining>0?`${m}:${s.toString().padStart(2,'0')}`:'Done!';
+    return`<div class="active-timer-item"><span class="active-timer-label">⏱ ${t.label}</span><div style="display:flex;align-items:center;gap:8px"><span class="active-timer-countdown${remaining<=30&&remaining>0?' urgent':''}" id="timer-count-${id}">${timeStr}</span><button class="active-timer-stop" onclick="stopTimer('${id}')">✕</button></div></div>`;
+  }).join('');
+  bar.innerHTML=`<div class="active-timers-bar-title">Active timers</div>${items}`;
+}
+// ── END TIMER ENGINE ───────────────────────────────────────────────────────
+
 function renderSavedSteps(recipeId,stepsText){
   const stepsContainer=document.getElementById(`steps-container-${recipeId}`);const stepsBtn=document.getElementById(`steps-btn-${recipeId}`);if(!stepsContainer)return;
   const canEdit=userProfile.role==='admin'||userProfile.role==='planner';
   const lines=stepsText.split('\n').filter(l=>l.trim());
-  const stepsHtml=lines.map(line=>{const match=line.match(/^(\d+[\.\)])\s*(.*)/);return match?`<div class="recipe-step"><div class="recipe-step-num">${match[1]}</div><div class="recipe-step-text">${match[2]}</div></div>`:line.trim()?`<div class="recipe-step-note">${line}</div>`:'' ;}).join('');
+  let stepIdx=0;
+  const stepsHtml=lines.map(line=>{const match=line.match(/^(\d+[\.\)])\s*(.*)/);if(match){const html=buildStepHtml(match[1],match[2],recipeId,stepIdx);stepIdx++;return html;}return line.trim()?`<div class="recipe-step-note">${line}</div>`:'' ;}).join('');
   const editControls=canEdit?`<div class="steps-save-bar" style="margin-top:14px"><button class="btn-secondary" style="font-size:0.78rem;padding:5px 12px" onclick="openStepsEditor('${recipeId}')">✏️ Edit steps</button><span class="steps-saved-badge">✓ Saved</span></div>`:'';
-  stepsContainer.innerHTML=`<div class="modal-section-label" style="margin-top:18px">Cooking steps</div><div class="recipe-steps-list">${stepsHtml}</div>${editControls}`;
+  stepsContainer.innerHTML=`<div class="modal-section-label" style="margin-top:18px">Cooking steps</div><div class="recipe-steps-list">${stepsHtml}</div><div id="timers-bar-${recipeId}" class="active-timers-bar" style="display:none"></div>${editControls}`;
   stepsContainer.dataset.loaded='true';stepsContainer.style.display='block';if(stepsBtn)stepsBtn.textContent='▲ Hide steps';
+  renderActiveTimersBar(recipeId);
 }
 async function generateRecipeSteps(recipeId){
   const r=allRecipesCache?.find(x=>x.id===recipeId);if(!r)return;
@@ -3026,7 +3115,11 @@ Ingredients: ${ingredients||'standard ingredients for this dish'}
 Total time: approximately ${totalTime>0?totalTime+' minutes':'varies'}
 ${r.advance_prep_required&&r.advance_prep_description?'Note: '+r.advance_prep_description+'.':''}
 ${r.default_side_en?'Typically served with '+r.default_side_en+'.':''}
-Write 6-10 practical numbered steps. Be specific about heat levels, timing, and technique. Keep each step to 1-2 sentences. Australian home-style cooking — straightforward, no fancy techniques. End with a serving suggestion. Do not include any intro or outro text — just the numbered steps.`;
+Write 6-10 practical numbered steps. Be specific about heat levels, timing, and technique. Keep each step to 1-2 sentences. Australian home-style cooking — straightforward, no fancy techniques. End with a serving suggestion.
+
+For any step that involves waiting or timed cooking (e.g. boiling, roasting, simmering, resting), add a timer tag at the END of that step in this exact format: [TIMER:Xmin:Label] — where X is the number of minutes and Label is a short 2-4 word description (e.g. [TIMER:8min:Boil pasta] or [TIMER:25min:Roast chicken]). Only add one timer tag per step. Not every step needs a timer — only timed ones.
+
+Do not include any intro or outro text — just the numbered steps.`;
   try{
     const response=await fetch('https://claude-proxy.cameronjohnking.workers.dev',{method:'POST',headers:{'Content-Type':'application/json','x-proxy-secret':'Oreo-Ginger-Neo-Ella_11!!'},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
     const data=await response.json();const text=data.content?.find(b=>b.type==='text')?.text||'';if(!text)throw new Error('No steps returned. Raw: '+JSON.stringify(data));
@@ -3037,10 +3130,12 @@ function renderGeneratedSteps(recipeId,rawText){
   const stepsContainer=document.getElementById(`steps-container-${recipeId}`);if(!stepsContainer)return;
   const canEdit=userProfile.role==='admin'||userProfile.role==='planner';
   const lines=rawText.split('\n').filter(l=>l.trim());
-  const stepsHtml=lines.map(line=>{const match=line.match(/^(\d+[\.\)])\s*(.*)/);return match?`<div class="recipe-step"><div class="recipe-step-num">${match[1]}</div><div class="recipe-step-text">${match[2]}</div></div>`:line.trim()?`<div class="recipe-step-note">${line}</div>`:'' ;}).join('');
+  let stepIdx=0;
+  const stepsHtml=lines.map(line=>{const match=line.match(/^(\d+[\.\)])\s*(.*)/);if(match){const html=buildStepHtml(match[1],match[2],recipeId,stepIdx);stepIdx++;return html;}return line.trim()?`<div class="recipe-step-note">${line}</div>`:'' ;}).join('');
   const editSection=canEdit?`<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)"><div style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:6px">Edit before saving</div><textarea class="steps-edit-area" id="steps-edit-${recipeId}">${rawText.trim()}</textarea><div class="steps-save-bar"><button class="btn-primary" style="font-size:0.82rem;padding:7px 16px" onclick="saveRecipeSteps('${recipeId}')">💾 Save these steps</button><span style="font-size:0.78rem;color:var(--mid)">Saved steps load instantly — no AI needed</span></div></div>`:'';
-  stepsContainer.innerHTML=`<div class="modal-section-label" style="margin-top:18px">Cooking steps</div><div class="recipe-steps-list">${stepsHtml}</div><div style="font-size:0.72rem;color:var(--mid);margin-top:10px;padding:8px 10px;background:rgba(107,95,84,0.06);border-radius:6px">✨ AI-generated steps — adjust to taste</div>${editSection}`;
+  stepsContainer.innerHTML=`<div class="modal-section-label" style="margin-top:18px">Cooking steps</div><div class="recipe-steps-list">${stepsHtml}</div><div id="timers-bar-${recipeId}" class="active-timers-bar" style="display:none"></div><div style="font-size:0.72rem;color:var(--mid);margin-top:10px;padding:8px 10px;background:rgba(107,95,84,0.06);border-radius:6px">✨ AI-generated steps — adjust to taste</div>${editSection}`;
   stepsContainer.dataset.loaded='true';stepsContainer.style.display='block';
+  renderActiveTimersBar(recipeId);
 }
 function openStepsEditor(recipeId){
   const r=allRecipesCache?.find(x=>x.id===recipeId);if(!r||!r.steps)return;
