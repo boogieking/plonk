@@ -2267,25 +2267,38 @@ async function openPrepGuide(){
   modal.className='modal-overlay';
   // Build tasks list HTML
   function buildTasksHTML(){
-    let html='';
+    // Build flat lists — incomplete grouped by meal at top, all done at global bottom
+    const incompleteByMeal=[];
+    const doneList=[];
     for(const recipe of mealsWithTasks){
       const tasks=recipe.prep_tasks||[];
-      // Sort: incomplete first, done at bottom
-      const incomplete=tasks.filter(t=>{const key=`${recipe.id}__${t}`;return!tickState[key];});
-      const done=tasks.filter(t=>{const key=`${recipe.id}__${t}`;return tickState[key];});
-      const sorted=[...incomplete,...done];
-      html+=`<div class="prep-meal-group" id="prep-group-${recipe.id}">
-        <div style="font-size:0.78rem;font-weight:500;color:var(--mid);text-transform:uppercase;letter-spacing:0.05em;margin:16px 0 8px">${recipe.name_en}</div>`;
-      for(const task of sorted){
-        const key=`${recipe.id}__${task}`;
-        const done=!!tickState[key];
+      const inc=tasks.filter(t=>!tickState[`${recipe.id}__${t}`]);
+      if(inc.length>0)incompleteByMeal.push({recipe,tasks:inc});
+      tasks.filter(t=>!!tickState[`${recipe.id}__${t}`]).forEach(t=>doneList.push({recipe,task:t}));
+    }
+    let html='';
+    // Incomplete — grouped by meal
+    for(const{recipe,tasks}of incompleteByMeal){
+      html+=`<div class="prep-meal-group"><div style="font-size:0.78rem;font-weight:500;color:var(--mid);text-transform:uppercase;letter-spacing:0.05em;margin:16px 0 8px">${recipe.name_en}</div>`;
+      for(const task of tasks){
         const isOptional=task.toLowerCase().startsWith('optional');
-        html+=`<div class="prep-task-row${done?' prep-task-done':''}" id="prep-task-${CSS.escape(key)}" onclick="togglePrepTask('${recipe.id}','${task.replace(/'/g,"\'")}')">
-          <div class="prep-task-check">${done?'<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7L5.5 10L11.5 4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}</div>
+        html+=`<div class="prep-task-row" onclick="togglePrepTask('${recipe.id}','${task.replace(/'/g,"\'")}')">
+          <div class="prep-task-check"></div>
           <div class="prep-task-text${isOptional?' prep-task-optional':''}">${task}</div>
         </div>`;
       }
       html+='</div>';
+    }
+    // Done — flat section at global bottom
+    if(doneList.length>0){
+      html+=`<div style="font-size:0.78rem;font-weight:500;color:var(--mid);text-transform:uppercase;letter-spacing:0.05em;margin:20px 0 8px;border-top:1px solid var(--border);padding-top:14px">✓ Done</div>`;
+      for(const{recipe,task}of doneList){
+        const isOptional=task.toLowerCase().startsWith('optional');
+        html+=`<div class="prep-task-row prep-task-done" onclick="togglePrepTask('${recipe.id}','${task.replace(/'/g,"\'")}')">
+          <div class="prep-task-check"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7L5.5 10L11.5 4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="prep-task-text${isOptional?' prep-task-optional':''}">${task} <span style="font-size:0.75rem;color:var(--mid)">· ${recipe.name_en}</span></div>
+        </div>`;
+      }
     }
     return html;
   }
