@@ -697,6 +697,7 @@ const SIENNA_ID='ca779de4-2052-4bb4-89c6-59b67a5ad788';
 const KAREN_ID='60688390-f010-4e19-b7e9-bfbe2c35b04c';
 const CAMERON_ID='4581c8f1-042d-43a6-ba2d-6ec586dea301';
 let currentUser=null,userProfile=null,currentPlan=null,currentMeals=[],currentDinners=[];
+let frozenInventoryCache=null,householdSizeCache=null;
 async function init(){
   const{data:{session}}=await sb.auth.getSession();
   if(!session){window.location.href='index.html';return;}
@@ -726,9 +727,14 @@ async function loadWeekData(){
   }
 }
 async function loadRecipes(){const{data}=await sb.from('recipes').select('*').neq('is_dinner',true).order('name_en');return data||[];}
+async function loadFrozenInventory(){const{data}=await sb.from('frozen_inventory').select('id,recipe_id,portions,frozen_date').gt('portions',0);frozenInventoryCache=data||[];return frozenInventoryCache;}
+async function loadHouseholdSize(){if(householdSizeCache!==null)return householdSizeCache;const{data}=await sb.from('app_settings').select('value').eq('key','household_size').maybeSingle();householdSizeCache=data?parseInt(data.value)||3:3;return householdSizeCache;}
+async function saveHouseholdSize(n){householdSizeCache=n;await sb.from('app_settings').update({value:String(n)}).eq('key','household_size');}
+function getFrozenPortions(recipeId){return(frozenInventoryCache||[]).filter(f=>f.recipe_id===recipeId).reduce((sum,f)=>sum+f.portions,0);}
+async function hasSufficientFrozen(recipeId){const portions=getFrozenPortions(recipeId);const size=await loadHouseholdSize();return portions>=size;}
 async function renderDashboard(){
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
-  await loadKarenAdditions();await loadPendingIdeaRatings();await loadShopPresets();
+  await loadKarenAdditions();await loadPendingIdeaRatings();await loadShopPresets();await loadFrozenInventory();await loadHouseholdSize();
   if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();}
   else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);if(currentUserCan('show_inventory'))await loadInventory();}
   else{content.innerHTML=renderKaren(recipes,userProfile.name);renderKarenAdditionsList();loadKarenShoppingPreview();}
@@ -840,7 +846,9 @@ function mealRowAdmin(m){
   const swapBtn=!isCooked?`<button class="btn-remove-meal" style="color:#2E5F8A;border-color:rgba(46,95,138,0.3)" onclick="openAdminSwapModal('${planMeal.id}','${r.id}','${r.name_en.replace(/'/g,"\\'")}')">⇄ Swap</button>`:'';
   const hibernateBtn=!isCooked?`<button class="btn-remove-meal" style="color:#6B5F54;border-color:rgba(107,95,84,0.3)" onclick="openHibernateModal('${r.id}','${r.name_en.replace(/'/g,"\\'")}')">😴 Hibernate</button>`:'';
   const sideHtml=`<div class="meal-side" id="side-row-${r.id}">🍽 With: <span id="side-label-${r.id}">${r.default_side_en||'No side set'}</span>${r.default_side_es?` · <em id="side-label-es-${r.id}">${r.default_side_es}</em>`:`<em id="side-label-es-${r.id}"></em>`} <button class="side-edit-btn" onclick="openSideDropdown(event,'${r.id}','${(r.default_side_en||'').replace(/'/g,"\\'")}')">✏️ change</button><div class="side-dropdown-wrap" id="side-dd-${r.id}" style="display:none"><div class="side-dropdown-panel"><input type="text" id="side-input-${r.id}" placeholder="Or type a new side..." oninput="filterSideOptions('${r.id}',this.value)"><div class="side-options" id="side-opts-${r.id}"></div><div class="side-dropdown-footer"><button class="side-cancel-btn" onclick="closeSideDropdown('${r.id}')">Cancel</button><button class="side-save-btn" onclick="saveSide('${r.id}')">Save</button></div></div></div></div>`;
-  return`<div class="meal-item ${isCooked?'cooked':''}" id="meal-item-${r.id}"><div style="flex:1"><div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${r.name_en} ${advPrepTag} ${tierBadge}</div><div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${r.prep_time_minutes||'—'} min prep · ${r.cook_time_minutes||'—'} min cook${avgStr} ${scheduledLabel}</div>${sideHtml}${ratingHtml}${ratedHtml}</div><div class="meal-actions" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${actionHtml}${swapBtn}${removeBtn}${hibernateBtn}</div></div>`;
+  const frozenPortions=getFrozenPortions(r.id);
+  const frozenBadge=frozenPortions>0?`<span class="tag" style="background:rgba(74,124,211,0.12);color:#2E5F8A;border:1px solid rgba(46,95,138,0.25);font-size:0.65rem;padding:2px 7px">🧊 ${frozenPortions} frozen</span>`:'';
+  return`<div class="meal-item ${isCooked?'cooked':''}" id="meal-item-${r.id}"><div style="flex:1"><div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${r.name_en} ${advPrepTag} ${tierBadge} ${frozenBadge}</div><div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${r.prep_time_minutes||'—'} min prep · ${r.cook_time_minutes||'—'} min cook${avgStr} ${scheduledLabel}</div>${sideHtml}${ratingHtml}${ratedHtml}</div><div class="meal-actions" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${actionHtml}${swapBtn}${removeBtn}${hibernateBtn}</div></div>`;
 }
 let inventoryItems=[],inventoryState={};
 let trolleyMode=false,trolleyItems={},usdRate=null,trolleyBudget=0;
@@ -1356,8 +1364,36 @@ async function doMarkCooked(recipeId,planMealId){
   if(error){const{error:e2}=await sb.from('weekly_plan_meals').update({cooked:true}).eq('id',planMealId);if(e2){showToast('Error marking as cooked: '+e2.message,'error');return;}}
   const pm=currentMeals.find(m=>m.id===planMealId||m.recipe_id===recipeId);if(pm){pm.cooked=true;pm.cooked_at=cookedAt;}
   showToast('Marked as cooked ✓ — rate it below!');await renderDashboard();
+  // Prompt for frozen portions if recipe is freezable
+  const recipe=pm?.recipes||(allRecipesCache||[]).find(r=>r.id===recipeId);
+  const isFreezable=recipe?.is_freezable!==false;
+  if(isFreezable)promptFreezePortions(recipeId,recipe?.name_en||'this meal');
 }
-const REQUEST_LABELS={plan_submitted:'📋 Plan submitted for approval',swap:'🔄 Meal swap request',hibernate:'😴 Hibernation request',new:'✨ New meal suggestion',frequency_change:'📊 Frequency change request',side_swap:'🍽 Side dish swap request'};
+function promptFreezePortions(recipeId,mealName){
+  const el=document.getElementById('modal-overlay');if(!el)return;
+  el.style.display='flex';
+  el.innerHTML=`<div class="modal" style="max-width:360px">
+    <h3>🧊 Freeze leftovers?</h3>
+    <p style="font-size:0.88rem;color:var(--mid);margin:8px 0 18px">Did you freeze any portions of <strong>${mealName}</strong>?</p>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <label style="font-size:0.88rem;color:var(--dark)">Portions frozen:</label>
+      <input id="freeze-portions-input" type="number" min="0" max="20" value="0" style="width:64px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:1rem;text-align:center">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-ghost" onclick="closeModal()">No leftovers</button>
+      <button class="btn-primary" onclick="saveFrozenPortions('${recipeId}')">Save 🧊</button>
+    </div>
+  </div>`;
+}
+async function saveFrozenPortions(recipeId){
+  const n=parseInt(document.getElementById('freeze-portions-input')?.value)||0;
+  closeModal();
+  if(n<=0)return;
+  const{error}=await sb.from('frozen_inventory').insert({recipe_id:recipeId,portions:n,created_by:currentUser.id,frozen_date:new Date().toISOString().split('T')[0]});
+  if(error){showToast('Error saving frozen portions: '+error.message,'error');return;}
+  frozenInventoryCache=null;await loadFrozenInventory();
+  showToast(`🧊 ${n} portion${n!==1?'s':''} frozen`);
+}
 async function loadPendingRequests(){
   if(userProfile.role!=='admin')return;
   const container=document.getElementById('requests-container');const countEl=document.getElementById('pending-count');if(!container)return;
@@ -1757,13 +1793,32 @@ async function generateShoppingList(){
   const savedCKUnits={};document.querySelectorAll('[id^="ck-unit-"]').forEach(el=>{const id=el.id.replace('ck-unit-','');savedCKUnits[id]=el.value;});
   btn.disabled=true;btn.textContent='Loading...';content.innerHTML=`<div class="empty"><div class="spin" style="width:24px;height:24px;border-width:2px;margin:0 auto 8px"></div>Building your list...</div>`;
   try{const inventory=currentPlan?.inventory||{};
-   const{data:planMeals}=await sb.from('weekly_plan_meals').select('recipe_id, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',currentPlan.id);
+   const{data:planMeals}=await sb.from('weekly_plan_meals').select('recipe_id, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en,is_freezable)').eq('plan_id',currentPlan.id);
     const planRecipeIds=[...new Set((planMeals||[]).map(m=>m.recipe_id))];
     const recipeNameMap={};for(const m of (planMeals||[])){if(m.recipes)recipeNameMap[m.recipe_id]=m.recipes.name_en;}
+    // Check frozen inventory — skip ingredients for meals with sufficient frozen portions
+    await loadFrozenInventory();const householdSize=await loadHouseholdSize();
+    const frozenSkipRecipeIds=new Set();
+    const frozenMealNotes={};
+    for(const m of (planMeals||[])){
+      if(!m.recipes?.is_freezable===false)continue;
+      const portions=getFrozenPortions(m.recipe_id);
+      if(portions>=householdSize){frozenSkipRecipeIds.add(m.recipe_id);frozenMealNotes[m.recipe_id]=`${m.recipes.name_en} (🧊 ${portions} frozen — skipping main ingredients)`;}
+    }
     const{data:planIngredients}=await sb.from('ingredients').select('id,recipe_id').in('recipe_id',planRecipeIds);
     const ingToRecipes={};for(const i of (planIngredients||[])){if(!ingToRecipes[i.id])ingToRecipes[i.id]=[];ingToRecipes[i.id].push(i.recipe_id);}
     const validIds=new Set((planIngredients||[]).map(i=>String(i.id)));
-    const needIds=Object.entries(inventory).filter(([id,s])=>s==='need'&&validIds.has(id)).map(([id])=>id);
+    // Filter out ingredients that belong ONLY to frozen-skipped recipes
+    const needIds=Object.entries(inventory).filter(([id,s])=>{
+      if(s!=='need'||!validIds.has(id))return false;
+      const recipes=ingToRecipes[id]||[];
+      // Keep if ingredient is used by at least one non-frozen recipe
+      return recipes.some(rid=>!frozenSkipRecipeIds.has(rid));
+    }).map(([id])=>id);
+    // Show frozen skip notice if any
+    const frozenNotes=Object.values(frozenMealNotes);
+    let frozenNoticeHtml='';
+    if(frozenNotes.length>0){frozenNoticeHtml=`<div style="background:rgba(46,95,138,0.08);border:1px solid rgba(46,95,138,0.2);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:0.82rem;color:#2E5F8A">🧊 <strong>Frozen meals — main ingredients skipped:</strong><ul style="margin:6px 0 0 16px;padding:0">${frozenNotes.map(n=>`<li>${n}</li>`).join('')}</ul></div>`;}
     if(needIds.length===0){content.innerHTML=`<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;btn.textContent='Generate list';btn.disabled=false;return;}
     const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;
     const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipes[ing.id]||[]).map(rid=>recipeNameMap[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
@@ -1785,6 +1840,7 @@ async function generateShoppingList(){
       userPickedDueSoon=await showDueSoonNudge(dueSoonItems);
     }
     content.innerHTML=renderShoppingListHTML(mealItems,ckItems,true,karenAdditions,alwaysBuyItems,[...userPickedDueSoon]);
+    if(frozenNoticeHtml){const notice=document.createElement('div');notice.innerHTML=frozenNoticeHtml;content.insertBefore(notice,content.firstChild);}
     // Inject pre-shop estimate banner at top of shopping list
     const estimateBannerHTML=await buildPreShopEstimate(mealItems);
     if(estimateBannerHTML){const estimateWrap=document.createElement('div');estimateWrap.id='preshop-estimate-wrap';estimateWrap.innerHTML=estimateBannerHTML;content.insertBefore(estimateWrap,content.firstChild);}
@@ -2701,6 +2757,17 @@ function openTierModal(recipeId,currentTier,isLocked){
   el.innerHTML=`<div class="modal" style="max-width:420px"><h3>Frequency tier — ${mealName}</h3>${lockNote}<label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Set tier</label><select id="tier-select" class="tier-select">${optionsHtml}</select><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="saveTierOverride('${recipeId}')">Save &amp; lock</button></div></div>`;
   document.body.appendChild(el);
 }
+async function toggleFreezable(recipeId){
+  const r=allRecipesCache?.find(x=>x.id===recipeId);
+  const current=r?.is_freezable!==false;
+  const newVal=!current;
+  const{error}=await sb.from('recipes').update({is_freezable:newVal}).eq('id',recipeId);
+  if(error){showToast('Error: '+error.message,'error');return;}
+  if(r)r.is_freezable=newVal;
+  const btn=document.getElementById(`freeze-toggle-btn-${recipeId}`);
+  if(btn){btn.textContent=`🧊 ${newVal?'Freezable':'Not freezable'}`;btn.style.color=newVal?'#2E5F8A':'';btn.style.borderColor=newVal?'rgba(46,95,138,0.4)':'';}
+  showToast(newVal?'🧊 Marked as freezable':'Removed from freezable meals');
+}
 async function saveTierOverride(recipeId){const val=document.getElementById('tier-select')?.value;if(!val)return;const{error}=await sb.from('recipes').update({frequency_tier:val,frequency_override:true}).eq('id',recipeId);if(error){showToast('Error saving tier: '+error.message,'error');return;}const meal=currentMeals.find(m=>m.recipe_id===recipeId);if(meal?.recipes){meal.recipes.frequency_tier=val;meal.recipes.frequency_override=true;}closeModal();showToast(`Tier set to ${TIER_LABELS[val]} 🔒`);allRecipesCache=null;await loadWeekData();if(currentView==='recipes'){await renderRecipeListView();}else{await renderDashboard();}}
 async function unlockTierOverride(recipeId){const meal=currentMeals.find(m=>m.recipe_id===recipeId);const avgRating=meal?.recipes?.avg_rating;const autoTier=avgRating?tierFromRating(avgRating):(meal?.recipes?.frequency_tier||'regular');const{error}=await sb.from('recipes').update({frequency_override:false,frequency_tier:autoTier}).eq('id',recipeId);if(error){showToast('Error removing override: '+error.message,'error');return;}if(meal?.recipes){meal.recipes.frequency_override=false;meal.recipes.frequency_tier=autoTier;}closeModal();showToast(`Override removed — tier restored to ${TIER_LABELS[autoTier]}`);allRecipesCache=null;await loadWeekData();if(currentView==='recipes'){await renderRecipeListView();}else{await renderDashboard();}}
 function weeksFromNow(n){const d=new Date();d.setDate(d.getDate()+n*7);return d.toISOString().substring(0,10);}
@@ -2764,7 +2831,7 @@ async function openRecipeDetail(recipeId){
   const ingredientHtml=Object.entries(grouped).map(([cat,ings])=>`<div class="modal-section-label">${cat}</div><div class="ingredient-list">${ings.map(ing=>{const qty=ing.quantity?`${ing.quantity}${ing.unit?' '+ing.unit:''}`:'' ;const link=ing.lacomer_url?`<a class="ingredient-link" href="${ing.lacomer_url}" target="_blank">🛒 La Comer</a>`:'';return`<div class="ingredient-row"><div class="ingredient-info"><div class="ingredient-name-en">${ing.name_en}</div>${ing.name_es?`<div class="ingredient-name-es">${ing.name_es}</div>`:''}</div>${qty?`<div class="ingredient-qty">${qty}</div>`:''}${link}</div>`;}).join('')}</div>`).join('');
   const prepSection=r.advance_prep_required?`<div class="modal-section-label">Prep notes</div><div class="prep-flag"><span class="prep-flag-icon">⏰</span><div><strong>Advance prep required</strong>${r.advance_prep_description?`<div style="margin-top:3px">${r.advance_prep_description}</div>`:''}${!r.same_day_cookable?`<div style="margin-top:3px;font-size:0.78rem;color:var(--mid)">Cannot be cooked same day without prep</div>`:''}</div></div>`:'';
   const sideSection=r.default_side_en?`<div class="modal-section-label">Default side</div><div style="font-size:0.87rem;color:var(--dark)">${r.default_side_en}${r.default_side_es?` · <em style="color:var(--mid)">${r.default_side_es}</em>`:''}</div>`:'';
-  const adminFooterBtns=isAdmin?`<button class="btn-secondary" onclick="closeRecipeDetail();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Change tier</button><button class="btn-secondary" onclick="closeRecipeDetail();openHibernateModal('${r.id}','${r.name_en.replace(/'/g,"\\'")}')">😴 ${r.hibernated?'Wake up':'Hibernate'}</button>`:'';
+  const adminFooterBtns=isAdmin?`<button class="btn-secondary" onclick="closeRecipeDetail();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Change tier</button><button class="btn-secondary" onclick="closeRecipeDetail();openHibernateModal('${r.id}','${r.name_en.replace(/'/g,"\\'")}')">😴 ${r.hibernated?'Wake up':'Hibernate'}</button><button class=\"btn-secondary\" id=\"freeze-toggle-btn-${r.id}\" onclick=\"toggleFreezable('${r.id}')\" style=\"${r.is_freezable!==false?'color:#2E5F8A;border-color:rgba(46,95,138,0.4)':''}\">🧊 ${r.is_freezable!==false?'Freezable':'Not freezable'}</button>`:'';
   const hasSavedSteps=r.steps&&r.steps.trim();const stepsBtnLabel=hasSavedSteps?'📋 View steps':'📋 Generate steps';
   document.body.insertAdjacentHTML('beforeend',`
   <div class="modal-overlay" id="recipe-detail-overlay" onclick="if(event.target===this)safeCloseRecipeDetail('${r.id}')">
@@ -4714,10 +4781,64 @@ function renderPermissionsView(){
     <div style="background:rgba(200,103,74,0.08);border:1px solid rgba(200,103,74,0.25);border-radius:10px;padding:12px 16px;margin-bottom:24px;font-size:0.83rem;color:var(--clay-dark);">
       ⚡ Changes save instantly. Enforcement is applied next time each user loads the app.
     </div>
+    <div class="perm-user-block" style="margin-bottom:24px">
+      <div class="perm-user-header"><div><span class="perm-user-name">Household Settings</span></div></div>
+      <div class="perm-row">
+        <div><div class="perm-label">Household size</div><div class="perm-sublabel">Number of people eating — used for frozen portion checks</div></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input id="household-size-input" type="number" min="1" max="20" value="${householdSizeCache||3}" style="width:60px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;font-size:0.95rem;text-align:center">
+          <button class="btn-secondary" style="font-size:0.78rem;padding:5px 12px" onclick="saveHouseholdSizeFromUI()">Save</button>
+          <span id="household-size-saved" style="font-size:0.75rem;color:var(--clay);display:none">✓ Saved</span>
+        </div>
+      </div>
+    </div>
+    <div class="perm-user-block" style="margin-bottom:24px" id="frozen-inventory-panel">
+      <div class="perm-user-header"><div><span class="perm-user-name">🧊 Frozen Inventory</span></div></div>
+      <div id="frozen-inventory-list"><div class="empty" style="padding:12px 0">Loading…</div></div>
+    </div>
+    <div style="background:rgba(200,103,74,0.08);border:1px solid rgba(200,103,74,0.25);border-radius:10px;padding:12px 16px;margin-bottom:24px;font-size:0.83rem;color:var(--clay-dark);">
+      🧊 Freezable toggle — open any recipe and use the Freezable toggle to enable/disable frozen tracking per recipe.
+    </div>
     ${blocks}
   </div>`;
 }
-/* ── END PERMISSIONS ─────────────────────────── */
+  // Load frozen inventory panel
+  renderFrozenInventoryPanel();
+}
+async function saveHouseholdSizeFromUI(){
+  const n=parseInt(document.getElementById('household-size-input')?.value)||3;
+  await saveHouseholdSize(n);
+  const saved=document.getElementById('household-size-saved');
+  if(saved){saved.style.display='';setTimeout(()=>saved.style.display='none',2000);}
+}
+async function renderFrozenInventoryPanel(){
+  const el=document.getElementById('frozen-inventory-list');if(!el)return;
+  await loadFrozenInventory();
+  if(!frozenInventoryCache||frozenInventoryCache.length===0){el.innerHTML=`<div class="empty" style="padding:12px 0">No frozen portions recorded</div>`;return;}
+  // Get recipe names
+  const recipeIds=[...new Set(frozenInventoryCache.map(f=>f.recipe_id))];
+  const{data:recipes}=await sb.from('recipes').select('id,name_en').in('id',recipeIds);
+  const nameMap={};(recipes||[]).forEach(r=>nameMap[r.id]=r.name_en);
+  // Group by recipe
+  const grouped={};for(const f of frozenInventoryCache){if(!grouped[f.recipe_id])grouped[f.recipe_id]={name:nameMap[f.recipe_id]||'Unknown',rows:[]};grouped[f.recipe_id].rows.push(f);}
+  const householdSize=await loadHouseholdSize();
+  el.innerHTML=Object.entries(grouped).map(([rid,g])=>{
+    const total=g.rows.reduce((s,r)=>s+r.portions,0);
+    const sufficient=total>=householdSize;
+    return`<div class="perm-row"><div><div class="perm-label">${g.name}</div><div class="perm-sublabel">${total} portion${total!==1?'s':''} · ${sufficient?`<span style="color:#4A7C59">✓ Enough for everyone</span>`:`<span style="color:var(--mid)">Not enough for ${householdSize}</span>`}</div></div><div style="display:flex;gap:8px;align-items:center"><input type="number" min="0" max="50" value="${total}" id="frozen-edit-${rid}" style="width:56px;padding:4px 8px;border:1px solid var(--border);border-radius:7px;font-size:0.88rem;text-align:center"><button class="btn-secondary" style="font-size:0.75rem;padding:4px 10px" onclick="updateFrozenPortions('${rid}',${g.rows[0]?.id?`'${g.rows[0].id}'`:'null'})">Update</button><button class="btn-ghost" style="font-size:0.75rem;padding:4px 10px;color:#c44" onclick="clearFrozenPortions('${rid}')">Clear</button></div></div>`;
+  }).join('');
+}
+async function updateFrozenPortions(recipeId,rowId){
+  const n=parseInt(document.getElementById(`frozen-edit-${recipeId}`)?.value)||0;
+  if(rowId&&rowId!=='null'){await sb.from('frozen_inventory').update({portions:n}).eq('id',rowId);}
+  else{await sb.from('frozen_inventory').insert({recipe_id:recipeId,portions:n,created_by:currentUser.id,frozen_date:new Date().toISOString().split('T')[0]});}
+  frozenInventoryCache=null;await renderFrozenInventoryPanel();showToast('Updated ✓');
+}
+async function clearFrozenPortions(recipeId){
+  if(!confirm('Clear all frozen portions for this meal?'))return;
+  await sb.from('frozen_inventory').delete().eq('recipe_id',recipeId);
+  frozenInventoryCache=null;await renderFrozenInventoryPanel();showToast('Cleared 🧊');
+}
 
 /* ── COLLAPSIBLE SECTIONS ───────────────────── */
 const CHEVRON_SVG = `<svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
