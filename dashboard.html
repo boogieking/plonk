@@ -1826,11 +1826,7 @@ async function finishTrolleyMode(){
   }
   const snapshot={...trolleyItems};
   const snapTotal=Object.values(snapshot).filter(i=>!i.notFound).reduce((s,i)=>s+(i.price||0),0);
-  showReceiptModal(snapshot,snapTotal,savedCount);
-  // Show prep guide popup if user has permission
-  if(currentUserCan('show_prep_guide')){
-    setTimeout(()=>openPrepGuide(),800);
-  }
+  showReceiptModal(snapshot,snapTotal,savedCount,currentUserCan('show_prep_guide'));
   // Update last_bought_at for any recurring items that were in the trolley
   const recurringRows=document.querySelectorAll('.recurring-item');
   if(recurringRows.length>0){
@@ -1856,7 +1852,7 @@ async function finishTrolleyMode(){
   document.querySelectorAll('.not-found-btn').forEach(el=>el.remove());
   document.querySelectorAll('.link-btn-group').forEach(el=>el.style.display='');
 }
-function showReceiptModal(items,totalMXN,savedCount){
+function showReceiptModal(items,totalMXN,savedCount,showPrepGuide=false){window._showPrepGuideAfterReceipt=showPrepGuide;
   const now=new Date();
   const dateStr=now.toLocaleDateString('en-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   // Separate found vs not-found
@@ -1902,7 +1898,7 @@ function showReceiptModal(items,totalMXN,savedCount){
     ${savedNote}
     <div class="modal-btns" style="margin-top:18px">
       <button class="btn-secondary" onclick="closeModal();setTimeout(openReceiptScanner,150)">📄 Scan receipt</button>
-      <button class="btn-primary" onclick="closeModal()">Done</button>
+      <button class="btn-primary" onclick="closeModal();if(window._showPrepGuideAfterReceipt){window._showPrepGuideAfterReceipt=false;setTimeout(openPrepGuide,300);}">Done</button>
     </div>
   </div>`;
   document.body.appendChild(el);
