@@ -3060,8 +3060,8 @@ function tickTimer(timerId){
     clearInterval(t.interval);
     const btn=document.getElementById(`timer-btn-${timerId}`);
     if(btn){btn.disabled=false;btn.textContent='▶ Restart';}
-    // Ring alert
-    try{const ctx=new AudioContext();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=880;g.gain.setValueAtTime(0.4,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+1.2);o.start();o.stop(ctx.currentTime+1.2);}catch(e){}
+    // Ring alert — three short dings
+    try{const ctx=new AudioContext();[0,0.35,0.7].forEach(offset=>{const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=880;o.type='sine';g.gain.setValueAtTime(0,ctx.currentTime+offset);g.gain.linearRampToValueAtTime(0.45,ctx.currentTime+offset+0.02);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+offset+0.28);o.start(ctx.currentTime+offset);o.stop(ctx.currentTime+offset+0.3);});}catch(e){}
     showToast(`⏱ ${t.label} — done!`,'success');
     if(countEl){countEl.textContent='Done!';countEl.classList.remove('urgent');}
     // Remove from active after 3s
