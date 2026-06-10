@@ -1091,12 +1091,14 @@ function showCarryOverModal(uncookedLunches,uncookedDinners,homeMeals,isTest=fal
     🌙 ${m.recipes?.name_en||m.recipe_id}
   </label>`).join('');
   const el=document.getElementById('modal-overlay');
-  if(el)el.innerHTML=`<div class="modal" style="max-width:480px">
+  if(el)el.innerHTML=`<div class="modal" style="max-width:480px;max-height:85vh;display:flex;flex-direction:column">
     <h3>Meals from last week</h3>
     <p style="margin-bottom:14px">These meals weren't cooked last week. Tick any you'd like to carry over into this week.</p>
-    ${uncookedLunches.length>0?`<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Lunches</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">${lunchRows}</div>`:''}
-    ${uncookedDinners.length>0?`<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Dinners</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">${dinnerRows}</div>`:''}
-    <div class="modal-btns">
+    <div style="overflow-y:auto;flex:1">
+      ${uncookedLunches.length>0?`<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Lunches</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">${lunchRows}</div>`:''}
+      ${uncookedDinners.length>0?`<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Dinners</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">${dinnerRows}</div>`:''}
+    </div>
+    <div class="modal-btns" style="flex-shrink:0">
       <button class="btn-ghost" onclick="doCreateNewPlan(${homeMeals},[],[],_carryOverIsTest)">Skip — don't carry any over</button>
       <button class="btn-primary" onclick="confirmCarryOver(${homeMeals})">Add selected &amp; continue</button>
     </div>
