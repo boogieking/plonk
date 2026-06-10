@@ -692,6 +692,15 @@ function setActivePreset(id){
   activePreset=shopPresets.find(p=>p.id===id)||null;
   if(activePreset)localStorage.setItem(LAST_PRESET_KEY,activePreset.id);
 }
+async function setDefaultPreset(id){
+  // Clear existing default
+  const prev=shopPresets.find(p=>p.is_default);
+  if(prev&&prev.id!==id) await updatePreset(prev.id,{is_default:false});
+  // Set new default
+  const ok=await updatePreset(id,{is_default:true});
+  if(ok){setActivePreset(id);renderPresetManagerUI();showToast('Default route set ✓');}
+  else{showToast('Could not set default','error');}
+}
 async function loadKarenAdditions(){if(!currentPlan){karenAdditions=[];return;}const{data,error}=await sb.from('karen_additions').select('*').eq('plan_id',currentPlan.id).order('added_at',{ascending:true});karenAdditions=(!error&&data)?data:[];}
 async function addKarenItem(){if(!currentUserCan('add_shopping_items')){showToast('Adding items is not enabled for your account','error');return;}const input=document.getElementById('karen-add-input');if(!input)return;let name=input.value.trim();// Strip any URLs that may have been pasted accidentally
 name=name.replace(/https?:\/\/\S+/g,'').trim();// Strip leftover punctuation from URL stripping
@@ -2242,7 +2251,7 @@ function renderPresetManagerUI(){
         <div style="font-weight:500;font-size:0.9rem">${p.name}${p.is_default?'<span style="font-size:0.7rem;color:var(--blue);margin-left:6px">default</span>':''}</div>
         <div style="display:flex;gap:6px">
           <button onclick="editPresetOrder('${p.id}')" style="font-size:0.75rem;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);cursor:pointer">Edit order</button>
-          ${!p.is_default?`<button onclick="confirmDeletePreset('${p.id}')" style="font-size:0.75rem;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);cursor:pointer;color:var(--red)">Delete</button>`:''}
+          ${!p.is_default?`<button onclick="setDefaultPreset('${p.id}')" style="font-size:0.75rem;padding:4px 10px;border:1px solid rgba(46,95,138,0.3);border-radius:6px;background:var(--card);cursor:pointer;color:#2E5F8A">Set default</button>`:''}          ${!p.is_default?`<button onclick="confirmDeletePreset('${p.id}')" style="font-size:0.75rem;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);cursor:pointer;color:var(--red)">Delete</button>`:''}
         </div>
       </div>
       <div style="font-size:0.72rem;color:var(--mid);line-height:1.7">${(p.category_order||[]).slice(0,8).join(' → ')}${(p.category_order||[]).length>8?` … +${p.category_order.length-8} more`:''}</div>
