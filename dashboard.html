@@ -742,7 +742,7 @@ async function loadWeekData(){
     currentDinners=dinnerData||[];
   }
 }
-async function loadRecipes(){const{data}=await sb.from('recipes').select('*').neq('is_dinner',true).order('name_en');return data||[];}
+async function loadRecipes(){const{data}=await sb.from('recipes').select('*').neq('is_dinner',true).neq('is_component',true).order('name_en');return data||[];}
 async function loadFrozenInventory(){const{data}=await sb.from('frozen_inventory').select('id,recipe_id,portions,frozen_date').gt('portions',0);frozenInventoryCache=data||[];return frozenInventoryCache;}
 async function loadHouseholdSize(){if(householdSizeCache!==null)return householdSizeCache;const{data}=await sb.from('app_settings').select('value').eq('key','household_size').maybeSingle();householdSizeCache=data?parseInt(data.value)||3:3;return householdSizeCache;}
 async function saveHouseholdSize(n){householdSizeCache=n;await sb.from('app_settings').update({value:String(n)}).eq('key','household_size');}
