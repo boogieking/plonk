@@ -4284,10 +4284,10 @@ async function processReceiptImage(input){
           role:'user',
           content:[
             {type:'image',source:{type:'base64',media_type:file.type||'image/jpeg',data:base64}},
-            {type:'text',text:`This is a La Comer supermarket receipt from Mexico. Extract all purchased items.
-Return ONLY a JSON array, no other text, no markdown:
-[{"name_es":"exact Spanish name from receipt","name_en":"English translation","price_mxn":99.99,"unit_price_mxn":99.99,"weight_or_qty":"1.456 kg","category_guess":"Meats & Eggs"}]
-Rules:
+            {type:'text',text:`This is a La Comer supermarket receipt from Mexico. Extract all purchased items AND any promotions.
+Return ONLY a JSON object, no other text, no markdown:
+{"items":[{"name_es":"exact Spanish name from receipt","name_en":"English translation","price_mxn":99.99,"unit_price_mxn":99.99,"weight_or_qty":"1.456 kg","barcode":null,"category_guess":"Meats & Eggs"}],"promotions":[{"description_es":"Spanish text","description_en":"English translation","value_mxn":50.00,"expires":"2026-06-30"}]}
+Rules for items:
 - name_es: exact Spanish product name as printed (clean up abbreviations where obvious e.g. "PECHUGA PO SIN HUES" → "Pechuga de Pollo Sin Hueso")
 - name_en: translate name_es to clear English (e.g. "Boneless Chicken Breast")
 - price_mxn: TOTAL price paid for that line
@@ -4295,7 +4295,13 @@ Rules:
 - weight_or_qty: the amount purchased (e.g. "1.456 kg", "2 pcs", "500 ml") — null if not shown
 - barcode: barcode/SKU number if visible on the receipt line (usually 7-13 digits), otherwise null
 - category_guess: one of: Meats & Eggs, Dairy, Produce, Grains Pasta & Bakery, Canned & Packaged Foods, Herbs Vinegar & Condiments, Frozen, Beverages, Household / Cleaning, Other
-- Skip non-product lines (IVA, totals, store info, payment info, DOBLE VALOR TIMBRE, OFERTAS Y DESCUENTOS)`}
+- Do NOT include promotions, discounts, vouchers, IVA, totals, store info, or payment info as items
+Rules for promotions:
+- Capture OFERTAS, DESCUENTOS, DOBLE VALOR TIMBRE, Mi Comer points, vouchers, coupons, "vale por", monedero balances — anything that is money off or a future benefit
+- description_es: exact Spanish text; description_en: short English translation
+- value_mxn: the peso value if shown, otherwise null
+- expires: expiry date in YYYY-MM-DD if printed (look for "vence", "válido hasta", "vigencia"), otherwise null
+- If there are no promotions, return an empty array`}
           ]
         }]
       })
@@ -4304,13 +4310,16 @@ Rules:
     const text=data.content?.find(b=>b.type==='text')?.text||'';
     const clean=text.replace(/```json|```/g,'').trim();
     const parsed=JSON.parse(clean);
-    await renderReceiptResults(parsed);
+    // New shape: {items:[],promotions:[]} — old shape: bare array (backward compat)
+    const rItems=Array.isArray(parsed)?parsed:(parsed.items||[]);
+    const rPromos=Array.isArray(parsed)?[]:(parsed.promotions||[]);
+    await renderReceiptResults(rItems,rPromos);
   }catch(e){
     if(resultEl)resultEl.innerHTML=`<div class="receipt-processing" style="color:#c44">Could not read receipt: ${e.message}<br><br>Try a clearer photo with good lighting.</div>`;
   }
 }
 
-async function renderReceiptResults(items){
+async function renderReceiptResults(items,promotions=[]){
   const resultEl=document.getElementById('receipt-result');
   if(!resultEl||!items?.length){
     if(resultEl)resultEl.innerHTML='<div class="receipt-processing">No items found — try a clearer photo.</div>';
@@ -4357,16 +4366,48 @@ async function renderReceiptResults(items){
       return enMatch||esMatch;
     });
 
-    return{...item,existingProduct:matchProduct||null,matchedIngredient:matchIngredient||null};
+    // Price-rise check: flag if price paid is higher than last recorded price
+    let priceRise=null;
+    if(matchProduct&&matchProduct.last_price_mxn>0&&item.price_mxn>matchProduct.last_price_mxn){
+      priceRise={was:matchProduct.last_price_mxn,now:item.price_mxn,pct:Math.round((item.price_mxn-matchProduct.last_price_mxn)/matchProduct.last_price_mxn*100)};
+    }
+    // Unrecognised: no product match AND no ingredient match
+    const unrecognised=!matchProduct&&!matchIngredient;
+
+    return{...item,existingProduct:matchProduct||null,matchedIngredient:matchIngredient||null,priceRise,unrecognised};
   });
 
   receiptItems=matched;
 
+  // English summary: total + top categories
+  const summaryTotal=matched.reduce((s,it)=>s+(it.price_mxn||0),0);
+  const catCounts={};matched.forEach(it=>{const c=it.category_guess||'Other';catCounts[c]=(catCounts[c]||0)+1;});
+  const topCats=Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([c,n])=>`${c} (${n})`).join(', ');
+  const riseCount=matched.filter(it=>it.priceRise).length;
+  const unrecCount=matched.filter(it=>it.unrecognised).length;
+
+  const promoHtml=promotions.length?`
+    <div style="background:rgba(184,134,72,0.08);border:1px solid rgba(184,134,72,0.3);border-radius:10px;padding:10px 12px;margin-bottom:12px">
+      <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--clay);margin-bottom:6px">🎟 Promotions on this receipt</div>
+      ${promotions.map(p=>`
+        <div style="font-size:0.8rem;padding:4px 0;border-bottom:1px solid rgba(184,134,72,0.15)">
+          <div style="font-weight:500;color:var(--dark)">${p.description_en||p.description_es}</div>
+          <div style="font-size:0.72rem;color:var(--mid)">${p.description_es&&p.description_en?p.description_es+' · ':''}${p.value_mxn?`$${Number(p.value_mxn).toFixed(2)} MXN`:''}${p.expires?` · ⏳ expires ${p.expires}`:''}</div>
+        </div>`).join('')}
+    </div>`:'';
+
   resultEl.innerHTML=`
-    <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:10px">${items.length} item${items.length!==1?'s':''} found — untick any to skip</div>
+    <div style="background:rgba(74,124,89,0.07);border:1px solid rgba(74,124,89,0.25);border-radius:10px;padding:10px 12px;margin-bottom:12px">
+      <div style="font-size:0.85rem;font-weight:600;color:var(--dark)">${items.length} item${items.length!==1?'s':''} · $${summaryTotal.toFixed(2)} MXN</div>
+      <div style="font-size:0.74rem;color:var(--mid);margin-top:2px">Mostly: ${topCats}</div>
+      ${riseCount?`<div style="font-size:0.74rem;color:#c44;margin-top:2px">📈 ${riseCount} item${riseCount!==1?'s':''} cost more than last time</div>`:''}
+      ${unrecCount?`<div style="font-size:0.74rem;color:#b8731a;margin-top:2px">❓ ${unrecCount} unrecognised item${unrecCount!==1?'s':''} — check before saving</div>`:''}
+    </div>
+    ${promoHtml}
+    <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:10px">Untick any to skip</div>
     <div id="receipt-items-list">
       ${matched.map((item,i)=>`
-        <div class="receipt-item-row">
+        <div class="receipt-item-row"${item.unrecognised?' style="background:rgba(184,115,26,0.05);border-radius:8px;padding-left:6px;padding-right:6px"':''}>
           <input type="checkbox" class="receipt-item-check" id="rcheck-${i}" checked>
           <div class="receipt-item-info">
             <div class="receipt-item-name">${item.name_en||item.name_es}</div>
@@ -4377,10 +4418,11 @@ async function renderReceiptResults(items){
                 :`~ Name match: ${item.existingProduct.name_en||item.existingProduct.name_es}`)
               :item.matchedIngredient
                 ?`Links to: ${item.matchedIngredient.name_en}`
-                :'New product — no ingredient match'}</div>
+                :'<span style="color:#b8731a;font-weight:600">❓ Unrecognised — new product, no ingredient match</span>'}</div>
+            ${item.priceRise?`<div style="font-size:0.72rem;color:#c44;font-weight:600;margin-top:2px">📈 Was $${item.priceRise.was.toFixed(2)} — up ${item.priceRise.pct}%</div>`:''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-            <span class="receipt-item-price">$${item.price_mxn?.toFixed(2)||'?'}</span>
+            <span class="receipt-item-price"${item.priceRise?' style="color:#c44"':''}>$${item.price_mxn?.toFixed(2)||'?'}</span>
             ${item.unit_price_mxn&&item.unit_price_mxn!==item.price_mxn?`<span style="font-size:0.7rem;color:var(--mid)">$${item.unit_price_mxn?.toFixed(2)}/unit</span>`:''}
             <span class="${item.existingProduct?'receipt-status-update':'receipt-status-new'}">${item.existingProduct?'update':'new'}</span>
           </div>
