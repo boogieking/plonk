@@ -2850,7 +2850,7 @@ async function openRecipeDetail(recipeId){
       <div class="recipe-modal-header">
         <div class="recipe-modal-title">${r.name_en}</div>
         ${r.name_es?`<div class="recipe-modal-title-es">${r.name_es}</div>`:''}
-        ${effectiveTime>0?`<div id="sr-modal-time-${r.id}" style="font-size:0.78rem;color:var(--mid);margin-top:4px">⏱ ${effectiveTime} min${srDelta<0?` <span style="color:var(--green);font-weight:500">(saves ${Math.abs(srDelta)} min)</span>`:''}</div>`:''}
+        ${time>0?`<div id="sr-modal-time-${r.id}" style="font-size:0.78rem;color:var(--mid);margin-top:4px">⏱ ${time} min${srDelta<0?` <span style="color:var(--green);font-weight:500">(saves ${Math.abs(srDelta)} min)</span>`:''}</div>`:''}
       </div>
       <div class="recipe-modal-body">
         ${prepSection}${sideSection}
