@@ -1061,13 +1061,12 @@ async function confirmEatingOut(){
   const btn=document.getElementById('confirm-eating-out');btn.textContent='Checking...';btn.disabled=true;
   const isTest=document.getElementById('is-test-plan')?.checked||false;
   const homeMeals=Math.max(0,7-selectedEatingOutDays.length);
-  // Check previous plan for uncooked meals
+  // Check current active plan for uncooked meals (before it gets archived)
   try{
-    const{data:prevPlans}=await sb.from('weekly_plans').select('id,week_start').eq('status','archived').order('created_at',{ascending:false}).limit(1);
-    if(prevPlans&&prevPlans.length>0){
-      const prevPlanId=prevPlans[0].id;
-      const{data:uncookedLunches}=await sb.from('weekly_plan_meals').select('recipe_id,recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',prevPlanId).eq('cooked',false).neq('is_dinner',true);
-      const{data:uncookedDinners}=await sb.from('weekly_plan_meals').select('recipe_id,lunch_recipe_id,recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',prevPlanId).eq('cooked',false).eq('is_dinner',true);
+    const activePlanId=currentPlan?.id;
+    if(activePlanId){
+      const{data:uncookedLunches}=await sb.from('weekly_plan_meals').select('recipe_id,recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',activePlanId).eq('cooked',false).neq('is_dinner',true);
+      const{data:uncookedDinners}=await sb.from('weekly_plan_meals').select('recipe_id,lunch_recipe_id,recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',activePlanId).eq('cooked',false).eq('is_dinner',true);
       const hasUncooked=(uncookedLunches&&uncookedLunches.length>0)||(uncookedDinners&&uncookedDinners.length>0);
       if(hasUncooked){
         showCarryOverModal(uncookedLunches||[],uncookedDinners||[],homeMeals,isTest);
