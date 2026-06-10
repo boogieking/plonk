@@ -742,9 +742,9 @@ async function hasSufficientFrozen(recipeId){const portions=getFrozenPortions(re
 async function renderDashboard(){
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
   await loadKarenAdditions();await loadPendingIdeaRatings();await loadShopPresets();await loadFrozenInventory();await loadHouseholdSize();
-  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();}
-  else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);if(currentUserCan('show_inventory'))await loadInventory();}
-  else{content.innerHTML=renderKaren(recipes,userProfile.name);renderKarenAdditionsList();loadKarenShoppingPreview();}
+  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);applySectionOrder('admin',['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers']);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();}
+  else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);applySectionOrder('planner',['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping']);if(currentUserCan('show_inventory'))await loadInventory();}
+  else{content.innerHTML=renderKaren(recipes,userProfile.name);applySectionOrder('reviewer',['kar-meals','kar-requests','kar-ratings','kar-shopping']);renderKarenAdditionsList();loadKarenShoppingPreview();}
 }
 function renderCameron(recipes,name){
   const hasPlan=currentPlan!==null;
@@ -4941,15 +4941,17 @@ const CHEVRON_SVG = `<svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9">
 function sectionHeader(id, label, defaultOpen=true){
   const stored = localStorage.getItem('sec_'+id);
   const isOpen = stored !== null ? stored === '1' : defaultOpen;
-  return `<div class="sec-header" onclick="toggleSection('${id}')">
+  return `<div class="sec-wrapper" data-sec-id="${id}" draggable="true" ondragstart="secDragStart(event)" ondragover="secDragOver(event)" ondrop="secDrop(event)" ondragend="secDragEnd(event)">
+  <div class="sec-header" onclick="toggleSection('${id}')">
+    <span class="sec-drag-handle" onclick="event.stopPropagation()" title="Drag to reorder">⠿</span>
     <span class="sec-title">${label}</span>
     <span class="sec-chevron${isOpen?'':' collapsed'}" id="chev-${id}">${CHEVRON_SVG}</span>
   </div>
   <div class="sec-body${isOpen?'':' collapsed'}" id="sec-${id}">`;
 }
 
-// Close the sec-body div
-function sectionEnd(){ return '</div>'; }
+// Close the sec-body div — also closes sec-wrapper
+function sectionEnd(){ return '</div></div>'; }
 
 function toggleSection(id){
   const body = document.getElementById('sec-'+id);
@@ -4960,6 +4962,83 @@ function toggleSection(id){
   chev.classList.toggle('collapsed', !isCollapsed);
   localStorage.setItem('sec_'+id, isCollapsed?'1':'0');
 }
+
+/* ── SECTION DRAG-TO-REORDER ─────────────────── */
+const SEC_ORDER_KEY = (role) => `forknight_sec_order_${role}`;
+
+function getSectionOrder(role, defaultIds) {
+  try {
+    const stored = localStorage.getItem(SEC_ORDER_KEY(role));
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // merge: keep stored order, append any new ids not yet stored
+      const known = new Set(parsed);
+      const merged = [...parsed.filter(id => defaultIds.includes(id)), ...defaultIds.filter(id => !known.has(id))];
+      return merged;
+    }
+  } catch(e) {}
+  return [...defaultIds];
+}
+
+function saveSectionOrder(role, ids) {
+  try { localStorage.setItem(SEC_ORDER_KEY(role), JSON.stringify(ids)); } catch(e) {}
+}
+
+function applySectionOrder(role, defaultIds) {
+  const order = getSectionOrder(role, defaultIds);
+  const container = document.querySelector('.fade-in');
+  if (!container) return;
+  const wrappers = {};
+  container.querySelectorAll('.sec-wrapper[data-sec-id]').forEach(el => {
+    wrappers[el.dataset.secId] = el;
+  });
+  order.forEach(id => {
+    if (wrappers[id]) container.appendChild(wrappers[id]);
+  });
+}
+
+let _secDragSrc = null;
+
+function secDragStart(e) {
+  _secDragSrc = e.currentTarget;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', _secDragSrc.dataset.secId);
+  setTimeout(() => _secDragSrc && _secDragSrc.classList.add('dragging'), 0);
+}
+
+function secDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const target = e.currentTarget;
+  if (target === _secDragSrc) return;
+  document.querySelectorAll('.sec-wrapper.drag-over').forEach(el => el.classList.remove('drag-over'));
+  target.classList.add('drag-over');
+}
+
+function secDrop(e) {
+  e.preventDefault();
+  const target = e.currentTarget;
+  if (!_secDragSrc || target === _secDragSrc) return;
+  target.classList.remove('drag-over');
+  const parent = target.parentNode;
+  const siblings = [...parent.querySelectorAll(':scope > .sec-wrapper[data-sec-id]')];
+  const srcIdx = siblings.indexOf(_secDragSrc);
+  const tgtIdx = siblings.indexOf(target);
+  if (srcIdx < tgtIdx) parent.insertBefore(_secDragSrc, target.nextSibling);
+  else parent.insertBefore(_secDragSrc, target);
+  // Save new order
+  const newOrder = [...parent.querySelectorAll(':scope > .sec-wrapper[data-sec-id]')].map(el => el.dataset.secId);
+  const role = userProfile?.role || 'admin';
+  saveSectionOrder(role, newOrder);
+  showToast('Section order saved ✓');
+}
+
+function secDragEnd(e) {
+  if (_secDragSrc) _secDragSrc.classList.remove('dragging');
+  document.querySelectorAll('.sec-wrapper.drag-over').forEach(el => el.classList.remove('drag-over'));
+  _secDragSrc = null;
+}
+/* ── END SECTION DRAG-TO-REORDER ────────────── */
 
 function collapseAll(ids){
   ids.forEach(id=>{
