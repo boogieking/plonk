@@ -256,6 +256,13 @@
     .ingredient-qty{font-size:0.78rem;color:var(--mid);white-space:nowrap;flex-shrink:0;}
     .ingredient-link{display:inline-flex;align-items:center;gap:4px;font-size:0.7rem;font-weight:500;color:var(--clay);text-decoration:none;padding:3px 8px;border:1.5px solid rgba(200,103,74,0.3);border-radius:999px;white-space:nowrap;flex-shrink:0;transition:all 0.15s;background:rgba(200,103,74,0.04);}
     .ingredient-link:hover{background:var(--clay);color:white;border-color:var(--clay)}
+    .sr-toggle-wrap{display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:4px;}
+    .sr-pill{display:inline-flex;align-items:center;gap:4px;font-size:0.68rem;font-weight:600;padding:3px 9px;border-radius:999px;border:1.5px solid;cursor:pointer;transition:all 0.15s;white-space:nowrap;font-family:'DM Sans',sans-serif;line-height:1.3;}
+    .sr-pill.scratch{background:rgba(74,124,89,0.08);color:#3a7a50;border-color:rgba(74,124,89,0.35);}
+    .sr-pill.scratch:hover{background:rgba(74,124,89,0.18);}
+    .sr-pill.ready{background:rgba(46,95,138,0.10);color:#2E5F8A;border-color:rgba(46,95,138,0.35);}
+    .sr-pill.ready:hover{background:rgba(46,95,138,0.20);}
+    .sr-time-save{font-size:0.67rem;color:var(--green);font-weight:500;}
     .modal-section-label{font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin:18px 0 10px;}
     .modal-section-label:first-child{margin-top:0}
     .prep-flag{padding:8px 12px;border-radius:8px;background:rgba(184,134,11,0.08);border:1px solid rgba(184,134,11,0.25);font-size:0.82rem;color:var(--amber);display:flex;gap:8px;align-items:flex-start;}
@@ -1527,7 +1534,7 @@ const needIds=Object.entries(currentPlan.inventory).filter(([id,s])=>s==='need'&
     const recipeNameMap2={};for(const m of (planMealsWithNames||[])){if(m.recipes)recipeNameMap2[m.recipe_id]=m.recipes.name_en;}
     const{data:planIngsWithRec}=await sb.from('ingredients').select('id,recipe_id').in('recipe_id',planRecipeIds2);
     const ingToRecipes2={};for(const i of (planIngsWithRec||[])){if(!ingToRecipes2[i.id])ingToRecipes2[i.id]=[];ingToRecipes2[i.id].push(i.recipe_id);}
-    const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;
+    const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit,has_ready_alt,ready_name_en,ready_name_es,ready_quantity,ready_unit,ready_lacomer_url,ready_lacomer_category,ready_prep_delta_minutes').in('id',needIds);if(error)throw error;
     const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipes2[ing.id]||[]).map(rid=>recipeNameMap2[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
     const linked=await applyProductLinks(Object.values(deduped));const items=linked.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load preview: ${err.message}</div>`;}
@@ -1578,7 +1585,7 @@ async function loadKarenShoppingPreview(){
     const recipeNameMapK={};for(const m of (planMealsK||[])){if(m.recipes)recipeNameMapK[m.recipe_id]=m.recipes.name_en;}
     const{data:planIngsK}=await sb.from('ingredients').select('id,recipe_id').in('recipe_id',planRecipeIds2);
     const ingToRecipesK={};for(const i of (planIngsK||[])){if(!ingToRecipesK[i.id])ingToRecipesK[i.id]=[];ingToRecipesK[i.id].push(i.recipe_id);}
-    const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;
+    const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit,has_ready_alt,ready_name_en,ready_name_es,ready_quantity,ready_unit,ready_lacomer_url,ready_lacomer_category,ready_prep_delta_minutes').in('id',needIds);if(error)throw error;
     const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipesK[ing.id]||[]).map(rid=>recipeNameMapK[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
     const linked=await applyProductLinks(Object.values(deduped));const items=linked.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load list: ${err.message}</div>`;}
@@ -1820,9 +1827,12 @@ async function generateShoppingList(){
     let frozenNoticeHtml='';
     if(frozenNotes.length>0){frozenNoticeHtml=`<div style="background:rgba(46,95,138,0.08);border:1px solid rgba(46,95,138,0.2);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:0.82rem;color:#2E5F8A">🧊 <strong>Frozen meals — main ingredients skipped:</strong><ul style="margin:6px 0 0 16px;padding:0">${frozenNotes.map(n=>`<li>${n}</li>`).join('')}</ul></div>`;}
     if(needIds.length===0){content.innerHTML=`<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;btn.textContent='Generate list';btn.disabled=false;return;}
-    const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit').in('id',needIds);if(error)throw error;
+    const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit,has_ready_alt,ready_name_en,ready_name_es,ready_quantity,ready_unit,ready_lacomer_url,ready_lacomer_category,ready_prep_delta_minutes').in('id',needIds);if(error)throw error;
     const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipes[ing.id]||[]).map(rid=>recipeNameMap[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
-    const linkedIngredients=await applyProductLinks(Object.values(deduped));
+    // Apply scratch/ready-made resolution — override name/url/category per toggle state
+    const planOverrides=currentPlan?.scratch_ready_overrides||{};
+    const resolvedDeduped=Object.values(deduped).map(ing=>{const resolved=resolveIngredient(ing,{});return{...ing,name_en:resolved._displayName_en,name_es:resolved._displayName_es,lacomer_url:resolved._displayUrl,lacomer_category:resolved._displayCategory,quantity:resolved._displayQty,unit:resolved._displayUnit};});
+    const linkedIngredients=await applyProductLinks(resolvedDeduped);
     const mealItems=linkedIngredients.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));
     let ckItems=[];try{ckItems=await ckFetch('ck_items?cat=eq.shopping&done=eq.false&select=id,text,done&order=text.asc');}catch(e){console.warn('Casa King fetch failed:',e.message);}
     // Load always-buy and due-soon products
@@ -2795,7 +2805,7 @@ function switchView(view){currentView=view;document.querySelectorAll('.nav-tab')
 let recipeFilterTier='all',recipeFilterSearch='',recipeShowHibernated=false,allRecipesCache=null,recipeFilterType='lunch';
 async function renderRecipeListView(){
   const content=document.getElementById('dashboard-content');
-  if(!allRecipesCache){const{data,error}=await sb.from('recipes').select('*, ingredients(id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit)').order('name_en');if(error){content.innerHTML=`<div class="fade-in"><div class="empty" style="color:#c44">Could not load recipes: ${error.message}</div></div>`;return;}allRecipesCache=data;}
+  if(!allRecipesCache){const{data,error}=await sb.from('recipes').select('*, scratch_ready_defaults, ingredients(id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit,has_ready_alt,ready_name_en,ready_name_es,ready_quantity,ready_unit,ready_lacomer_url,ready_lacomer_category,ready_prep_delta_minutes)').order('name_en');if(error){content.innerHTML=`<div class="fade-in"><div class="empty" style="color:#c44">Could not load recipes: ${error.message}</div></div>`;return;}allRecipesCache=data;}
   const tabRecipes=allRecipesCache.filter(r=>recipeFilterType==='dinner'?r.is_dinner===true:r.is_dinner!==true);
   const total=tabRecipes.length;const withSteps=tabRecipes.filter(r=>r.steps&&r.steps.trim()).length;const pct=total>0?Math.round((withSteps/total)*100):0;
   const progressHtml=`<div class="steps-progress-bar"><span style="font-size:0.9rem">📋</span><div class="steps-progress-track"><div class="steps-progress-fill" style="width:${pct}%"></div></div><span class="steps-progress-count">${withSteps} of ${total}</span><span class="steps-progress-label">recipes have saved steps</span></div>`;
@@ -2826,9 +2836,9 @@ function toggleHibernated(){recipeShowHibernated=!recipeShowHibernated;recipeFil
 async function openRecipeDetail(recipeId){
   const r=allRecipesCache?.find(x=>x.id===recipeId);if(!r)return;
   const isAdmin=userProfile?.role==='admin';const tier=r.hibernated?'hibernated':(r.frequency_tier||'regular');
-  const stars=r.avg_rating?`⭐ ${parseFloat(r.avg_rating).toFixed(1)}`:'Not yet rated';const time=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);
-  const ingredients=r.ingredients||[];const grouped={};ingredients.forEach(ing=>{const cat=ing.lacomer_category||'Other';if(!grouped[cat])grouped[cat]=[];grouped[cat].push(ing);});
-  const ingredientHtml=Object.entries(grouped).map(([cat,ings])=>`<div class="modal-section-label">${cat}</div><div class="ingredient-list">${ings.map(ing=>{const qty=ing.quantity?`${ing.quantity}${ing.unit?' '+ing.unit:''}`:'' ;const link=ing.lacomer_url?`<a class="ingredient-link" href="${ing.lacomer_url}" target="_blank">🛒 La Comer</a>`:'';return`<div class="ingredient-row"><div class="ingredient-info"><div class="ingredient-name-en">${ing.name_en}</div>${ing.name_es?`<div class="ingredient-name-es">${ing.name_es}</div>`:''}</div>${qty?`<div class="ingredient-qty">${qty}</div>`:''}${link}</div>`;}).join('')}</div>`).join('');
+  const stars=r.avg_rating?`⭐ ${parseFloat(r.avg_rating).toFixed(1)}`:'Not yet rated';const baseTime=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);const recipeDefaults=r.scratch_ready_defaults||{};const srDelta=(r.ingredients||[]).reduce((sum,ing)=>{const s=getSRState(String(ing.id),recipeDefaults);return sum+(s==='ready'&&ing.has_ready_alt?(ing.ready_prep_delta_minutes||0):0);},0);const time=Math.max(0,baseTime+srDelta);
+  const ingredients=r.ingredients||[];const canToggle=currentUserCan('can_toggle_scratch_ready');const grouped={};ingredients.forEach(ing=>{const resolved=resolveIngredient(ing,recipeDefaults);const cat=resolved._displayCategory||ing.lacomer_category||'Other';if(!grouped[cat])grouped[cat]=[];grouped[cat].push({ing,resolved});});
+  const ingredientHtml=Object.entries(grouped).map(([cat,items])=>`<div class="modal-section-label">${cat}</div><div class="ingredient-list">${items.map(({ing,resolved})=>{const qty=resolved._displayQty?`${resolved._displayQty}${resolved._displayUnit?' '+resolved._displayUnit:''}`:'' ;const link=resolved._displayUrl?`<a class="ingredient-link" id="sr-link-${ing.id}" href="${resolved._displayUrl}" target="_blank">🛒 La Comer</a>`:`<span id="sr-link-${ing.id}" style="display:none"></span>`;const srToggle=ing.has_ready_alt&&canToggle?`<div class="sr-toggle-wrap"><button class="sr-pill ${resolved._srState}" id="sr-pill-${ing.id}" onclick="toggleSRState('${ing.id}','${r.id}')">${resolved._srState==='ready'?'⚡ Ready-made':'👨‍🍳 Scratch'}</button><span class="sr-time-save" id="sr-time-${ing.id}">${resolved._prepDelta<0?'saves '+Math.abs(resolved._prepDelta)+' min':''}</span></div>`:ing.has_ready_alt?`<div class="sr-toggle-wrap"><span style="font-size:0.67rem;color:var(--mid)">alt available</span></div>`:'';return`<div class="ingredient-row"><div class="ingredient-info"><div class="ingredient-name-en" id="sr-name-${ing.id}">${resolved._displayName_en}</div>${resolved._displayName_es?`<div class="ingredient-name-es">${resolved._displayName_es}</div>`:''}</div>${qty?`<div class="ingredient-qty">${qty}</div>`:''}${link}${srToggle}</div>`;}).join('')}</div>`).join('');
   const prepSection=r.advance_prep_required?`<div class="modal-section-label">Prep notes</div><div class="prep-flag"><span class="prep-flag-icon">⏰</span><div><strong>Advance prep required</strong>${r.advance_prep_description?`<div style="margin-top:3px">${r.advance_prep_description}</div>`:''}${!r.same_day_cookable?`<div style="margin-top:3px;font-size:0.78rem;color:var(--mid)">Cannot be cooked same day without prep</div>`:''}</div></div>`:'';
   const sideSection=r.default_side_en?`<div class="modal-section-label">Default side</div><div style="font-size:0.87rem;color:var(--dark)">${r.default_side_en}${r.default_side_es?` · <em style="color:var(--mid)">${r.default_side_es}</em>`:''}</div>`:'';
   const adminFooterBtns=isAdmin?`<button class="btn-secondary" onclick="closeRecipeDetail();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Change tier</button><button class="btn-secondary" onclick="closeRecipeDetail();openHibernateModal('${r.id}','${r.name_en.replace(/'/g,"\\'")}')">😴 ${r.hibernated?'Wake up':'Hibernate'}</button><button class=\"btn-secondary\" id=\"freeze-toggle-btn-${r.id}\" onclick=\"toggleFreezable('${r.id}')\" style=\"${r.is_freezable!==false?'color:#2E5F8A;border-color:rgba(46,95,138,0.4)':''}\">🧊 ${r.is_freezable!==false?'Freezable':'Not freezable'}</button>`:'';
@@ -2840,7 +2850,7 @@ async function openRecipeDetail(recipeId){
       <div class="recipe-modal-header">
         <div class="recipe-modal-title">${r.name_en}</div>
         ${r.name_es?`<div class="recipe-modal-title-es">${r.name_es}</div>`:''}
-
+        ${effectiveTime>0?`<div id="sr-modal-time-${r.id}" style="font-size:0.78rem;color:var(--mid);margin-top:4px">⏱ ${effectiveTime} min${srDelta<0?` <span style="color:var(--green);font-weight:500">(saves ${Math.abs(srDelta)} min)</span>`:''}</div>`:''}
       </div>
       <div class="recipe-modal-body">
         ${prepSection}${sideSection}
@@ -2869,6 +2879,90 @@ function safeCloseRecipeDetail(recipeId){
   closeRecipeDetail();
 }
 function closeRecipeDetail(){document.getElementById('recipe-detail-overlay')?.remove();}
+
+// ── Scratch / Ready-Made toggle helpers ─────────────────────────────────────
+// Priority: weekly plan override → recipe default → 'scratch'
+function getSRState(ingId, recipeDefaults){
+  const planOverrides = currentPlan?.scratch_ready_overrides || {};
+  if(planOverrides[ingId]) return planOverrides[ingId];
+  if(recipeDefaults && recipeDefaults[ingId]) return recipeDefaults[ingId];
+  return 'scratch';
+}
+
+function resolveIngredient(ing, recipeDefaults){
+  const state = getSRState(String(ing.id), recipeDefaults);
+  if(state === 'ready' && ing.has_ready_alt){
+    return {
+      ...ing,
+      _srState: 'ready',
+      _displayName_en: ing.ready_name_en || ing.name_en,
+      _displayName_es: ing.ready_name_es || ing.name_es,
+      _displayQty: ing.ready_quantity != null ? ing.ready_quantity : ing.quantity,
+      _displayUnit: ing.ready_unit || ing.unit,
+      _displayUrl: ing.ready_lacomer_url || ing.lacomer_url,
+      _displayCategory: ing.ready_lacomer_category || ing.lacomer_category,
+      _prepDelta: ing.ready_prep_delta_minutes || 0,
+    };
+  }
+  return {
+    ...ing,
+    _srState: 'scratch',
+    _displayName_en: ing.name_en,
+    _displayName_es: ing.name_es,
+    _displayQty: ing.quantity,
+    _displayUnit: ing.unit,
+    _displayUrl: ing.lacomer_url,
+    _displayCategory: ing.lacomer_category,
+    _prepDelta: 0,
+  };
+}
+
+async function toggleSRState(ingId, recipeId){
+  if(!currentUserCan('can_toggle_scratch_ready')){showToast('You don\'t have permission to toggle this','error');return;}
+  if(!currentPlan){showToast('No active plan','error');return;}
+  const recipe = allRecipesCache?.find(r=>r.id===recipeId);
+  const recipeDefaults = recipe?.scratch_ready_defaults || {};
+  const current = getSRState(String(ingId), recipeDefaults);
+  const next = current === 'ready' ? 'scratch' : 'ready';
+  const overrides = {...(currentPlan.scratch_ready_overrides||{}), [String(ingId)]: next};
+  const{error} = await sb.from('weekly_plans').update({scratch_ready_overrides: overrides}).eq('id', currentPlan.id);
+  if(error){showToast('Error saving toggle: '+error.message,'error');return;}
+  currentPlan.scratch_ready_overrides = overrides;
+  // Re-render the ingredient row in the open modal
+  const pill = document.getElementById(`sr-pill-${ingId}`);
+  const timeSave = document.getElementById(`sr-time-${ingId}`);
+  const nameEl = document.getElementById(`sr-name-${ingId}`);
+  const linkEl = document.getElementById(`sr-link-${ingId}`);
+  const ing = recipe?.ingredients?.find(i=>i.id===ingId);
+  if(ing){
+    const resolved = resolveIngredient(ing, recipeDefaults);
+    // Update pill
+    if(pill){
+      pill.className = `sr-pill ${next}`;
+      pill.textContent = next === 'ready' ? '⚡ Ready-made' : '👨‍🍳 Scratch';
+    }
+    // Update time save badge
+    if(timeSave){
+      const delta = next === 'ready' ? (ing.ready_prep_delta_minutes||0) : 0;
+      timeSave.textContent = delta < 0 ? `saves ${Math.abs(delta)} min` : '';
+    }
+    // Update name
+    if(nameEl) nameEl.textContent = resolved._displayName_en;
+    // Update link
+    if(linkEl){
+      if(resolved._displayUrl){ linkEl.href=resolved._displayUrl; linkEl.style.display=''; }
+      else { linkEl.style.display='none'; }
+    }
+  }
+  // Refresh modal time display
+  const timeEl = document.getElementById(`sr-modal-time-${recipeId}`);
+  if(timeEl && recipe){
+    const newDelta=(recipe.ingredients||[]).reduce((sum,i)=>{const s=getSRState(String(i.id),recipeDefaults);return sum+(s==='ready'&&i.has_ready_alt?(i.ready_prep_delta_minutes||0):0);},0);
+    const base=(recipe.prep_time_minutes||0)+(recipe.cook_time_minutes||0);
+    const eff=Math.max(0,base+newDelta);
+    timeEl.innerHTML=eff>0?`⏱ ${eff} min${newDelta<0?` <span style="color:var(--green);font-weight:500">(saves ${Math.abs(newDelta)} min)</span>`:''}`:'';}
+  showToast(next==='ready'?'Switched to ready-made ⚡':'Switched to scratch 👨‍🍳');
+}
 
 // ── Add Recipe Modal ─────────────────────────────────────────────
 const AR_CATS=['Produce','Meats & Eggs','Dairy','Grains, Pasta & Bakery','Canned & Packaged Foods','Herbs, Vinegar & Condiments','Frozen','Beverages','Other'];
@@ -4670,12 +4764,13 @@ const PERMISSION_DEFS = [
   { key:'show_requests',       label:'Requests section',          sub:'Submit swap / hibernation / new meal requests', group:'sections' },
   { key:'show_ratings',        label:'Idea ratings',              sub:'Rate new meal suggestions',                  group:'sections' },
   { key:'show_dinners',        label:'Dinners this week',         sub:'See and manage dinner pairings',             group:'sections' },
+  { key:'can_toggle_scratch_ready', label:'Scratch vs Ready-Made toggle', sub:'Switch ingredients between from-scratch and ready-made alternatives', group:'actions' },
 ];
 
 // Default permissions per role (used when no DB row exists yet)
 const PERMISSION_DEFAULTS = {
-  planner:  { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true,  carry_over_meals:false, manage_dinners:true,  view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:true,  show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:true },
-  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:false, show_prep_reminders:true, show_inventory:false, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:false },
+  planner:  { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true,  carry_over_meals:false, manage_dinners:true,  view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:true,  show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:true, can_toggle_scratch_ready:true },
+  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:false, show_prep_reminders:true, show_inventory:false, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:false, can_toggle_scratch_ready:false },
 };
 
 // Loaded at init — keyed by user_id
