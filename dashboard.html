@@ -2507,6 +2507,8 @@ function checkUnsavedAdhocItems(){
   const unsaved=adhocItems.filter(i=>!i.savedToProducts);
   if(unsaved.length===0)return Promise.resolve(true);
   return new Promise(resolve=>{
+    window._adhocResolve=resolve;
+    window._unsavedAdhocPending=unsaved;
     const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
     const rows=unsaved.map(i=>`<div class="unsaved-item-row"><span>${i.name}</span><span>${i.price>0?'$'+i.price.toFixed(2)+' MXN':'—'}</span></div>`).join('');
     el.innerHTML=`<div class="unsaved-prompt">
@@ -2514,12 +2516,11 @@ function checkUnsavedAdhocItems(){
       <div class="unsaved-prompt-sub">These ad-hoc items aren't in your product list yet. Save them so they appear in future shops?</div>
       <div class="unsaved-item-list">${rows}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn-primary" style="flex:1" onclick="saveAdhocToProducts(${JSON.stringify(unsaved).replace(/"/g,'&quot;')},true)">Save all & finish</button>
-        <button class="btn-ghost" style="flex:1;color:rgba(255,255,255,0.7);border-color:rgba(255,255,255,0.2)" onclick="closeModal();window._adhocResolve(true)">Skip & finish</button>
+        <button class="btn-primary" style="flex:1" onclick="saveAdhocToProducts(window._unsavedAdhocPending,true)">Save all & finish</button>
+        <button class="btn-ghost" style="flex:1;color:rgba(255,255,255,0.7);border-color:rgba(255,255,255,0.2)" onclick="closeModal();if(window._adhocResolve){window._adhocResolve(true);window._adhocResolve=null;}">Skip & finish</button>
       </div>
     </div>`;
     document.body.appendChild(el);
-    window._adhocResolve=resolve;
   });
 }
 async function saveAdhocToProducts(items,thenFinish){
@@ -2535,7 +2536,7 @@ async function saveAdhocToProducts(items,thenFinish){
     }catch(e){console.warn('Adhoc save failed:',item.name,e);}
   }
   if(saved>0)showToast(`${saved} item${saved!==1?'s':''} saved to products ✓`);
-  if(thenFinish&&window._adhocResolve)window._adhocResolve(true);
+  if(thenFinish&&window._adhocResolve){window._adhocResolve(true);window._adhocResolve=null;}
 }
 async function autoFillAdhocProduct(item){
   // Fire AI call to guess Spanish name and category — updates product in background
