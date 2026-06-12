@@ -638,6 +638,8 @@ function normaliseCat(cat){
   if(/bakery/i.test(c)||/bread/i.test(c))return'Bakery';
   if(/bak/i.test(c)&&/ing/i.test(c))return'Baking';
   if(/herb/i.test(c)||/vinegar/i.test(c)||/condiment/i.test(c)||/spice/i.test(c))return'Herbs, Spices & Condiments';
+  // Legacy: "Herbs Vinegar & Condiments" and "Herbs Spices & Condiments" (no comma variants)
+  if(/herbs/i.test(c))return'Herbs, Spices & Condiments';
   if(/canned/i.test(c)||/packaged/i.test(c)||/tinned/i.test(c))return'Canned & Packaged Foods';
   if(/dairy/i.test(c))return'Dairy';
   if(/frozen/i.test(c))return'Frozen';
@@ -959,9 +961,10 @@ async function loadInventory(){
 }
 function renderInventoryList(){
   const el=document.getElementById('inv-list');if(!el)return;
-  const groups={};for(const item of inventoryItems){const cat=item.lacomer_category||'Other';if(!groups[cat])groups[cat]=[];groups[cat].push(item);}
+  const groups={};for(const item of inventoryItems){const cat=normaliseCat(item.lacomer_category||'Other');if(!groups[cat])groups[cat]=[];groups[cat].push(item);}
   let html='';
-  for(const[cat,items]of Object.entries(groups)){
+  const sortedCats=Object.keys(groups).sort((a,b)=>{const ai=ALL_CATEGORIES.indexOf(a);const bi=ALL_CATEGORIES.indexOf(b);if(ai===-1&&bi===-1)return a.localeCompare(b);if(ai===-1)return 1;if(bi===-1)return-1;return ai-bi;});
+  for(const cat of sortedCats){const items=groups[cat];
     html+=`<div style="font-size:0.7rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin:12px 0 6px">${cat}</div>`;
     for(const item of items){const status=inventoryState[String(item.id)]||'need';html+=`<div class="inv-row" data-id="${item.id}" data-name="${item.name_en.toLowerCase()}"><div><div class="inv-name">${item.name_en}</div><div style="font-size:0.72rem;color:var(--mid)">${item.name_es}</div></div><div class="inv-toggle"><button class="have-btn ${status==='have'?'active':''}" onclick="setInv('${item.id}','have',this)">Have</button><button class="need-btn ${status==='need'?'active':''}" onclick="setInv('${item.id}','need',this)">Need</button></div></div>`;}
   }
@@ -2507,8 +2510,6 @@ function checkUnsavedAdhocItems(){
   const unsaved=adhocItems.filter(i=>!i.savedToProducts);
   if(unsaved.length===0)return Promise.resolve(true);
   return new Promise(resolve=>{
-    window._adhocResolve=resolve;
-    window._unsavedAdhocPending=unsaved;
     const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
     const rows=unsaved.map(i=>`<div class="unsaved-item-row"><span>${i.name}</span><span>${i.price>0?'$'+i.price.toFixed(2)+' MXN':'—'}</span></div>`).join('');
     el.innerHTML=`<div class="unsaved-prompt">
@@ -2516,11 +2517,12 @@ function checkUnsavedAdhocItems(){
       <div class="unsaved-prompt-sub">These ad-hoc items aren't in your product list yet. Save them so they appear in future shops?</div>
       <div class="unsaved-item-list">${rows}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn-primary" style="flex:1" onclick="saveAdhocToProducts(window._unsavedAdhocPending,true)">Save all & finish</button>
-        <button class="btn-ghost" style="flex:1;color:rgba(255,255,255,0.7);border-color:rgba(255,255,255,0.2)" onclick="closeModal();if(window._adhocResolve){window._adhocResolve(true);window._adhocResolve=null;}">Skip & finish</button>
+        <button class="btn-primary" style="flex:1" onclick="saveAdhocToProducts(${JSON.stringify(unsaved).replace(/"/g,'&quot;')},true)">Save all & finish</button>
+        <button class="btn-ghost" style="flex:1;color:rgba(255,255,255,0.7);border-color:rgba(255,255,255,0.2)" onclick="closeModal();window._adhocResolve(true)">Skip & finish</button>
       </div>
     </div>`;
     document.body.appendChild(el);
+    window._adhocResolve=resolve;
   });
 }
 async function saveAdhocToProducts(items,thenFinish){
@@ -2536,7 +2538,7 @@ async function saveAdhocToProducts(items,thenFinish){
     }catch(e){console.warn('Adhoc save failed:',item.name,e);}
   }
   if(saved>0)showToast(`${saved} item${saved!==1?'s':''} saved to products ✓`);
-  if(thenFinish&&window._adhocResolve){window._adhocResolve(true);window._adhocResolve=null;}
+  if(thenFinish&&window._adhocResolve)window._adhocResolve(true);
 }
 async function autoFillAdhocProduct(item){
   // Fire AI call to guess Spanish name and category — updates product in background
