@@ -2834,7 +2834,22 @@ function renderFilteredRecipes(){
     ?allRecipesCache.filter(r=>r.hibernated&&(isDinnerTab?r.is_dinner===true:r.is_dinner!==true)&&(!search||r.name_en.toLowerCase().includes(search)||(r.name_es||'').toLowerCase().includes(search)))
     :allRecipesCache.filter(r=>{if(r.hibernated)return false;if(r.is_component)return false;if(isDinnerTab?r.is_dinner!==true:r.is_dinner===true)return false;if(recipeFilterTier!=='all'&&r.frequency_tier!==recipeFilterTier)return false;if(search&&!r.name_en.toLowerCase().includes(search)&&!(r.name_es||'').toLowerCase().includes(search))return false;return true;});
   if(list.length===0){container.innerHTML=`<div class="empty"><span class="empty-icon">🔍</span>No recipes match</div>`;return;}
-  const isAdmin=userProfile?.role==='admin';container.innerHTML=`<div class="recipe-grid">${list.map(r=>recipeRowHtml(r,isAdmin)).join('')}</div>`;
+  const isAdmin=userProfile?.role==='admin';
+  // Component recipes section — admin always sees it; others only if show_component_recipes permission is on
+  const showComponents=isAdmin||currentUserCan('show_component_recipes');
+  const componentList=showComponents?(allRecipesCache||[]).filter(r=>r.is_component):[];
+  const componentHtml=showComponents&&componentList.length>0?`
+    <div style="margin-top:28px">
+      <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:10px;display:flex;align-items:center;gap:8px">
+        🧩 Component recipes <span style="font-weight:400;text-transform:none;letter-spacing:0">(scratch-made ingredients)</span>
+      </div>
+      <div class="recipe-grid">${componentList.map(r=>componentRowHtml(r,isAdmin)).join('')}</div>
+    </div>`:'';
+  container.innerHTML=`<div class="recipe-grid">${list.map(r=>recipeRowHtml(r,isAdmin)).join('')}</div>${componentHtml}`;
+}
+function componentRowHtml(r,isAdmin){
+  const time=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);
+  return`<div class="recipe-row" onclick="openRecipeDetail('${r.id}')" style="opacity:0.85;border-style:dashed"><div class="recipe-main"><div class="recipe-title">🧩 ${r.name_en}</div>${r.name_es?`<div class="recipe-title-es">${r.name_es}</div>`:''}<div class="recipe-meta-row">${time>0?`<span class="recipe-meta-item">⏱ ${time} min</span>`:''}<span class="tag" style="background:rgba(100,100,200,0.08);color:#555;border:1px solid rgba(100,100,200,0.2)">component</span></div></div></div>`;
 }
 function recipeRowHtml(r,isAdmin){
   const tier=r.hibernated?'hibernated':(r.frequency_tier||'regular');const stars=r.avg_rating?`⭐ ${parseFloat(r.avg_rating).toFixed(1)}`:'—';const time=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);
@@ -4820,12 +4835,13 @@ const PERMISSION_DEFS = [
   { key:'show_ratings',        label:'Idea ratings',              sub:'Rate new meal suggestions',                  group:'sections' },
   { key:'show_dinners',        label:'Dinners this week',         sub:'See and manage dinner pairings',             group:'sections' },
   { key:'can_toggle_scratch_ready', label:'Scratch vs Ready-Made toggle', sub:'Switch ingredients between from-scratch and ready-made alternatives', group:'actions' },
+  { key:'show_component_recipes',  label:'Component recipes',             sub:'Show scratch-made component recipes (pastry, sauces etc) in the recipe library', group:'sections' },
 ];
 
 // Default permissions per role (used when no DB row exists yet)
 const PERMISSION_DEFAULTS = {
-  planner:  { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true,  carry_over_meals:false, manage_dinners:true,  view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:true,  show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:true, can_toggle_scratch_ready:true },
-  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:false, show_prep_reminders:true, show_inventory:false, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:false, can_toggle_scratch_ready:false },
+  planner:  { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true,  carry_over_meals:false, manage_dinners:true,  view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:true,  show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:true, can_toggle_scratch_ready:true,  show_component_recipes:false },
+  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:false, show_prep_reminders:true, show_inventory:false, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:false, can_toggle_scratch_ready:false, show_component_recipes:false },
 };
 
 // Loaded at init — keyed by user_id
