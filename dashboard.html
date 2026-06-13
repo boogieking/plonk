@@ -2823,29 +2823,26 @@ async function renderRecipeListView(){
   const total=tabRecipes.length;const withSteps=tabRecipes.filter(r=>r.steps&&r.steps.trim()).length;const pct=total>0?Math.round((withSteps/total)*100):0;
   const progressHtml=`<div class="steps-progress-bar"><span style="font-size:0.9rem">📋</span><div class="steps-progress-track"><div class="steps-progress-fill" style="width:${pct}%"></div></div><span class="steps-progress-count">${withSteps} of ${total}</span><span class="steps-progress-label">recipes have saved steps</span></div>`;
   const addRecipeBtn=userProfile?.role==='admin'?`<button class="btn-primary" style="font-size:0.82rem;padding:7px 14px;white-space:nowrap;margin-left:auto" onclick="openAddRecipeModal()">+ Add Recipe</button>`:'';
-  content.innerHTML=`<div class="fade-in" id="recipe-list-root"><div class="page-header"><h1>Recipes</h1><p>Browse and manage the full meal library</p></div>${progressHtml}<div class="recipes-toolbar"><div style="display:flex;gap:6px;margin-right:10px;background:rgba(200,180,160,0.2);border-radius:9px;padding:3px"><button class="filter-pill${recipeFilterType==='lunch'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('lunch')">🍽 Lunches</button><button class="filter-pill${recipeFilterType==='dinner'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('dinner')">🌙 Dinners</button></div><input class="search-input" id="recipe-search" placeholder="Search recipes…" oninput="filterRecipes()" value="${recipeFilterSearch}"><button class="filter-pill ${recipeFilterTier==='all'?'active':''}" onclick="setTierFilter('all')">All</button><button class="filter-pill ${recipeFilterTier==='weekly'?'active':''}" onclick="setTierFilter('weekly')">Weekly</button><button class="filter-pill ${recipeFilterTier==='regular'?'active':''}" onclick="setTierFilter('regular')">Regular</button><button class="filter-pill ${recipeFilterTier==='occasional'?'active':''}" onclick="setTierFilter('occasional')">Occasional</button><button class="filter-pill ${recipeFilterTier==='rare'?'active':''}" onclick="setTierFilter('rare')">Rare</button><button class="filter-pill ${recipeShowHibernated?'active':''}" onclick="toggleHibernated()">💤 Hibernated</button>${addRecipeBtn}</div><div id="recipe-grid-container"><div class="empty"><span class="empty-icon">🍳</span>Loading recipes…</div></div></div>`;
+  content.innerHTML=`<div class="fade-in" id="recipe-list-root"><div class="page-header"><h1>Recipes</h1><p>Browse and manage the full meal library</p></div>${progressHtml}<div class="recipes-toolbar"><div style="display:flex;gap:6px;margin-right:10px;background:rgba(200,180,160,0.2);border-radius:9px;padding:3px"><button class="filter-pill${recipeFilterType==='lunch'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('lunch')">🍽 Lunches</button><button class="filter-pill${recipeFilterType==='dinner'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('dinner')">🌙 Dinners</button>${isAdmin?`<button class="filter-pill${recipeFilterType==='component'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('component')">🧩 Components</button>`:''}</div>${recipeFilterType==='component'?'':`<input class="search-input" id="recipe-search" placeholder="Search recipes…" oninput="filterRecipes()" value="${recipeFilterSearch}"><button class="filter-pill ${recipeFilterTier==='all'?'active':''}" onclick="setTierFilter('all')">All</button><button class="filter-pill ${recipeFilterTier==='weekly'?'active':''}" onclick="setTierFilter('weekly')">Weekly</button><button class="filter-pill ${recipeFilterTier==='regular'?'active':''}" onclick="setTierFilter('regular')">Regular</button><button class="filter-pill ${recipeFilterTier==='occasional'?'active':''}" onclick="setTierFilter('occasional')">Occasional</button><button class="filter-pill ${recipeFilterTier==='rare'?'active':''}" onclick="setTierFilter('rare')">Rare</button><button class="filter-pill ${recipeShowHibernated?'active':''}" onclick="toggleHibernated()">💤 Hibernated</button>${addRecipeBtn}</div>\`}</div><div id="recipe-grid-container"><div class="empty"><span class="empty-icon">🍳</span>Loading recipes…</div></div></div>`;
   renderFilteredRecipes();
 }
 function renderFilteredRecipes(){
   const container=document.getElementById('recipe-grid-container');if(!container||!allRecipesCache)return;
+  const isAdmin=userProfile?.role==='admin';
+  // Component tab — show only component recipes
+  if(recipeFilterType==='component'){
+    const compList=allRecipesCache.filter(r=>r.is_component);
+    if(compList.length===0){container.innerHTML=`<div class="empty"><span class="empty-icon">🧩</span>No component recipes found</div>`;return;}
+    container.innerHTML=`<div class="recipe-grid">${compList.map(r=>componentRowHtml(r,isAdmin)).join('')}</div>`;
+    return;
+  }
   const search=(document.getElementById('recipe-search')?.value||recipeFilterSearch).toLowerCase().trim();recipeFilterSearch=search;
   const isDinnerTab=recipeFilterType==='dinner';
   const list=recipeShowHibernated
     ?allRecipesCache.filter(r=>r.hibernated&&(isDinnerTab?r.is_dinner===true:r.is_dinner!==true)&&(!search||r.name_en.toLowerCase().includes(search)||(r.name_es||'').toLowerCase().includes(search)))
     :allRecipesCache.filter(r=>{if(r.hibernated)return false;if(r.is_component)return false;if(isDinnerTab?r.is_dinner!==true:r.is_dinner===true)return false;if(recipeFilterTier!=='all'&&r.frequency_tier!==recipeFilterTier)return false;if(search&&!r.name_en.toLowerCase().includes(search)&&!(r.name_es||'').toLowerCase().includes(search))return false;return true;});
   if(list.length===0){container.innerHTML=`<div class="empty"><span class="empty-icon">🔍</span>No recipes match</div>`;return;}
-  const isAdmin=userProfile?.role==='admin';
-  // Component recipes section — admin always sees it; others only if show_component_recipes permission is on
-  const showComponents=isAdmin||currentUserCan('show_component_recipes');
-  const componentList=showComponents?(allRecipesCache||[]).filter(r=>r.is_component):[];
-  const componentHtml=showComponents&&componentList.length>0?`
-    <div style="margin-top:28px">
-      <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:10px;display:flex;align-items:center;gap:8px">
-        🧩 Component recipes <span style="font-weight:400;text-transform:none;letter-spacing:0">(scratch-made ingredients)</span>
-      </div>
-      <div class="recipe-grid">${componentList.map(r=>componentRowHtml(r,isAdmin)).join('')}</div>
-    </div>`:'';
-  container.innerHTML=`<div class="recipe-grid">${list.map(r=>recipeRowHtml(r,isAdmin)).join('')}</div>${componentHtml}`;
+  container.innerHTML=`<div class="recipe-grid">${list.map(r=>recipeRowHtml(r,isAdmin)).join('')}</div>`;
 }
 function componentRowHtml(r,isAdmin){
   const time=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);
