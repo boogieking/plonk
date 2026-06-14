@@ -2554,7 +2554,7 @@ async function saveAdhocToProducts(items,thenFinish){
 async function autoFillAdhocProduct(item){
   // Fire AI call to guess Spanish name and category — updates product in background
   try{
-    const resp=await proxyFetch({model:'claude-sonnet-4-5',max_tokens:200,messages:[{role:'user',content:`For this grocery item sold at La Comer in Mexico: "${item.name}"
+    const resp=await proxyFetch({model:'claude-sonnet-4-6',max_tokens:200,messages:[{role:'user',content:`For this grocery item sold at La Comer in Mexico: "${item.name}"
 Respond with ONLY a JSON object (no markdown) with these fields:
 - name_es: Spanish name as it would appear at La Comer
 - category: one of: Dairy, Meats & Eggs, Produce, Grains/Pasta/Bakery, Canned & Packaged, Herbs/Condiments, Beverages, Cleaning, Personal Care, Other
@@ -3234,7 +3234,7 @@ IMPORTANT: The category field for each ingredient MUST be exactly one of these v
 - Other
 Do not use any other category value. Keep it home-style, practical, serves ${serves}. Ingredients should be things available at a Mexican supermarket.`;
   try{
-    const resp=await proxyFetch({model:'claude-sonnet-4-5',max_tokens:1500,system:systemPrompt,messages:[{role:'user',content:`${prompt}. Type: ${type==='dinner'?'dinner':'lunch'}.`}]});
+    const resp=await proxyFetch({model:'claude-sonnet-4-6',max_tokens:1500,system:systemPrompt,messages:[{role:'user',content:`${prompt}. Type: ${type==='dinner'?'dinner':'lunch'}.`}]});
     const data=await resp.json();
     const raw=data.content?.map(c=>c.text||'').join('').trim();
     const clean=raw.replace(/```json|```/g,'').trim();
@@ -3455,7 +3455,7 @@ For any step that involves waiting or timed cooking (e.g. boiling, roasting, sim
 
 Do not include any intro or outro text — just the numbered steps.`;
   try{
-    const response=await proxyFetch({model:'claude-sonnet-4-5',max_tokens:1000,messages:[{role:'user',content:prompt}]});
+    const response=await proxyFetch({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:prompt}]});
     const data=await response.json();const text=data.content?.find(b=>b.type==='text')?.text||'';if(!text)throw new Error('No steps returned. Raw: '+JSON.stringify(data));
     renderGeneratedSteps(recipeId,text);stepsBtn.disabled=false;stepsBtn.textContent='▲ Hide steps';
   }catch(err){stepsContainer.innerHTML=`<div style="font-size:0.85rem;color:#c44;padding:10px 0">Could not generate steps: ${escapeHtml(err.message)}</div>`;stepsContainer.dataset.loaded='true';stepsContainer.style.display='block';stepsBtn.disabled=false;stepsBtn.textContent='📋 Generate steps';}
@@ -4301,7 +4301,7 @@ Please provide the following in JSON only, no other text:
   "name_en": "English product name",
   "category": "one of: Meats & Eggs, Dairy, Produce, Grains Pasta & Bakery, Canned & Packaged Foods, Herbs Vinegar & Condiments, Frozen, Beverages, Household & Cleaning, Other"
 }`;
-    const response=await proxyFetch({model:'claude-sonnet-4-5',max_tokens:200,messages:[{role:'user',content:prompt}]});
+    const response=await proxyFetch({model:'claude-sonnet-4-6',max_tokens:200,messages:[{role:'user',content:prompt}]});
     const data=await response.json();
     const text=data.content?.find(b=>b.type==='text')?.text||'';
     const clean=text.replace(/```json|```/g,'').trim();
@@ -4369,7 +4369,7 @@ async function processReceiptImage(input){
 
   try{
     const response=await proxyFetch({
-        model:'claude-sonnet-4-5',
+        model:'claude-sonnet-4-6',
         max_tokens:2000,
         messages:[{
           role:'user',
@@ -5474,7 +5474,7 @@ async function runAIWizardGenerate(){
 }
 Return ONLY valid JSON. No explanation, no markdown fences. Ingredients should be practical items available at a Mexican supermarket. Serves 3 people.`;
   try{
-    const resp=await proxyFetch({model:'claude-sonnet-4-5',max_tokens:1500,system:systemPrompt,messages:[{role:'user',content:`Meal: "${name}". Type: ${type}.`}]});
+    const resp=await proxyFetch({model:'claude-sonnet-4-6',max_tokens:1500,system:systemPrompt,messages:[{role:'user',content:`Meal: "${name}". Type: ${type}.`}]});
     const data=await resp.json();
     const raw=data.content?.map(c=>c.text||'').join('').trim();
     const clean=raw.replace(/```json|```/g,'').trim();
