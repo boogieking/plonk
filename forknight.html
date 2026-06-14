@@ -5148,7 +5148,157 @@ function downloadRecipeTemplate(){
   URL.revokeObjectURL(url);
   showToast('Template downloaded ✓');
 }
-function openCSVUpload(){showToast('CSV upload coming soon — download the template first','info');}
+function openCSVUpload(){
+  // Create hidden file input and trigger it
+  let inp=document.getElementById('csv-upload-input');
+  if(!inp){inp=document.createElement('input');inp.type='file';inp.id='csv-upload-input';inp.accept='.csv,text/csv';inp.style.display='none';inp.onchange=e=>handleCSVFile(e.target.files[0]);document.body.appendChild(inp);}
+  inp.value='';inp.click();
+}
+function handleCSVFile(file){
+  if(!file){return;}
+  const reader=new FileReader();
+  reader.onload=e=>parseAndPreviewCSV(e.target.result);
+  reader.readAsText(file);
+}
+function parseCSVLine(line){
+  // Handle quoted fields with commas inside
+  const result=[];let cur='';let inQ=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(ch==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else{inQ=!inQ;}}
+    else if(ch===','&&!inQ){result.push(cur.trim());cur='';}
+    else{cur+=ch;}
+  }
+  result.push(cur.trim());
+  return result;
+}
+function parseAndPreviewCSV(text){
+  // Strip comment lines and blank lines
+  const lines=text.split('\n').filter(l=>l.trim()&&!l.trim().startsWith('#'));
+  if(lines.length<2){showToast('CSV appears empty or has no data rows','error');return;}
+  const headers=parseCSVLine(lines[0]).map(h=>h.toLowerCase().replace(/\s+/g,'_'));
+  const REQUIRED=['recipe_name_en','ingredient_name_en'];
+  const missing=REQUIRED.filter(r=>!headers.includes(r));
+  if(missing.length>0){showToast(`CSV missing required columns: ${missing.join(', ')}. Please use the downloaded template.`,'error');return;}
+  const idx=h=>headers.indexOf(h);
+  // Group rows into recipes
+  const recipesMap={};const recipeOrder=[];
+  for(let i=1;i<lines.length;i++){
+    const cols=parseCSVLine(lines[i]);
+    if(cols.every(c=>!c))continue;
+    const nameEn=(cols[idx('recipe_name_en')]||'').trim();
+    if(!nameEn)continue;
+    if(!recipesMap[nameEn]){
+      recipesMap[nameEn]={
+        name_en:nameEn,
+        name_es:(cols[idx('recipe_name_es')]||'').trim()||null,
+        prep_time_minutes:parseInt(cols[idx('prep_time_minutes')])||null,
+        cook_time_minutes:parseInt(cols[idx('cook_time_minutes')])||null,
+        advance_prep_required:(cols[idx('advance_prep_required')]||'').toUpperCase()==='TRUE',
+        advance_prep_description:(cols[idx('advance_prep_description')]||'').trim()||null,
+        same_day_cookable:(cols[idx('same_day_cookable')]||'TRUE').toUpperCase()!=='FALSE',
+        is_dinner:(cols[idx('is_dinner')]||'').toUpperCase()==='TRUE',
+        ingredients:[]
+      };
+      recipeOrder.push(nameEn);
+    }
+    const ingNameEn=(cols[idx('ingredient_name_en')]||'').trim();
+    if(ingNameEn){
+      recipesMap[nameEn].ingredients.push({
+        name_en:ingNameEn,
+        name_es:(cols[idx('ingredient_name_es')]||'').trim()||null,
+        quantity:parseFloat(cols[idx('quantity')])||null,
+        unit:(cols[idx('unit')]||'').trim()||null,
+        lacomer_category:normaliseCat((cols[idx('lacomer_category')]||'Other').trim()),
+        lacomer_url:(cols[idx('lacomer_url')]||'').trim()||null
+      });
+    }
+  }
+  const recipes=recipeOrder.map(n=>recipesMap[n]);
+  if(recipes.length===0){showToast('No valid recipes found in CSV','error');return;}
+  showCSVPreviewModal(recipes);
+}
+function showCSVPreviewModal(recipes){
+  const existing=document.getElementById('csv-preview-overlay');if(existing)existing.remove();
+  const totalIngs=recipes.reduce((s,r)=>s+r.ingredients.length,0);
+  const recipeRows=recipes.map((r,ri)=>{
+    const ingList=r.ingredients.length>0
+      ?r.ingredients.map(i=>`<div style="font-size:0.75rem;color:var(--mid);padding:2px 0 2px 12px;border-left:2px solid var(--border)">• ${i.name_en}${i.quantity?` · ${i.quantity}${i.unit?' '+i.unit:''}`:''} <em style="color:#aaa">${i.lacomer_category}</em></div>`).join('')
+      :`<div style="font-size:0.75rem;color:#c44;padding:2px 0 2px 12px">⚠ No ingredients</div>`;
+    const dinnerTag=r.is_dinner?`<span style="font-size:0.68rem;background:rgba(46,95,138,0.12);color:#2E5F8A;border:1px solid rgba(46,95,138,0.25);border-radius:5px;padding:1px 7px;margin-left:6px">Dinner</span>`:'';
+    const timeStr=[r.prep_time_minutes?`${r.prep_time_minutes}m prep`:'',r.cook_time_minutes?`${r.cook_time_minutes}m cook`:''].filter(Boolean).join(' · ');
+    return`<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-size:0.88rem;font-weight:600;color:var(--dark)">${ri+1}. ${r.name_en}${dinnerTag}</div>
+        <span style="font-size:0.72rem;color:var(--mid)">${r.ingredients.length} ing${timeStr?' · '+timeStr:''}</span>
+      </div>
+      ${r.name_es?`<div style="font-size:0.75rem;color:var(--mid);margin-bottom:6px">${r.name_es}</div>`:''}
+      <div style="display:flex;flex-direction:column;gap:1px">${ingList}</div>
+    </div>`;
+  }).join('');
+  const overlay=document.createElement('div');overlay.id='csv-preview-overlay';overlay.className='modal-overlay';
+  overlay.innerHTML=`<div class="modal" style="max-width:600px;max-height:85vh;display:flex;flex-direction:column">
+    <h3>📋 Import preview</h3>
+    <p style="font-size:0.83rem;color:var(--mid);margin-bottom:14px">${recipes.length} recipe${recipes.length!==1?'s':''} · ${totalIngs} ingredients total — review before importing</p>
+    <div style="flex:1;overflow-y:auto;padding-right:4px;margin-bottom:16px">${recipeRows}</div>
+    <div style="font-size:0.78rem;color:var(--mid);background:rgba(200,103,74,0.07);border:1px solid rgba(200,103,74,0.2);border-radius:8px;padding:10px 12px;margin-bottom:14px">⚠ This will add these recipes to your master list. Existing recipes with the same name will not be duplicated — they will be skipped.</div>
+    <div class="modal-btns">
+      <button class="btn-ghost" onclick="document.getElementById('csv-preview-overlay').remove()">Cancel</button>
+      <button class="btn-primary" id="csv-import-btn" onclick="importCSVRecipes(window._csvImportData)">Import ${recipes.length} recipe${recipes.length!==1?'s':''}</button>
+    </div>
+  </div>`;
+  window._csvImportData=recipes;
+  document.body.appendChild(overlay);
+}
+async function importCSVRecipes(recipes){
+  if(!recipes||recipes.length===0)return;
+  const btn=document.getElementById('csv-import-btn');
+  if(btn){btn.disabled=true;btn.textContent='Importing...';}
+  // Fetch existing recipe names to avoid duplicates
+  const{data:existing}=await sb.from('recipes').select('name_en');
+  const existingNames=new Set((existing||[]).map(r=>r.name_en.toLowerCase()));
+  const toImport=recipes.filter(r=>!existingNames.has(r.name_en.toLowerCase()));
+  const skipped=recipes.length-toImport.length;
+  if(toImport.length===0){
+    document.getElementById('csv-preview-overlay')?.remove();
+    showToast(`All recipes already exist — ${skipped} skipped`,'info');
+    return;
+  }
+  let imported=0;let failed=0;
+  for(const r of toImport){
+    try{
+      const{data:newRecipe,error:re}=await sb.from('recipes').insert({
+        name_en:r.name_en,name_es:r.name_es||null,
+        prep_time_minutes:r.prep_time_minutes||null,
+        cook_time_minutes:r.cook_time_minutes||null,
+        advance_prep_required:r.advance_prep_required||false,
+        advance_prep_description:r.advance_prep_description||null,
+        same_day_cookable:r.same_day_cookable!==false,
+        is_dinner:r.is_dinner||false,
+        frequency_tier:'regular',
+        created_by:userProfile.id
+      }).select().single();
+      if(re)throw re;
+      if(r.ingredients.length>0){
+        const ingRows=r.ingredients.map(i=>({
+          recipe_id:newRecipe.id,
+          name_en:i.name_en,name_es:i.name_es||null,
+          quantity:i.quantity||null,unit:i.unit||null,
+          lacomer_category:i.lacomer_category||'Other',
+          lacomer_url:i.lacomer_url||null
+        }));
+        const{error:ie}=await sb.from('ingredients').insert(ingRows);
+        if(ie)console.warn('Ingredients failed for',r.name_en,ie.message);
+      }
+      imported++;
+    }catch(err){console.error('Failed to import',r.name_en,err);failed++;}
+  }
+  document.getElementById('csv-preview-overlay')?.remove();
+  window._csvImportData=null;
+  allRecipesCache=null;
+  const msg=[imported>0?`${imported} recipe${imported!==1?'s':''} imported ✓`:'',skipped>0?`${skipped} skipped (already exist)`:'',failed>0?`${failed} failed`:''].filter(Boolean).join(' · ');
+  showToast(msg,failed>0?'error':'');
+}
 function openGuidedWizard(){showToast('Guided wizard coming soon','info');}
 function openAIWizard(){showToast('AI wizard coming soon','info');}
 // ── END RECIPE ONBOARDING ──────────────────────────────────────────────────
