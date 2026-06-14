@@ -1630,7 +1630,7 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
   for(const cat of orderedCats){
     html+=`<div class="shop-category-label">${cat}</div>`;
     for(const ing of groups[cat]){
-      if(ing._type==='karen'){html+=`<div class="shop-row"><div class="shop-names"><div class="shop-name-en">${ing.name_en}</div><div class="shop-name-es" style="color:var(--blue);font-size:0.7rem">Karen's addition</div></div><span style="font-size:0.72rem;color:var(--mid)">—</span></div>`;}
+      if(ing._type==='karen'){html+=`<div class="shop-row"><div class="shop-names"><div class="shop-name-en">${escapeHtml(ing.name_en)}</div><div class="shop-name-es" style="color:var(--blue);font-size:0.7rem">Karen's addition</div></div><span style="font-size:0.72rem;color:var(--mid)">—</span></div>`;}
       else{
         let linkHtml='';
         if(ing._products&&ing._products.length>0){
@@ -1656,7 +1656,7 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
       const badge=isDueSoon?`<span style="font-size:0.7rem;color:var(--clay)">due this week</span>`:`<span style="font-size:0.7rem;color:#3a7a3a">always buy</span>`;
       const qty=p.standing_qty?`<span class="shop-qty"> · ${p.standing_qty}</span>`:'';
       const link=p.store_url?`<a class="shop-link" href="${p.store_url}" target="_blank">🛒 La Comer</a>`:'';
-      html+=`<div class="shop-row recurring-item" id="shop-row-rec-${p.id}"><div class="shop-names"><div class="shop-name-en">${p.name_en||p.name_es}${qty}</div><div class="shop-name-es">${p.name_es||''} ${badge}</div></div>${link}<button class="adhoc-item-remove" onclick="removeRecurringFromList('${p.id}',this)" title="Remove from this week">✕</button></div>`;
+      html+=`<div class="shop-row recurring-item" id="shop-row-rec-${p.id}"><div class="shop-names"><div class="shop-name-en">${escapeHtml(p.name_en||p.name_es||'')}${qty}</div><div class="shop-name-es">${escapeHtml(p.name_es||'')} ${badge}</div></div>${link}<button class="adhoc-item-remove" onclick="removeRecurringFromList('${p.id}',this)" title="Remove from this week">✕</button></div>`;
     }
     html+=`</div></div>`;
   }
@@ -1694,7 +1694,7 @@ function showDueSoonNudge(items){
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
         ${items.map(p=>`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--cream);border-radius:10px;cursor:pointer;font-size:0.88rem">
           <input type="checkbox" class="due-soon-check" value="${p.id}" data-name="${(p.name_en||p.name_es).replace(/"/g,'&quot;')}" style="width:16px;height:16px;accent-color:var(--clay);cursor:pointer" checked>
-          <span style="flex:1">${p.name_en||p.name_es}${p.name_es&&p.name_en!==p.name_es?`<span style="font-size:0.75rem;color:var(--mid)"> · ${p.name_es}</span>`:''}</span>
+          <span style="flex:1">${escapeHtml(p.name_en||p.name_es||'')}${p.name_es&&p.name_en!==p.name_es?`<span style="font-size:0.75rem;color:var(--mid)"> · ${escapeHtml(p.name_es)}</span>`:''}</span>
           <span style="font-size:0.75rem;color:var(--mid)">every ${p.buy_every_weeks}w</span>
         </label>`).join('')}
       </div>
@@ -1985,7 +1985,7 @@ function showReceiptModal(items,totalMXN,savedCount,showPrepGuide=false){window.
     const catTotal=catItems.reduce((s,i)=>s+(i.price||0),0);
     catHtml+=`<div class="receipt-cat">${cat}</div>`;
     for(const item of catItems){
-      catHtml+=`<div class="receipt-row"><span class="receipt-item-name">${item.name}</span><span class="receipt-item-price">${item.price>0?'$'+item.price.toFixed(2):'—'}</span></div>`;
+      catHtml+=`<div class="receipt-row"><span class="receipt-item-name">${escapeHtml(item.name)}</span><span class="receipt-item-price">${item.price>0?'$'+item.price.toFixed(2):'—'}</span></div>`;
     }
     if(catTotal>0)catHtml+=`<div class="receipt-cat-total"><span>Subtotal</span><span>$${catTotal.toFixed(2)} MXN</span></div>`;
   }
@@ -1995,7 +1995,7 @@ function showReceiptModal(items,totalMXN,savedCount,showPrepGuide=false){window.
   if(notFoundList.length>0){
     notFoundHtml=`<div class="receipt-cat" style="color:var(--clay);margin-top:14px">⚠ Not found at store</div>`;
     for(const item of notFoundList){
-      notFoundHtml+=`<div class="receipt-row"><span class="receipt-item-name" style="color:var(--clay)">${item.name}</span><span class="receipt-item-price" style="color:var(--clay)">—</span></div>`;
+      notFoundHtml+=`<div class="receipt-row"><span class="receipt-item-name" style="color:var(--clay)">${escapeHtml(item.name)}</span><span class="receipt-item-price" style="color:var(--clay)">—</span></div>`;
     }
   }
   const usdLine=usdRate&&totalMXN>0?`<div class="receipt-grand-usd">≈ USD $${(totalMXN*usdRate).toFixed(2)}</div>`:'';
@@ -2182,7 +2182,7 @@ async function checkCheaperAlternative(ingId,itemName,newTotal){
     const row=document.getElementById(`shop-row-${ingId}`)||document.getElementById(`introlley-row-${ingId}`);
     if(!row||row.querySelector('.cheaper-alt-nudge'))return;
     const nudge=document.createElement('div');nudge.className='cheaper-alt-nudge';
-    const link=cheaper.store_url?`<a href="${cheaper.store_url}" target="_blank" style="color:#e65100;font-weight:500">${cheaper.name_en||cheaper.name_es}</a>`:`<strong>${cheaper.name_en||cheaper.name_es}</strong>`;
+    const link=cheaper.store_url?`<a href="${cheaper.store_url}" target="_blank" style="color:#e65100;font-weight:500">${escapeHtml(cheaper.name_en||cheaper.name_es||'')}</a>`:`<strong>${escapeHtml(cheaper.name_en||cheaper.name_es||'')}</strong>`;
     nudge.innerHTML=`<span class="alt-icon">💡</span><span>Budget at ${Math.round((newTotal/trolleyBudget)*100)}% — ${link} is ~$${cheaper.last_price_mxn.toFixed(0)} (save $${saving.toFixed(0)} MXN)</span>`;
     row.after(nudge);
   }catch(e){console.warn('Cheaper alt check failed:',e);}
