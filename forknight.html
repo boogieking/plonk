@@ -5299,7 +5299,145 @@ async function importCSVRecipes(recipes){
   const msg=[imported>0?`${imported} recipe${imported!==1?'s':''} imported ✓`:'',skipped>0?`${skipped} skipped (already exist)`:'',failed>0?`${failed} failed`:''].filter(Boolean).join(' · ');
   showToast(msg,failed>0?'error':'');
 }
-function openGuidedWizard(){showToast('Guided wizard coming soon','info');}
+function openGuidedWizard(){
+  // State
+  window._wiz={meals:[],current:{name_en:'',name_es:'',prep_time_minutes:'',cook_time_minutes:'',advance_prep_required:false,advance_prep_description:'',same_day_cookable:true,is_dinner:false,ingredients:[]}};
+  const existing=document.getElementById('guided-wizard-overlay');if(existing)existing.remove();
+  const overlay=document.createElement('div');overlay.id='guided-wizard-overlay';overlay.className='modal-overlay';
+  overlay.innerHTML=wizardStepHTML();
+  document.body.appendChild(overlay);
+  document.getElementById('wiz-adv-prep')?.addEventListener('change',e=>{const wd=document.getElementById('wiz-adv-desc-wrap');if(wd)wd.style.display=e.target.checked?'block':'none';});
+}
+function wizardStepHTML(){
+  const w=window._wiz;const mealNum=w.meals.length+1;
+  const catOptions=AR_CATS.map(c=>`<option value="${c}">${c}</option>`).join('');
+  return`<div class="modal" style="max-width:540px;max-height:90vh;display:flex;flex-direction:column;gap:0">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <h3 style="margin:0">Meal ${mealNum}</h3>
+      ${w.meals.length>0?`<span style="font-size:0.75rem;color:var(--clay);font-weight:600">${w.meals.length} saved so far</span>`:''}
+    </div>
+    <p style="font-size:0.82rem;color:var(--mid);margin-bottom:16px">Fill in the details for this meal. Ingredients can be added one by one below.</p>
+    <div style="flex:1;overflow-y:auto;padding-right:2px">
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <div style="font-size:0.72rem;font-weight:600;color:var(--mid);margin-bottom:4px">MEAL NAME (ENGLISH) *</div>
+            <input id="wiz-name-en" class="ing-edit-input" placeholder="e.g. Spaghetti Bolognese" value="${w.current.name_en}" style="width:100%">
+          </div>
+          <div>
+            <div style="font-size:0.72rem;font-weight:600;color:var(--mid);margin-bottom:4px">MEAL NAME (SPANISH)</div>
+            <input id="wiz-name-es" class="ing-edit-input" placeholder="e.g. Espagueti Boloñesa" value="${w.current.name_es}" style="width:100%">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <div style="font-size:0.72rem;font-weight:600;color:var(--mid);margin-bottom:4px">PREP TIME (MIN)</div>
+            <input id="wiz-prep" class="ing-edit-input" type="number" min="0" placeholder="e.g. 15" value="${w.current.prep_time_minutes}" style="width:100%">
+          </div>
+          <div>
+            <div style="font-size:0.72rem;font-weight:600;color:var(--mid);margin-bottom:4px">COOK TIME (MIN)</div>
+            <input id="wiz-cook" class="ing-edit-input" type="number" min="0" placeholder="e.g. 30" value="${w.current.cook_time_minutes}" style="width:100%">
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer">
+            <input type="checkbox" id="wiz-adv-prep" ${w.current.advance_prep_required?'checked':''} style="accent-color:var(--clay)"> Needs advance prep
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer">
+            <input type="checkbox" id="wiz-dinner" ${w.current.is_dinner?'checked':''} style="accent-color:var(--clay)"> This is a dinner recipe
+          </label>
+        </div>
+        <div id="wiz-adv-desc-wrap" style="display:${w.current.advance_prep_required?'block':'none'}">
+          <div style="font-size:0.72rem;font-weight:600;color:var(--mid);margin-bottom:4px">ADVANCE PREP DESCRIPTION</div>
+          <input id="wiz-adv-desc" class="ing-edit-input" placeholder="e.g. Marinate overnight" value="${w.current.advance_prep_description}" style="width:100%">
+        </div>
+      </div>
+      <div style="font-size:0.72rem;font-weight:600;color:var(--mid);margin-bottom:8px;border-top:1px solid var(--border);padding-top:14px">INGREDIENTS</div>
+      <div id="wiz-ing-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
+        ${w.current.ingredients.length===0?`<div style="font-size:0.8rem;color:var(--mid);padding:8px 0">No ingredients added yet</div>`:w.current.ingredients.map((ing,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:rgba(107,95,84,0.05);border-radius:7px;font-size:0.8rem"><span style="color:var(--dark)">${ing.name_en}${ing.quantity?' · '+ing.quantity+(ing.unit?' '+ing.unit:''):''} <em style="color:var(--mid)">${ing.lacomer_category}</em></span><button onclick="wizRemoveIng(${i})" style="background:none;border:none;cursor:pointer;color:var(--mid);font-size:0.85rem;padding:0 4px">✕</button></div>`).join('')}
+      </div>
+      <div style="border:1px dashed var(--border);border-radius:8px;padding:10px 12px;background:rgba(107,95,84,0.03)">
+        <div style="font-size:0.72rem;font-weight:600;color:var(--mid);margin-bottom:8px">ADD INGREDIENT</div>
+        <div style="display:grid;grid-template-columns:1fr 60px 80px;gap:6px;margin-bottom:6px">
+          <input id="wiz-ing-en" class="ing-edit-input" placeholder="English name">
+          <input id="wiz-ing-qty" class="ing-edit-input" type="number" step="any" placeholder="Qty">
+          <input id="wiz-ing-unit" class="ing-edit-input" placeholder="Unit">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+          <input id="wiz-ing-es" class="ing-edit-input" placeholder="Spanish name (optional)">
+          <select id="wiz-ing-cat" class="ing-edit-select"><option value="">— Category —</option>${catOptions}</select>
+        </div>
+        <button class="btn-secondary" style="font-size:0.78rem;padding:5px 14px" onclick="wizAddIng()">+ Add ingredient</button>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px;display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap">
+      <div style="display:flex;gap:8px">
+        <button class="btn-ghost" onclick="wizCancel()">Cancel</button>
+        ${w.meals.length>0?`<button class="btn-secondary" style="font-size:0.82rem" onclick="wizFinish()">✓ Done — save ${w.meals.length} meal${w.meals.length!==1?'s':''}</button>`:''}
+      </div>
+      <button class="btn-primary" onclick="wizNextMeal()">Save & add another meal →</button>
+    </div>
+  </div>`;
+}
+function wizReadCurrent(){
+  const w=window._wiz;
+  w.current.name_en=(document.getElementById('wiz-name-en')?.value||'').trim();
+  w.current.name_es=(document.getElementById('wiz-name-es')?.value||'').trim()||null;
+  w.current.prep_time_minutes=parseInt(document.getElementById('wiz-prep')?.value)||null;
+  w.current.cook_time_minutes=parseInt(document.getElementById('wiz-cook')?.value)||null;
+  w.current.advance_prep_required=document.getElementById('wiz-adv-prep')?.checked||false;
+  w.current.advance_prep_description=(document.getElementById('wiz-adv-desc')?.value||'').trim()||null;
+  w.current.same_day_cookable=!w.current.advance_prep_required;
+  w.current.is_dinner=document.getElementById('wiz-dinner')?.checked||false;
+}
+function wizAddIng(){
+  const nameEn=(document.getElementById('wiz-ing-en')?.value||'').trim();
+  if(!nameEn){showToast('Ingredient name is required','error');return;}
+  const qty=parseFloat(document.getElementById('wiz-ing-qty')?.value)||null;
+  const unit=(document.getElementById('wiz-ing-unit')?.value||'').trim()||null;
+  const nameEs=(document.getElementById('wiz-ing-es')?.value||'').trim()||null;
+  const cat=document.getElementById('wiz-ing-cat')?.value||'Other';
+  wizReadCurrent();
+  window._wiz.current.ingredients.push({name_en:nameEn,name_es:nameEs,quantity:qty,unit,lacomer_category:normaliseCat(cat)});
+  const overlay=document.getElementById('guided-wizard-overlay');
+  if(overlay)overlay.innerHTML=wizardStepHTML();
+  // Re-attach advance prep toggle
+  document.getElementById('wiz-adv-prep')?.addEventListener('change',e=>{const w=document.getElementById('wiz-adv-desc-wrap');if(w)w.style.display=e.target.checked?'block':'none';});
+}
+function wizRemoveIng(idx){
+  wizReadCurrent();
+  window._wiz.current.ingredients.splice(idx,1);
+  const overlay=document.getElementById('guided-wizard-overlay');
+  if(overlay)overlay.innerHTML=wizardStepHTML();
+  document.getElementById('wiz-adv-prep')?.addEventListener('change',e=>{const w=document.getElementById('wiz-adv-desc-wrap');if(w)w.style.display=e.target.checked?'block':'none';});
+}
+function wizNextMeal(){
+  wizReadCurrent();
+  const w=window._wiz;
+  if(!w.current.name_en){showToast('Please enter a meal name','error');return;}
+  w.meals.push({...w.current,ingredients:[...w.current.ingredients]});
+  w.current={name_en:'',name_es:'',prep_time_minutes:'',cook_time_minutes:'',advance_prep_required:false,advance_prep_description:'',same_day_cookable:true,is_dinner:false,ingredients:[]};
+  const overlay=document.getElementById('guided-wizard-overlay');
+  if(overlay)overlay.innerHTML=wizardStepHTML();
+  document.getElementById('wiz-adv-prep')?.addEventListener('change',e=>{const w=document.getElementById('wiz-adv-desc-wrap');if(w)w.style.display=e.target.checked?'block':'none';});
+  showToast(`${w.meals[w.meals.length-1].name_en} saved ✓`);
+}
+function wizFinish(){
+  wizReadCurrent();
+  const w=window._wiz;
+  // Include current meal if it has a name
+  if(w.current.name_en){w.meals.push({...w.current,ingredients:[...w.current.ingredients]});}
+  if(w.meals.length===0){showToast('No meals to save','error');return;}
+  document.getElementById('guided-wizard-overlay')?.remove();
+  showCSVPreviewModal(w.meals);
+}
+function wizCancel(){
+  if(window._wiz?.meals?.length>0||window._wiz?.current?.name_en){
+    if(!confirm('Discard all unsaved meals?'))return;
+  }
+  document.getElementById('guided-wizard-overlay')?.remove();
+  window._wiz=null;
+}
 function openAIWizard(){showToast('AI wizard coming soon','info');}
 // ── END RECIPE ONBOARDING ──────────────────────────────────────────────────
 }
