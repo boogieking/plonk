@@ -1169,7 +1169,7 @@ async function submitRequest(type){
   const text=document.getElementById('modal-text').value.trim();if(!text){showToast('Please add a reason before sending.','error');return;}
   let meta=null;
   if(type==='hibernate'){const recipeId=document.getElementById('modal-recipe-select')?.value;if(!recipeId){showToast('Please pick a meal to hibernate.','error');return;}meta={recipe_id:recipeId};}
- if(type==='swap'){const recipeId=document.getElementById('modal-recipe-select')?.value;if(!recipeId){showToast('Please pick the meal you want removed.','error');return;}const replaceId=document.getElementById('modal-replace-select')?.value;if(!replaceId){showToast('Please pick a replacement meal.','error');return;}const meal=currentMeals.find(m=>m.recipe_id===recipeId);const{data:replaceRecipe}=await sb.from('recipes').select('name_en').eq('id',replaceId).single();meta={recipe_id:recipeId,meal_name:meal?.recipes?.name_en||recipeId,replace_recipe_id:replaceId,replace_meal_name:replaceRecipe?.name_en||replaceId};}
+ if(type==='swap'){const recipeId=document.getElementById('modal-recipe-select')?.value;if(!recipeId){showToast('Please pick the meal you want removed.','error');return;}const replaceId=document.getElementById('modal-replace-select')?.value;if(!replaceId){showToast('Please pick a replacement meal.','error');return;}const meal=currentMeals.find(m=>m.recipe_id===recipeId);const{data:replaceRecipe}=await sb.from('recipes').select('name_en').eq('id',replaceId).maybeSingle();meta={recipe_id:recipeId,meal_name:meal?.recipes?.name_en||recipeId,replace_recipe_id:replaceId,replace_meal_name:replaceRecipe?.name_en||replaceId};}
   if(type==='new'){const mealName=document.getElementById('modal-meal-name')?.value.trim();if(!mealName){showToast('Please enter the meal name.','error');return;}meta={name_en:mealName};}
   if(type==='swap'&&meta?.recipe_id){
     const{data:existing}=await sb.from('requests').select('id').eq('request_type','swap').eq('status','pending').eq('requested_by',userProfile.id).filter('meta->>recipe_id','eq',meta.recipe_id).maybeSingle();
@@ -1206,7 +1206,7 @@ async function recalculateRecipeRating(recipeId){
   if(cookRatings.length===0){newAvg=ideaRatings.reduce((s,r)=>s+r.rating,0)/ideaRatings.length;}
   else{const cookAvg=cookRatings.reduce((s,r)=>s+r.rating,0)/cookRatings.length;if(maxCookNum===1){const ideaAvg=ideaRatings.reduce((s,r)=>s+r.rating,0)/(ideaRatings.length||1);newAvg=(cookAvg*0.6)+(ideaAvg*0.4);}else{newAvg=cookAvg;}}
   newAvg=Math.round(newAvg*100)/100;const newTier=tierFromRating(newAvg);
-  const{data:recipe}=await sb.from('recipes').select('frequency_tier,frequency_override,name_en').eq('id',recipeId).single();
+  const{data:recipe}=await sb.from('recipes').select('frequency_tier,frequency_override,name_en').eq('id',recipeId).maybeSingle();
   const oldTier=recipe?.frequency_tier;const tierChanged=newTier!==oldTier&&!recipe?.frequency_override;
   const updateData={avg_rating:newAvg};if(tierChanged)updateData.frequency_tier=newTier;
   await sb.from('recipes').update(updateData).eq('id',recipeId);
@@ -1460,7 +1460,7 @@ async function handleRequest(requestId,type,decision){
     return;
   }
  if(type==='swap'&&decision==='approved'){
-    const{data:req}=await sb.from('requests').select('meta').eq('id',requestId).single();
+    const{data:req}=await sb.from('requests').select('meta').eq('id',requestId).maybeSingle();
     if(req?.meta){
       const{recipe_id,replace_recipe_id,meal_name,replace_meal_name}=req.meta;
       if(recipe_id&&replace_recipe_id){
@@ -1476,10 +1476,10 @@ async function handleRequest(requestId,type,decision){
       }
     }
   }
-  if(type==='hibernate'&&decision==='approved'){const{data:req}=await sb.from('requests').select('meta,reason').eq('id',requestId).single();const recipeId=req?.meta?.recipe_id;if(recipeId){await doHibernate(recipeId,8);return;}}
-  if(type==='side_swap'&&decision==='approved'){const{data:req}=await sb.from('requests').select('meta').eq('id',requestId).single();if(req?.meta){const{recipe_id,new_side_en,new_side_es}=req.meta;await applySideSwap(recipe_id,new_side_en,new_side_es||'');return;}}
+  if(type==='hibernate'&&decision==='approved'){const{data:req}=await sb.from('requests').select('meta,reason').eq('id',requestId).maybeSingle();const recipeId=req?.meta?.recipe_id;if(recipeId){await doHibernate(recipeId,8);return;}}
+  if(type==='side_swap'&&decision==='approved'){const{data:req}=await sb.from('requests').select('meta').eq('id',requestId).maybeSingle();if(req?.meta){const{recipe_id,new_side_en,new_side_es}=req.meta;await applySideSwap(recipe_id,new_side_en,new_side_es||'');return;}}
   if(type==='new'&&decision==='approved'){
-    const{data:req}=await sb.from('requests').select('meta,reason').eq('id',requestId).single();const mealName=req?.meta?.name_en;
+    const{data:req}=await sb.from('requests').select('meta,reason').eq('id',requestId).maybeSingle();const mealName=req?.meta?.name_en;
     if(mealName){const{data:newRecipe,error:recipeErr}=await sb.from('recipes').insert({name_en:mealName,name_es:null,frequency_tier:'regular',frequency_override:false,hibernated:false,hibernate_until:null,avg_rating:null,advance_prep_required:false,same_day_cookable:true,created_at:new Date().toISOString()}).select().single();if(recipeErr){showToast('Error creating recipe: '+recipeErr.message,'error');return;}document.getElementById(`req-${requestId}`)?.remove();const countEl=document.getElementById('pending-count');const container=document.getElementById('requests-container');if(countEl&&container)countEl.textContent=container.querySelectorAll('.request-item').length;showToast(`"${mealName}" added to recipes ✓ — now collect idea ratings`);openIdeaRatingModal(newRecipe.id,mealName);return;}
   }
   if(type==='new'&&decision==='rejected'){document.getElementById(`req-${requestId}`)?.remove();const container=document.getElementById('requests-container');const countEl=document.getElementById('pending-count');if(countEl&&container){const remaining=container.querySelectorAll('.request-item').length;countEl.textContent=remaining;if(remaining===0)container.innerHTML=`<div class="empty"><span class="empty-icon">📋</span>No pending requests from Sienna or Karen</div>`;}showToast('Suggestion rejected');return;}
