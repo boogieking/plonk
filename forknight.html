@@ -803,6 +803,7 @@ function renderCameron(recipes,name){
     ${pendingIdeaRatings.length>0?sectionHeader('cam-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
     ${sectionHeader('cam-meals',"This plan's meal pool")}
     ${currentUserCan('show_prep_reminders')?renderPrepReminders():''}
+    ${renderFrozenNudge()}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">Suggested meals</div>
@@ -1493,6 +1494,7 @@ function renderSienna(recipes,name){
     </div>
     ${sectionHeader('sie-meals',"This week's meals")}
     ${currentUserCan('show_prep_reminders')?renderPrepReminders():''}
+    ${renderFrozenNudge()}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">Meal pool</div>${hasPlan?`<span class="tag tag-green">${mealCount} meals</span>`:''}</div>
       ${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowSienna(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>${hasPlan?'No meals in plan yet':'No plan yet this week'}</div>`}
@@ -2732,6 +2734,41 @@ async function confirmSchedule(planMealId,recipeId,totalMinutes){
   const{error}=await sb.from('weekly_plan_meals').update({assigned_day:assignedDate,target_eat_time:eatTime,prep_start_time:prepStartTime}).eq('id',planMealId);if(error){showToast('Error saving: '+error.message,'error');return;}
   const pm=currentMeals.find(m=>m.id===planMealId||m.recipe_id===recipeId);if(pm){pm.assigned_day=assignedDate;pm.target_eat_time=eatTime;pm.prep_start_time=prepStartTime;}
   closeModal();showToast(`Scheduled for ${dayName} · Start prep by ${prepStartTime} ✓`);await renderDashboard();
+}
+function renderFrozenNudge(){
+  // Only show during draft (suggested) or submitted stages — not after approval
+  if(!currentPlan)return'';
+  const status=currentPlan.status;
+  if(status!=='suggested'&&status!=='submitted')return'';
+  if(!frozenInventoryCache||frozenInventoryCache.length===0)return'';
+  const size=householdSizeCache||1;
+  // Group frozen portions by recipe_id
+  const portionsByRecipe={};
+  for(const f of frozenInventoryCache){
+    portionsByRecipe[f.recipe_id]=(portionsByRecipe[f.recipe_id]||0)+f.portions;
+  }
+  // Find meals with enough frozen portions (≥ household size) not already in this week's plan
+  const planRecipeIds=new Set(currentMeals.map(m=>m.recipe_id));
+  const nudgeMeals=[];
+  for(const[recipeId,portions]of Object.entries(portionsByRecipe)){
+    if(portions>=size){
+      // Look up recipe name from currentMeals or frozenInventoryCache
+      const planMeal=currentMeals.find(m=>m.recipe_id===recipeId);
+      const name=planMeal?.recipes?.name_en||null;
+      nudgeMeals.push({recipeId,portions,name,alreadyPlanned:planRecipeIds.has(recipeId)});
+    }
+  }
+  if(nudgeMeals.length===0)return'';
+  const rows=nudgeMeals.map(n=>{
+    const label=n.name||'Unknown meal';
+    const portionLabel=`${n.portions} portion${n.portions!==1?'s':''}`;
+    const plannedTag=n.alreadyPlanned?`<span style="font-size:0.72rem;background:rgba(74,124,89,0.15);color:#4A7C59;border:1px solid rgba(74,124,89,0.3);border-radius:6px;padding:2px 8px;margin-left:6px">✓ In plan</span>`:'';
+    return`<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid rgba(46,95,138,0.1);last-child:border-bottom:none"><span style="font-size:0.88rem;color:var(--dark);font-weight:500">${label}</span>${plannedTag}<span style="font-size:0.78rem;color:#2E5F8A;margin-left:auto">${portionLabel} frozen</span></div>`;
+  }).join('');
+  return`<div style="background:rgba(46,95,138,0.07);border:1px solid rgba(46,95,138,0.22);border-radius:12px;padding:12px 16px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:1rem">🧊</span><div><div style="font-size:0.82rem;font-weight:600;color:#2E5F8A">Frozen meals ready to use</div><div style="font-size:0.75rem;color:var(--mid);margin-top:1px">Consider scheduling ${nudgeMeals.length===1?'this':'these'} — no shopping needed</div></div></div>
+    ${rows}
+  </div>`;
 }
 function renderDayBeforeReminder(){
   if(!currentPlan||currentPlan.status!=='approved')return'';if(userProfile.role==='reviewer')return'';
