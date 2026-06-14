@@ -455,6 +455,20 @@
     .recipe-step-text{font-size:0.87rem;color:var(--dark);line-height:1.55}
     .recipe-step-note{font-size:0.83rem;color:var(--mid);font-style:italic;padding:6px 10px;background:rgba(107,95,84,0.06);border-radius:6px;margin-top:4px;}
     .step-timer-row{display:flex;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap;}
+    .ing-edit-btn{background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--mid);padding:2px 5px;border-radius:4px;opacity:0;transition:opacity 0.15s;}
+    .ingredient-row:hover .ing-edit-btn{opacity:1;}
+    .ing-edit-form{display:none;flex-direction:column;gap:6px;padding:8px 10px;background:rgba(107,95,84,0.05);border-radius:8px;margin-top:6px;border:1px solid var(--border);}
+    .ing-edit-form.open{display:flex;}
+    .ing-edit-grid{display:grid;grid-template-columns:1fr 70px 90px;gap:6px;}
+    .ing-edit-input{padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;background:var(--surface);color:var(--dark);width:100%;}
+    .ing-edit-input:focus{outline:none;border-color:var(--clay);}
+    .ing-edit-url{width:100%;}
+    .ing-edit-select{padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;background:var(--surface);color:var(--dark);width:100%;}
+    .ing-edit-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:2px;}
+    .ing-edit-save{background:var(--clay);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:0.78rem;cursor:pointer;}
+    .ing-edit-save:hover{opacity:0.85;}
+    .ing-edit-cancel{background:none;border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:0.78rem;cursor:pointer;color:var(--mid);}
+    .ing-edit-cancel:hover{border-color:#c44;color:#c44;}
     .step-timer-input{width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;text-align:center;background:var(--surface);color:var(--dark);}
     .step-timer-btn{background:var(--clay);color:#fff;border:none;border-radius:6px;padding:4px 11px;font-size:0.78rem;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;}
     .step-timer-btn:hover{opacity:0.85;}
@@ -2818,6 +2832,38 @@ function openTierModal(recipeId,currentTier,isLocked){
   document.body.appendChild(el);
 }
 async function toggleFreezable(recipeId){
+function toggleIngEdit(ingId){
+  const form=document.getElementById(`ing-edit-form-${ingId}`);
+  if(form)form.classList.toggle('open');
+}
+async function saveIngredientEdit(ingId,recipeId){
+  const nameEn=document.getElementById(`ing-edit-name_en-${ingId}`)?.value.trim();
+  const nameEs=document.getElementById(`ing-edit-name_es-${ingId}`)?.value.trim()||null;
+  const qty=document.getElementById(`ing-edit-qty-${ingId}`)?.value;
+  const unit=document.getElementById(`ing-edit-unit-${ingId}`)?.value.trim()||null;
+  const cat=document.getElementById(`ing-edit-cat-${ingId}`)?.value||'Other';
+  const url=document.getElementById(`ing-edit-url-${ingId}`)?.value.trim()||null;
+  if(!nameEn){showToast('English name is required','error');return;}
+  const updates={name_en:nameEn,name_es:nameEs||null,quantity:qty?parseFloat(qty):null,unit,lacomer_category:normaliseCat(cat),lacomer_url:url||null};
+  const{error}=await sb.from('ingredients').update(updates).eq('id',ingId);
+  if(error){showToast('Error saving: '+error.message,'error');return;}
+  // Update display in place
+  const nameEnEl=document.getElementById(`sr-name-${ingId}`);
+  if(nameEnEl)nameEnEl.textContent=nameEn;
+  const nameEsEl=document.getElementById(`ing-name-es-display-${ingId}`);
+  if(nameEsEl){nameEsEl.textContent=nameEs||'';nameEsEl.style.display=nameEs?'':'none';}
+  const qtyEl=document.getElementById(`ing-qty-display-${ingId}`);
+  if(qtyEl){const qtyStr=qty?`${parseFloat(qty)}${unit?' '+unit:''}`:'' ;qtyEl.textContent=qtyStr;}
+  const linkEl=document.getElementById(`sr-link-${ingId}`);
+  if(linkEl){if(url){linkEl.href=url;linkEl.style.display='';linkEl.textContent='🛒 La Comer';}else{linkEl.style.display='none';}}
+  // Close form
+  const form=document.getElementById(`ing-edit-form-${ingId}`);
+  if(form)form.classList.remove('open');
+  // Bust recipe cache so next open reflects changes
+  if(allRecipesCache){const idx=allRecipesCache.findIndex(r=>r.id===recipeId);if(idx>-1){const ing=allRecipesCache[idx].ingredients?.find(i=>String(i.id)===String(ingId));if(ing){Object.assign(ing,updates);}}}
+  showToast('Ingredient updated ✓');
+}
+async function toggleFreezable(recipeId){
   const r=allRecipesCache?.find(x=>x.id===recipeId);
   const current=r?.is_freezable!==false;
   const newVal=!current;
@@ -2899,8 +2945,25 @@ async function openRecipeDetail(recipeId){
   const r=allRecipesCache?.find(x=>x.id===recipeId);if(!r)return;
   const isAdmin=userProfile?.role==='admin';const tier=r.hibernated?'hibernated':(r.frequency_tier||'regular');
   const stars=r.avg_rating?`⭐ ${parseFloat(r.avg_rating).toFixed(1)}`:'Not yet rated';const baseTime=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);const recipeDefaults=r.scratch_ready_defaults||{};const srDelta=(r.ingredients||[]).reduce((sum,ing)=>{const s=getSRState(String(ing.id),recipeDefaults);return sum+(s==='ready'&&ing.has_ready_alt?(ing.ready_prep_delta_minutes||0):0);},0);const time=Math.max(0,baseTime+srDelta);
-  const ingredients=r.ingredients||[];const canToggle=currentUserCan('can_toggle_scratch_ready');const grouped={};ingredients.forEach(ing=>{const resolved=resolveIngredient(ing,recipeDefaults);const cat=resolved._displayCategory||ing.lacomer_category||'Other';if(!grouped[cat])grouped[cat]=[];grouped[cat].push({ing,resolved});});
-  const ingredientHtml=Object.entries(grouped).map(([cat,items])=>`<div class="modal-section-label">${cat}</div><div class="ingredient-list">${items.map(({ing,resolved})=>{const qty=resolved._displayQty?`${resolved._displayQty}${resolved._displayUnit?' '+resolved._displayUnit:''}`:'' ;const link=resolved._displayUrl?`<a class="ingredient-link" id="sr-link-${ing.id}" href="${resolved._displayUrl}" target="_blank">🛒 La Comer</a>`:`<span id="sr-link-${ing.id}" style="display:none"></span>`;const srToggle=ing.has_ready_alt&&canToggle?`<div class="sr-toggle-wrap"><button class="sr-pill ${resolved._srState}" id="sr-pill-${ing.id}" onclick="toggleSRState('${ing.id}','${r.id}')">${resolved._srState==='ready'?'⚡ Ready-made':'👨‍🍳 Made from scratch'}</button><span class="sr-time-save" id="sr-time-${ing.id}">${resolved._prepDelta<0?'saves '+Math.abs(resolved._prepDelta)+' min':''}</span></div>`:ing.has_ready_alt?`<div class="sr-toggle-wrap"><span style="font-size:0.67rem;color:var(--mid)">alt available</span></div>`:'';return`<div class="ingredient-row"><div class="ingredient-info"><div class="ingredient-name-en" id="sr-name-${ing.id}">${resolved._displayName_en}</div>${resolved._displayName_es?`<div class="ingredient-name-es">${resolved._displayName_es}</div>`:''}</div>${qty?`<div class="ingredient-qty">${qty}</div>`:''}${link}${srToggle}</div>`;}).join('')}</div>`).join('');
+  const ingredients=r.ingredients||[];const canToggle=currentUserCan('can_toggle_scratch_ready');const canEditIng=currentUserCan('edit_ingredients');const grouped={};ingredients.forEach(ing=>{const resolved=resolveIngredient(ing,recipeDefaults);const cat=resolved._displayCategory||ing.lacomer_category||'Other';if(!grouped[cat])grouped[cat]=[];grouped[cat].push({ing,resolved});});
+  const ingredientHtml=Object.entries(grouped).map(([cat,items])=>`<div class="modal-section-label">${cat}</div><div class="ingredient-list">${items.map(({ing,resolved})=>{const qty=resolved._displayQty?`${resolved._displayQty}${resolved._displayUnit?' '+resolved._displayUnit:''}`:'' ;const link=resolved._displayUrl?`<a class="ingredient-link" id="sr-link-${ing.id}" href="${resolved._displayUrl}" target="_blank">🛒 La Comer</a>`:`<span id="sr-link-${ing.id}" style="display:none"></span>`;const srToggle=ing.has_ready_alt&&canToggle?`<div class="sr-toggle-wrap"><button class="sr-pill ${resolved._srState}" id="sr-pill-${ing.id}" onclick="toggleSRState('${ing.id}','${r.id}')">${resolved._srState==='ready'?'⚡ Ready-made':'👨‍🍳 Made from scratch'}</button><span class="sr-time-save" id="sr-time-${ing.id}">${resolved._prepDelta<0?'saves '+Math.abs(resolved._prepDelta)+' min':''}</span></div>`:ing.has_ready_alt?`<div class="sr-toggle-wrap"><span style="font-size:0.67rem;color:var(--mid)">alt available</span></div>`:'';
+  const editBtn=canEditIng?`<button class="ing-edit-btn" onclick="toggleIngEdit('${ing.id}')" title="Edit ingredient">✏️</button>`:'';
+  const catOptions=AR_CATS.map(c=>`<option value="${c}"${(ing.lacomer_category||'Other')===c?' selected':''}>${c}</option>`).join('');
+  const editForm=canEditIng?`<div class="ing-edit-form" id="ing-edit-form-${ing.id}">
+    <div class="ing-edit-grid">
+      <input class="ing-edit-input" id="ing-edit-name_en-${ing.id}" placeholder="English name" value="${(ing.name_en||'').replace(/"/g,'&quot;')}">
+      <input class="ing-edit-input" id="ing-edit-qty-${ing.id}" placeholder="Qty" type="number" step="any" value="${ing.quantity||''}">
+      <input class="ing-edit-input" id="ing-edit-unit-${ing.id}" placeholder="Unit" value="${(ing.unit||'').replace(/"/g,'&quot;')}">
+    </div>
+    <input class="ing-edit-input" id="ing-edit-name_es-${ing.id}" placeholder="Spanish name" value="${(ing.name_es||'').replace(/"/g,'&quot;')}">
+    <select class="ing-edit-select" id="ing-edit-cat-${ing.id}">${catOptions}</select>
+    <input class="ing-edit-input ing-edit-url" id="ing-edit-url-${ing.id}" placeholder="La Comer URL (optional)" value="${(ing.lacomer_url||'').replace(/"/g,'&quot;')}">
+    <div class="ing-edit-actions">
+      <button class="ing-edit-cancel" onclick="toggleIngEdit('${ing.id}')">Cancel</button>
+      <button class="ing-edit-save" onclick="saveIngredientEdit('${ing.id}','${r.id}')">Save</button>
+    </div>
+  </div>`:'';
+  return`<div class="ingredient-row" id="ing-row-${ing.id}"><div class="ingredient-info"><div class="ingredient-name-en" id="sr-name-${ing.id}">${resolved._displayName_en}</div>${resolved._displayName_es?`<div class="ingredient-name-es" id="ing-name-es-display-${ing.id}">${resolved._displayName_es}</div>`:''}</div>${qty?`<div class="ingredient-qty" id="ing-qty-display-${ing.id}">${qty}</div>`:''}${link}${srToggle}${editBtn}${editForm}</div>`;}).join('')}</div>`).join('');
   const prepSection=r.advance_prep_required?`<div class="modal-section-label">Prep notes</div><div class="prep-flag"><span class="prep-flag-icon">⏰</span><div><strong>Advance prep required</strong>${r.advance_prep_description?`<div style="margin-top:3px">${r.advance_prep_description}</div>`:''}${!r.same_day_cookable?`<div style="margin-top:3px;font-size:0.78rem;color:var(--mid)">Cannot be cooked same day without prep</div>`:''}</div></div>`:'';
   const sideSection=r.default_side_en?`<div class="modal-section-label">Default side</div><div style="font-size:0.87rem;color:var(--dark)">${r.default_side_en}${r.default_side_es?` · <em style="color:var(--mid)">${r.default_side_es}</em>`:''}</div>`:'';
   const adminFooterBtns=isAdmin?`<button class="btn-secondary" onclick="closeRecipeDetail();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Change tier</button><button class="btn-secondary" onclick="closeRecipeDetail();openHibernateModal('${r.id}','${r.name_en.replace(/'/g,"\\'")}')">😴 ${r.hibernated?'Wake up':'Hibernate'}</button><button class=\"btn-secondary\" id=\"freeze-toggle-btn-${r.id}\" onclick=\"toggleFreezable('${r.id}')\" style=\"${r.is_freezable!==false?'color:#2E5F8A;border-color:rgba(46,95,138,0.4)':''}\">🧊 ${r.is_freezable!==false?'Freezable':'Not freezable'}</button>`:'';
@@ -4869,13 +4932,14 @@ const PERMISSION_DEFS = [
   { key:'show_ratings',        label:'Idea ratings',              sub:'Rate new meal suggestions',                  group:'sections' },
   { key:'show_dinners',        label:'Dinners this week',         sub:'See and manage dinner pairings',             group:'sections' },
   { key:'can_toggle_scratch_ready', label:'Scratch vs Ready-Made toggle', sub:'Switch ingredients between from-scratch and ready-made alternatives', group:'actions' },
+  { key:'edit_ingredients',         label:'Edit ingredient details',       sub:'Inline editing of ingredient names, quantities, units, category and La Comer URL', group:'actions' },
   { key:'show_component_recipes',  label:'Component recipes',             sub:'Show scratch-made component recipes (pastry, sauces etc) in the recipe library', group:'sections' },
 ];
 
 // Default permissions per role (used when no DB row exists yet)
 const PERMISSION_DEFAULTS = {
-  planner:  { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true,  carry_over_meals:false, manage_dinners:true,  view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:true,  show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:true, can_toggle_scratch_ready:true,  show_component_recipes:false },
-  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:false, show_prep_reminders:true, show_inventory:false, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:false, can_toggle_scratch_ready:false, show_component_recipes:false },
+  planner:  { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true,  carry_over_meals:false, manage_dinners:true,  view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:true,  show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:true, can_toggle_scratch_ready:true,  show_component_recipes:false, edit_ingredients:false },
+  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:false, show_prep_reminders:true, show_inventory:false, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:false, can_toggle_scratch_ready:false, show_component_recipes:false, edit_ingredients:false },
 };
 
 // Loaded at init — keyed by user_id
