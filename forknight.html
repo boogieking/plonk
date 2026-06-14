@@ -5438,7 +5438,135 @@ function wizCancel(){
   document.getElementById('guided-wizard-overlay')?.remove();
   window._wiz=null;
 }
-function openAIWizard(){showToast('AI wizard coming soon','info');}
+function openAIWizard(){
+  window._aiwiz={meals:[]};
+  const existing=document.getElementById('ai-wizard-overlay');if(existing)existing.remove();
+  const overlay=document.createElement('div');overlay.id='ai-wizard-overlay';overlay.className='modal-overlay';
+  overlay.innerHTML=aiWizardHTML();
+  document.body.appendChild(overlay);
+}
+function aiWizardHTML(){
+  const count=window._aiwiz?.meals?.length||0;
+  return`<div class="modal" style="max-width:520px;max-height:90vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <h3 style="margin:0">✨ AI Wizard</h3>
+      ${count>0?`<span style="font-size:0.75rem;color:var(--clay);font-weight:600">${count} meal${count!==1?'s':''} saved</span>`:''}
+    </div>
+    <p style="font-size:0.82rem;color:var(--mid);margin-bottom:16px">Type a meal name and AI will fill in all the ingredients, times and details. You review before saving.</p>
+    <div style="flex:1;overflow-y:auto">
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input id="aiwiz-name" class="ing-edit-input" placeholder="e.g. Chicken Tikka Masala" style="flex:1" onkeydown="if(event.key==='Enter')runAIWizardGenerate()">
+        <select id="aiwiz-type" class="ing-edit-select" style="width:110px">
+          <option value="lunch">Lunch</option>
+          <option value="dinner">Dinner</option>
+        </select>
+      </div>
+      <button id="aiwiz-gen-btn" class="btn-primary" style="width:100%;margin-bottom:16px" onclick="runAIWizardGenerate()">✨ Generate</button>
+      <div id="aiwiz-result" style="display:none"></div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:14px;display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap">
+      <button class="btn-ghost" onclick="aiWizCancel()">Cancel</button>
+      ${count>0?`<button class="btn-secondary" onclick="aiWizFinish()">✓ Done — review ${count} meal${count!==1?'s':''}</button>`:''}
+    </div>
+  </div>`;
+}
+async function runAIWizardGenerate(){
+  const name=(document.getElementById('aiwiz-name')?.value||'').trim();
+  if(!name){showToast('Enter a meal name first','error');return;}
+  const type=document.getElementById('aiwiz-type')?.value||'lunch';
+  const btn=document.getElementById('aiwiz-gen-btn');
+  const resultEl=document.getElementById('aiwiz-result');
+  if(btn){btn.disabled=true;btn.textContent='Generating...';}
+  if(resultEl){resultEl.style.display='none';}
+  const systemPrompt=`You are a home cooking assistant. Given a meal name, return a JSON object with these exact fields:
+{
+  "name_en": "string",
+  "name_es": "string",
+  "prep_time_minutes": number,
+  "cook_time_minutes": number,
+  "advance_prep_required": boolean,
+  "advance_prep_description": "string or null",
+  "same_day_cookable": boolean,
+  "is_dinner": boolean,
+  "ingredients": [
+    {
+      "name_en": "string",
+      "name_es": "string",
+      "quantity": number or null,
+      "unit": "string or null",
+      "category": "one of: Produce, Meats & Eggs, Dairy, Grains Pasta & Bakery, Canned & Packaged Foods, Herbs Vinegar & Condiments, Frozen, Beverages, Other"
+    }
+  ]
+}
+Return ONLY valid JSON. No explanation, no markdown fences. Ingredients should be practical items available at a Mexican supermarket. Serves 3 people.`;
+  try{
+    const resp=await fetch('https://claude-proxy.cameronjohnking.workers.dev',{method:'POST',headers:{'Content-Type':'application/json','x-proxy-secret':'Oreo-Ginger-Neo-Ella_11!!'},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:1500,system:systemPrompt,messages:[{role:'user',content:`Meal: "${name}". Type: ${type}.`}]})});
+    const data=await resp.json();
+    const raw=data.content?.map(c=>c.text||'').join('').trim();
+    const clean=raw.replace(/```json|```/g,'').trim();
+    const recipe=JSON.parse(clean);
+    recipe._type=type;
+    window._aiwiz._draft=recipe;
+    const ingPreview=(recipe.ingredients||[]).map(i=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:0.8rem"><span style="color:var(--dark)">${i.name_en}${i.name_es&&i.name_es!==i.name_en?` · <em style="color:var(--mid)">${i.name_es}</em>`:''}</span><span style="color:var(--mid);flex-shrink:0;margin-left:8px">${i.quantity!=null?i.quantity+(i.unit?' '+i.unit:''):''} <em style="font-size:0.7rem">${i.category||''}</em></span></div>`).join('');
+    if(resultEl){
+      resultEl.style.display='block';
+      resultEl.innerHTML=`<div style="background:rgba(107,95,84,0.06);border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="font-size:1rem;font-weight:600;color:var(--dark)">${recipe.name_en}</div>
+        ${recipe.name_es?`<div style="font-size:0.82rem;color:var(--mid);margin-bottom:6px">${recipe.name_es}</div>`:''}
+        <div style="display:flex;gap:12px;font-size:0.78rem;color:var(--mid);flex-wrap:wrap;margin-bottom:10px">
+          <span>⏱ Prep ${recipe.prep_time_minutes||0} min</span>
+          <span>🍳 Cook ${recipe.cook_time_minutes||0} min</span>
+          ${recipe.advance_prep_required?`<span style="color:#b07030">⏰ Advance prep</span>`:''}
+          ${recipe.is_dinner?`<span style="color:#2E5F8A">🌙 Dinner</span>`:''}
+        </div>
+        <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Ingredients (${(recipe.ingredients||[]).length})</div>
+        ${ingPreview}
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn-primary" style="flex:1" onclick="aiWizAccept()">✓ Save this meal</button>
+        <button class="btn-ghost" onclick="runAIWizardGenerate()">↺ Regenerate</button>
+      </div>`;
+    }
+  }catch(e){showToast('AI generation failed — try again','error');console.error(e);}
+  if(btn){btn.disabled=false;btn.textContent='✨ Generate';}
+}
+function aiWizAccept(){
+  const draft=window._aiwiz?._draft;
+  if(!draft){showToast('Nothing to save','error');return;}
+  // Normalise to match importCSVRecipes format
+  const meal={
+    name_en:draft.name_en,name_es:draft.name_es||null,
+    prep_time_minutes:draft.prep_time_minutes||null,
+    cook_time_minutes:draft.cook_time_minutes||null,
+    advance_prep_required:!!draft.advance_prep_required,
+    advance_prep_description:draft.advance_prep_description||null,
+    same_day_cookable:draft.same_day_cookable!==false,
+    is_dinner:draft.is_dinner||draft._type==='dinner'||false,
+    ingredients:(draft.ingredients||[]).map(i=>({
+      name_en:i.name_en,name_es:i.name_es||null,
+      quantity:i.quantity||null,unit:i.unit||null,
+      lacomer_category:normaliseCat(i.category||'Other')
+    }))
+  };
+  window._aiwiz.meals.push(meal);
+  window._aiwiz._draft=null;
+  showToast(`${meal.name_en} saved ✓`);
+  // Refresh modal for next meal
+  const overlay=document.getElementById('ai-wizard-overlay');
+  if(overlay)overlay.innerHTML=aiWizardHTML();
+}
+function aiWizFinish(){
+  const meals=window._aiwiz?.meals||[];
+  if(meals.length===0){showToast('No meals saved yet','error');return;}
+  document.getElementById('ai-wizard-overlay')?.remove();
+  showCSVPreviewModal(meals);
+}
+function aiWizCancel(){
+  const count=window._aiwiz?.meals?.length||0;
+  if(count>0){if(!confirm(`Discard ${count} saved meal${count!==1?'s':''}?`))return;}
+  document.getElementById('ai-wizard-overlay')?.remove();
+  window._aiwiz=null;
+}
 // ── END RECIPE ONBOARDING ──────────────────────────────────────────────────
 }
 async function renderFrozenInventoryPanel(){
