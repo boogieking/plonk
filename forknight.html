@@ -5063,6 +5063,30 @@ function renderPermissionsView(){
     <div style="background:rgba(200,103,74,0.08);border:1px solid rgba(200,103,74,0.25);border-radius:10px;padding:12px 16px;margin-bottom:24px;font-size:0.83rem;color:var(--clay-dark);">
       🧊 Freezable toggle — open any recipe and use the Freezable toggle to enable/disable frozen tracking per recipe.
     </div>
+    <div class="perm-user-block" style="margin-bottom:24px">
+      <div class="perm-user-header"><div><span class="perm-user-name">📋 Recipe Onboarding</span></div></div>
+      <div style="font-size:0.83rem;color:var(--mid);margin-bottom:16px">Three ways to load a new household's recipes into Forknight. Use whichever fits best.</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+          <div style="font-size:0.88rem;font-weight:600;color:var(--dark);margin-bottom:4px">📥 CSV Import</div>
+          <div style="font-size:0.78rem;color:var(--mid);margin-bottom:12px">Download the template, fill it in (manually or with AI), then upload to import all recipes at once.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="downloadRecipeTemplate()">⬇ Download template</button>
+            <button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="openCSVUpload()">⬆ Upload CSV</button>
+          </div>
+        </div>
+        <div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+          <div style="font-size:0.88rem;font-weight:600;color:var(--dark);margin-bottom:4px">📝 Guided Wizard</div>
+          <div style="font-size:0.78rem;color:var(--mid);margin-bottom:12px">Add meals one by one with a step-by-step form. Good if you're not using AI.</div>
+          <button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="openGuidedWizard()">Start wizard</button>
+        </div>
+        <div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+          <div style="font-size:0.88rem;font-weight:600;color:var(--dark);margin-bottom:4px">✨ AI Wizard</div>
+          <div style="font-size:0.78rem;color:var(--mid);margin-bottom:12px">Type a meal name and AI fills in the ingredients, times and details for you to approve.</div>
+          <button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="openAIWizard()">Start AI wizard</button>
+        </div>
+      </div>
+    </div>
     ${blocks}
   </div>`;
   // Load frozen inventory panel
@@ -5073,6 +5097,61 @@ async function saveHouseholdSizeFromUI(){
   await saveHouseholdSize(n);
   const saved=document.getElementById('household-size-saved');
   if(saved){saved.style.display='';setTimeout(()=>saved.style.display='none',2000);}
+// ── RECIPE ONBOARDING ──────────────────────────────────────────────────────
+function downloadRecipeTemplate(){
+  const headers=[
+    'recipe_name_en',
+    'recipe_name_es',
+    'prep_time_minutes',
+    'cook_time_minutes',
+    'advance_prep_required',
+    'advance_prep_description',
+    'same_day_cookable',
+    'is_dinner',
+    'ingredient_name_en',
+    'ingredient_name_es',
+    'quantity',
+    'unit',
+    'lacomer_category',
+    'lacomer_url'
+  ];
+  const notes=[
+    '# INSTRUCTIONS',
+    '# One row per ingredient. Repeat recipe details on each row for the same recipe.',
+    '# advance_prep_required: TRUE or FALSE',
+    '# same_day_cookable: TRUE or FALSE',
+    '# is_dinner: TRUE for dinner recipes, FALSE or blank for lunch/main meals',
+    '# unit examples: g, ml, pcs, tbsp, tsp, cup, kg, L',
+    '# lacomer_category options: Produce, Meats & Eggs, Dairy, Grains Pasta & Bakery, Canned & Packaged Foods, Herbs Vinegar & Condiments, Frozen, Beverages, Other',
+    '# lacomer_url: optional — the La Comer product page URL for this ingredient',
+    '#',
+    '# TIP: You can paste this template into ChatGPT or Claude and ask it to fill in your family meals in this exact format.',
+    '#'
+  ].join('\n');
+  const example=[
+    'Spaghetti Bolognese','Espagueti a la Boloñesa','15','40','FALSE','','TRUE','FALSE','Beef mince','Carne molida de res','500','g','Meats & Eggs','',
+    'Spaghetti Bolognese','Espagueti a la Boloñesa','15','40','FALSE','','TRUE','FALSE','Onion','Cebolla','1','pcs','Produce','',
+    'Spaghetti Bolognese','Espagueti a la Boloñesa','15','40','FALSE','','TRUE','FALSE','Garlic','Ajo','4','pcs','Produce','',
+    'Spaghetti Bolognese','Espagueti a la Boloñesa','15','40','FALSE','','TRUE','FALSE','Tomato passata','Puré de tomate','400','g','Canned & Packaged Foods','',
+    'Spaghetti Bolognese','Espagueti a la Boloñesa','15','40','FALSE','','TRUE','FALSE','Spaghetti','Espagueti','400','g','Grains Pasta & Bakery',''
+  ];
+  // Build example rows (5 ingredient rows for one recipe)
+  const exampleRows=[];
+  for(let i=0;i<5;i++){
+    const offset=i*headers.length;
+    exampleRows.push(headers.map((_,j)=>example[offset+j]??'').map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+  }
+  const csv=notes+'\n'+headers.join(',')+'\n'+exampleRows.join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='forknight_recipe_template.csv';a.click();
+  URL.revokeObjectURL(url);
+  showToast('Template downloaded ✓');
+}
+function openCSVUpload(){showToast('CSV upload coming soon — download the template first','info');}
+function openGuidedWizard(){showToast('Guided wizard coming soon','info');}
+function openAIWizard(){showToast('AI wizard coming soon','info');}
+// ── END RECIPE ONBOARDING ──────────────────────────────────────────────────
 }
 async function renderFrozenInventoryPanel(){
   const el=document.getElementById('frozen-inventory-list');if(!el)return;
