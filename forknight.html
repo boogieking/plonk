@@ -105,9 +105,7 @@
     .save-link-btn{padding:5px 12px;font-size:0.75rem;font-weight:500;background:var(--clay);color:white;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;transition:background 0.15s;}
     .save-link-btn:hover{background:var(--clay-dark)}
     .cancel-link-btn{padding:5px 10px;font-size:0.75rem;background:none;border:none;cursor:pointer;color:var(--mid);font-family:'DM Sans',sans-serif;}
-    .casa-king-section{margin-top:24px;padding-top:20px;border-top:2px dashed rgba(200,180,160,0.4);}
-    .casa-king-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
-    .casa-king-badge{font-size:0.68rem;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;background:rgba(46,95,138,0.1);color:var(--blue);padding:3px 9px;border-radius:999px;}
+
     .ck-item-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(200,180,160,0.15);gap:10px;}
     .ck-item-row:last-child{border-bottom:none}
     .ck-item-text{font-size:0.88rem;color:var(--dark)}
@@ -602,13 +600,7 @@ const SUPABASE_URL='https://znwoiqygmsgabyoslrbt.supabase.co';
 const SUPABASE_KEY='sb_publishable_SGLBIKifgg4nGL0pPtQssQ_Ng3dMgDK';
 const {createClient}=supabase;
 const sb=createClient(SUPABASE_URL,SUPABASE_KEY);
-const CK_URL='https://irpfhfdzlpmgvtndbodo.supabase.co';
-const CK_KEY='sb_publishable_J2GeLhSczAmtyXBaTuKuFQ_lyZvsRQL';
-async function ckFetch(path,options={}){
-  const res=await fetch(`${CK_URL}/rest/v1/${path}`,{...options,headers:{'apikey':CK_KEY,'Authorization':`Bearer ${CK_KEY}`,'Content-Type':'application/json','Prefer':options.prefer||'',...(options.headers||{})}});
-  if(!res.ok)throw new Error(`Casa King API error: ${res.status}`);
-  const text=await res.text();return text?JSON.parse(text):null;
-}
+
 const EMAIL_FN_URL='https://znwoiqygmsgabyoslrbt.supabase.co/functions/v1/send-email';
 const EMAIL_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpud29pcXlnbXNnYWJ5b3NscmJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyOTAxNTYsImV4cCI6MjA5Mzg2NjE1Nn0.Vpl3ZJHvOU06OGjh-73zeDouu5PkxvO4JIEv9kzOsPk';
 async function sendEmail(type,data={}){
@@ -842,7 +834,7 @@ function renderCameron(recipes,name){
     `+sectionEnd():''}
     ${sectionHeader('cam-shopping','Shopping list')}
     <div class="card" id="cameron-shopping-card">
-      <div class="card-header" style="flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div class="card-title">La Comer + Casa King</div><div style="display:flex;gap:6px"><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button><button class="scan-btn" style="font-size:0.8rem" onclick="openReceiptScanner()">📄 Receipt</button><button class="scan-btn" style="font-size:0.8rem" onclick="openPresetManager()">🗺️ Routes</button></div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%"><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-secondary" id="consolidate-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="consolidateList()">🔀 Consolidate</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
+      <div class="card-header" style="flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div class="card-title">La Comer</div><div style="display:flex;gap:6px"><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button><button class="scan-btn" style="font-size:0.8rem" onclick="openReceiptScanner()">📄 Receipt</button><button class="scan-btn" style="font-size:0.8rem" onclick="openPresetManager()">🗺️ Routes</button></div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%"><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
       <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
         <div style="font-size:0.78rem;font-weight:500;color:var(--mid);margin-bottom:8px">ADD EXTRA ITEM</div>
         <div class="karen-add-row"><input class="karen-add-input" id="karen-add-input" placeholder="e.g. olive oil, chocolate, shampoo..." onkeydown="if(event.key==='Enter')addKarenItem()"><button class="btn-primary" style="padding:8px 16px;font-size:0.85rem" onclick="addKarenItem()">Add</button></div>
@@ -891,9 +883,9 @@ let trolleyMode=false,trolleyItems={},usdRate=null,trolleyBudget=0;
 /* ── SHOPPING STATE PERSISTENCE ─────────────── */
 function shoppingStateKey(){return currentPlan?`forknight_shopping_${currentPlan.id}`:null;}
 function trolleyStateKey(){return currentPlan?`forknight_trolley_${currentPlan.id}`:null;}
-function saveShoppingState(mealItems,ckItems){
+function saveShoppingState(mealItems){
   const key=shoppingStateKey();if(!key)return;
-  try{localStorage.setItem(key,JSON.stringify({mealItems,ckItems,savedAt:Date.now()}));}catch(e){console.warn('Shopping state save failed:',e);}
+  try{localStorage.setItem(key,JSON.stringify({mealItems,savedAt:Date.now()}));}catch(e){console.warn('Shopping state save failed:',e);}
 }
 function loadShoppingState(){
   const key=shoppingStateKey();if(!key)return null;
@@ -918,12 +910,10 @@ async function restoreShoppingAndTrolleyState(){
     const content=document.getElementById('shopping-list-content');
     const btn=document.getElementById('generate-btn');
     const ssBtn=document.getElementById('start-shopping-btn');
-    const consolidateBtn=document.getElementById('consolidate-btn');
     if(content){
-      content.innerHTML=renderShoppingListHTML(shopState.mealItems,shopState.ckItems||[],true,karenAdditions);
+      content.innerHTML=renderShoppingListHTML(shopState.mealItems,[],true,karenAdditions);
       if(btn){btn.textContent='Regenerate list';btn.disabled=false;}
       if(ssBtn)ssBtn.style.display='';
-      if(consolidateBtn)consolidateBtn.style.display=(shopState.ckItems&&shopState.ckItems.length>0)?'':'none';
     }
     // Now restore trolley on top if it was active
     const trolleyState=loadTrolleyState();
@@ -1527,7 +1517,7 @@ function renderSienna(recipes,name){
       ${planStatus==='approved'?`<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`:`<div class="empty" style="padding:20px 0"><span class="empty-icon">🛒</span>Unlocks once Cameron approves the plan</div>`}
     </div>
     `+sectionEnd():''}
-    ${currentUserCan('view_shopping')?sectionHeader('sie-shopping','Shopping preview')+`<div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer + Casa King</div><span class="tag tag-gray">View only · Cameron generates</span></div><div id="sienna-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`+sectionEnd():''}
+    ${currentUserCan('view_shopping')?sectionHeader('sie-shopping','Shopping preview')+`<div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer</div><span class="tag tag-gray">View only · Cameron generates</span></div><div id="sienna-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`+sectionEnd():''}
   </div>`;
 }
 function mealRowSienna(m){
@@ -1650,7 +1640,7 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
       }
     }
   }
-  if(isAdmin&&ckItems.length>0){const unitOpts=UNITS.map(u=>`<option value="${u}">${u}</option>`).join('');html+=`<div class="casa-king-section" id="ck-pre-consolidate"><div class="casa-king-header"><div class="card-title">Household items</div><span class="casa-king-badge">Casa King</span></div><div style="font-size:0.78rem;color:var(--mid);margin-bottom:12px">Add quantities then hit Consolidate ↑</div>`;for(const item of ckItems){html+=`<div class="ck-item-row" id="ck-row-${item.id}"><div class="ck-item-text" style="flex:1">${item.text}</div><input type="number" min="0" step="any" id="ck-qty-${item.id}" placeholder="qty" style="width:60px;border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:0.82rem;margin-right:4px"><select id="ck-unit-${item.id}" style="border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:0.82rem;margin-right:8px">${unitOpts}</select><button class="ck-done-btn ${item.done?'done':''}" onclick="tickCKItem('${item.id}',this)">${item.done?'Done ✓':'Got it'}</button></div>`;}html+=`</div>`;}
+
   // Always-buy section
   const allRecurring=[...alwaysBuyItems,...dueSoonItems];
   if(allRecurring.length>0){
@@ -1827,8 +1817,7 @@ async function buildPreShopEstimate(mealItems){
 async function generateShoppingList(){
   clearShoppingState();
   const btn=document.getElementById('generate-btn');const content=document.getElementById('shopping-list-content');
-  const savedCKQtys={};document.querySelectorAll('[id^="ck-qty-"]').forEach(el=>{const id=el.id.replace('ck-qty-','');if(el.value)savedCKQtys[id]=el.value;});
-  const savedCKUnits={};document.querySelectorAll('[id^="ck-unit-"]').forEach(el=>{const id=el.id.replace('ck-unit-','');savedCKUnits[id]=el.value;});
+
   btn.disabled=true;btn.textContent='Loading...';content.innerHTML=`<div class="empty"><div class="spin" style="width:24px;height:24px;border-width:2px;margin:0 auto 8px"></div>Building your list...</div>`;
   try{const inventory=currentPlan?.inventory||{};
    const{data:planMeals}=await sb.from('weekly_plan_meals').select('recipe_id, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en,is_freezable)').eq('plan_id',currentPlan.id);
@@ -1865,7 +1854,7 @@ async function generateShoppingList(){
     const resolvedDeduped=Object.values(deduped).map(ing=>{const resolved=resolveIngredient(ing,{});return{...ing,name_en:resolved._displayName_en,name_es:resolved._displayName_es,lacomer_url:resolved._displayUrl,lacomer_category:resolved._displayCategory,quantity:resolved._displayQty,unit:resolved._displayUnit};});
     const linkedIngredients=await applyProductLinks(resolvedDeduped);
     const mealItems=linkedIngredients.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));
-    let ckItems=[];try{ckItems=await ckFetch('ck_items?cat=eq.shopping&done=eq.false&select=id,text,done&order=text.asc');}catch(e){console.warn('Casa King fetch failed:',e.message);}
+    const ckItems=[];
     // Load always-buy and due-soon products
     const{data:recurringProds}=await sb.from('household_products').select('id,name_en,name_es,always_buy,standing_qty,buy_every_weeks,last_bought_at,store_url,category').or('always_buy.eq.true,buy_every_weeks.not.is.null');
     const alwaysBuyItems=(recurringProds||[]).filter(p=>p.always_buy);
@@ -1885,9 +1874,7 @@ async function generateShoppingList(){
     // Inject pre-shop estimate banner at top of shopping list
     const estimateBannerHTML=await buildPreShopEstimate(mealItems);
     if(estimateBannerHTML){const estimateWrap=document.createElement('div');estimateWrap.id='preshop-estimate-wrap';estimateWrap.innerHTML=estimateBannerHTML;content.insertBefore(estimateWrap,content.firstChild);}
-    const consolidateBtn=document.getElementById('consolidate-btn');if(consolidateBtn)consolidateBtn.style.display=ckItems.length>0?'':'none';
-    for(const[id,val]of Object.entries(savedCKQtys)){const el=document.getElementById(`ck-qty-${id}`);if(el)el.value=val;}
-    for(const[id,val]of Object.entries(savedCKUnits)){const el=document.getElementById(`ck-unit-${id}`);if(el)el.value=val;}
+
     btn.textContent='Regenerate list';btn.disabled=false;
     const ssBtn=document.getElementById('start-shopping-btn');if(ssBtn)ssBtn.style.display='';
     saveShoppingState(mealItems,ckItems,alwaysBuyItems,[...userPickedDueSoon]);
@@ -2661,8 +2648,7 @@ function findOnLaComer(ingId,nameEs,btn){
   setTimeout(()=>{
     if(btnGroup)btnGroup.style.display='none';
     const formDiv=document.createElement('div');formDiv.className='add-link-form';formDiv.id=`link-form-${ingId}`;
-    const isCK=String(ingId).startsWith('ck-new-');
-    const saveCall=isCK?`saveCKLink('${ingId}','${nameEs.replace(/'/g,"\\'")}')`:` saveLink('${ingId}')`;
+    const saveCall=`saveLink('${ingId}')`;
     formDiv.innerHTML=`<input class="add-link-input" id="link-input-${ingId}" placeholder="Paste La Comer URL..." type="url"><button class="save-link-btn" onclick="${saveCall}">Save</button><button class="cancel-link-btn" onclick="cancelLinkGroup('${ingId}')">Cancel</button>${getUsedInMealsContext(ingId)}`;
     row.appendChild(formDiv);
     // Try auto-paste from clipboard
@@ -2705,7 +2691,7 @@ function showAddLinkForm(ingId,btn){
   document.getElementById(`link-input-${ingId}`)?.focus();
 }
 async function saveLink(ingId){const url=document.getElementById('link-input-'+ingId)?.value?.trim();if(!url){showToast('Please paste a URL first','error');return;}const{error}=await sb.from('ingredients').update({lacomer_url:url}).eq('id',ingId);if(error){showToast('Error saving: '+error.message,'error');return;}const row=document.getElementById('shop-row-'+ingId);if(row){document.getElementById('link-form-'+ingId)?.remove();const grp=row.querySelector('.link-btn-group');if(grp)grp.remove();const addBtn=row.querySelector('.add-link-btn');if(addBtn)addBtn.remove();const nameEl=row.querySelector('.shop-name-en');if(nameEl){const icon=document.createElement('a');icon.href=url;icon.target='_blank';icon.title='View on La Comer';icon.textContent='🔗';icon.style.cssText='text-decoration:none;font-size:0.85rem;margin-left:5px;opacity:0.7;vertical-align:middle;line-height:1';icon.onclick=function(e){e.stopPropagation();};nameEl.appendChild(icon);}}showToast('Link saved \u2713');}
-async function tickCKItem(itemId,btn){try{await ckFetch(`ck_items?id=eq.${itemId}`,{method:'PATCH',prefer:'return=minimal',body:JSON.stringify({done:true})});const row=document.getElementById(`ck-row-${itemId}`);if(row){row.classList.add('ticked');btn.classList.add('done');btn.textContent='Done ✓';}showToast('Item ticked off ✓');}catch(err){showToast('Error: '+err.message,'error');}}
+
 function checkPrepBeforeCook(recipeId,planMealId,onConfirm){const meal=currentMeals.find(m=>m.recipe_id===recipeId);const recipe=meal?.recipes;if(!recipe){onConfirm();return;}if(userProfile.role==='reviewer'){onConfirm();return;}if(recipe.advance_prep_required&&recipe.same_day_cookable===false){const desc=recipe.advance_prep_description||'Advance preparation is required for this meal.';const alternatives=currentMeals.filter(m=>m.recipe_id!==recipeId&&!m.cooked).map(m=>m.recipes).filter(r=>r&&r.same_day_cookable!==false);showPrepWarningModal(recipe.name_en,desc,alternatives,onConfirm);return;}onConfirm();}
 let _prepWarningCallback=null;
 function proceedAnywayFromWarning(){closeModal();if(_prepWarningCallback){_prepWarningCallback();_prepWarningCallback=null;}}
@@ -3299,16 +3285,6 @@ async function saveNewRecipe(){
 // ── End Add Recipe Modal ─────────────────────────────────────────
 
 function openTierOverrideFromList(recipeId,currentTier){const isLocked=allRecipesCache?.find(r=>r.id===recipeId)?.frequency_override||false;openTierModal(recipeId,currentTier,isLocked);}
-function consolidateList(){
-  const ckSection=document.getElementById('ck-pre-consolidate');if(!ckSection)return;
-  const ckParsed=[];ckSection.querySelectorAll('.ck-item-row').forEach(row=>{const id=row.id.replace('ck-row-','');const text=row.querySelector('.ck-item-text')?.textContent?.trim()||'';const qty=parseFloat(document.getElementById(`ck-qty-${id}`)?.value)||0;const unit=document.getElementById(`ck-unit-${id}`)?.value||'';ckParsed.push({text,qty,unit,id});});
-  const content=document.getElementById('shopping-list-content');const mealMap={};
-  content.querySelectorAll('.shop-row[id^="shop-row-"]').forEach(row=>{const nameEl=row.querySelector('.shop-name-en');if(!nameEl)return;const qtySpan=nameEl.querySelector('.shop-qty');const qtyText=qtySpan?qtySpan.textContent.replace(' · ','').trim():'';const name=nameEl.textContent.replace(qtySpan?.textContent||'','').trim();mealMap[name.toLowerCase()]={name,qtyText,row};});
-  for(const ck of ckParsed){if(!ck.text)continue;const key=ck.text.toLowerCase().trim();const qtyStr=ck.qty?`${ck.qty}${ck.unit?' '+ck.unit:''}`:'' ;let matched=false;for(const[mKey,mVal]of Object.entries(mealMap)){if(mKey===key){const nameEl=mVal.row.querySelector('.shop-name-en');if(nameEl){let existing=nameEl.querySelector('.shop-qty');if(!existing){const span=document.createElement('span');span.className='shop-qty';nameEl.appendChild(span);existing=span;}const combined=mVal.qtyText&&qtyStr?`${mVal.qtyText} + ${qtyStr} (meal+household)`:qtyStr?`${qtyStr} (household)`:mVal.qtyText;existing.textContent=combined?` · ${combined}`:''; }matched=true;break;}}if(!matched){let gs=document.getElementById('consolidated-general');if(!gs){gs=document.createElement('div');gs.id='consolidated-general';gs.innerHTML=`<div class="shop-category-label">General</div>`;content.appendChild(gs);}const tempId='ck-new-'+ck.id;const div=document.createElement('div');div.className='shop-row';div.id=`shop-row-${tempId}`;div.innerHTML=`<div class="shop-names"><div class="shop-name-en">${ck.text}${qtyStr?`<span class="shop-qty"> · ${qtyStr}</span>`:''}</div><div class="shop-name-es" style="color:var(--blue);font-size:0.7rem">Household item</div></div><div class="link-btn-group"><button class="find-link-btn" onclick="findOnLaComer('${tempId}','${ck.text.replace(/'/g,"\\'").replace(/"/g,'&quot;')}',this)">🔍 Find</button><button class="add-link-btn" onclick="showCKLinkForm('${tempId}','${ck.text.replace(/'/g,"\\'")}',this)">+ Paste</button></div>`;gs.appendChild(div);}}
-  ckSection.remove();const consolidateBtn=document.getElementById('consolidate-btn');if(consolidateBtn)consolidateBtn.style.display='none';
-}
-function showCKLinkForm(tempId,itemName,btn){const row=document.getElementById(`shop-row-${tempId}`);if(!row)return;btn.style.display='none';const formDiv=document.createElement('div');formDiv.className='add-link-form';formDiv.id=`link-form-${tempId}`;formDiv.innerHTML=`<input class="add-link-input" id="link-input-${tempId}" placeholder="Paste La Comer URL..." type="url"><button class="save-link-btn" onclick="saveCKLink('${tempId}','${itemName.replace(/'/g,"\\'")}')">Save</button><button class="cancel-link-btn" onclick="cancelLink('${tempId}')">Cancel</button>`;row.appendChild(formDiv);}
-async function saveCKLink(tempId,itemName){const url=document.getElementById(`link-input-${tempId}`)?.value?.trim();if(!url){showToast('Please paste a URL first','error');return;}const{data:ingMatch}=await sb.from('ingredients').select('id').ilike('name_en',itemName).limit(1).maybeSingle();const ingredientId=ingMatch?.id||null;const{error}=await sb.from('household_products').insert({name_en:itemName,name_es:itemName,store:'La Comer',store_url:url,category:guessKarenCategory(itemName),ingredient_id:ingredientId,added_by:userProfile?.id||null,created_at:new Date().toISOString()});if(error){showToast('Error saving: '+error.message,'error');return;}const row=document.getElementById(`shop-row-${tempId}`);if(row){document.getElementById(`link-form-${tempId}`)?.remove();const addBtn=row.querySelector('.add-link-btn');if(addBtn)addBtn.replaceWith(Object.assign(document.createElement('a'),{href:url,target:'_blank',className:'shop-link',textContent:'🛒 La Comer'}));}showToast(`"${itemName}" linked ✓${ingredientId?'':' (no ingredient match — check spelling)'}`);}
 async function handleStepsBtn(recipeId){
   const r=allRecipesCache?.find(x=>x.id===recipeId);if(!r)return;
   const stepsContainer=document.getElementById(`steps-container-${recipeId}`);const stepsBtn=document.getElementById(`steps-btn-${recipeId}`);if(!stepsContainer||!stepsBtn)return;
