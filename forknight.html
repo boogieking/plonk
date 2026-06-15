@@ -981,7 +981,7 @@ function renderInventoryList(){
   const sortedCats=Object.keys(groups).sort((a,b)=>{const ai=ALL_CATEGORIES.indexOf(a);const bi=ALL_CATEGORIES.indexOf(b);if(ai===-1&&bi===-1)return a.localeCompare(b);if(ai===-1)return 1;if(bi===-1)return-1;return ai-bi;});
   for(const cat of sortedCats){const items=groups[cat];
     html+=`<div style="font-size:0.7rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin:12px 0 6px">${cat}</div>`;
-    for(const item of items){const status=inventoryState[String(item.id)]||'need';html+=`<div class="inv-row" data-id="${item.id}" data-name="${item.name_en.toLowerCase()}"><div><div class="inv-name">${item.name_en}</div><div style="font-size:0.72rem;color:var(--mid)">${item.name_es}</div></div><div class="inv-toggle"><button class="have-btn ${status==='have'?'active':''}" onclick="setInv('${item.id}','have',this)">Have</button><button class="need-btn ${status==='need'?'active':''}" onclick="setInv('${item.id}','need',this)">Need</button></div></div>`;}
+    for(const item of items){const status=inventoryState[String(item.id)]||'need';html+=`<div class="inv-row" data-id="${item.id}" data-name="${esc(item.name_en.toLowerCase())}"><div><div class="inv-name">${item.name_en}</div><div style="font-size:0.72rem;color:var(--mid)">${item.name_es}</div></div><div class="inv-toggle"><button class="have-btn ${status==='have'?'active':''}" onclick="setInv('${item.id}','have',this)">Have</button><button class="need-btn ${status==='need'?'active':''}" onclick="setInv('${item.id}','need',this)">Need</button></div></div>`;}
   }
   el.innerHTML=html||'<div class="empty">No ingredients found</div>';
 }
