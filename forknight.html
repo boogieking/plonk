@@ -602,10 +602,10 @@ const {createClient}=supabase;
 const sb=createClient(SUPABASE_URL,SUPABASE_KEY);
 
 const EMAIL_FN_URL='https://znwoiqygmsgabyoslrbt.supabase.co/functions/v1/send-email';
-const EMAIL_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpud29pcXlnbXNnYWJ5b3NscmJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyOTAxNTYsImV4cCI6MjA5Mzg2NjE1Nn0.Vpl3ZJHvOU06OGjh-73zeDouu5PkxvO4JIEv9kzOsPk';
+
 function escapeHtml(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 async function sendEmail(type,data={}){
-  try{await fetch(EMAIL_FN_URL,{method:'POST',headers:{'Authorization':`Bearer ${EMAIL_ANON_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({type,data})});}catch(e){console.warn('Email failed:',e.message);}
+  try{const{data:{session}}=await sb.auth.getSession();const token=session?.access_token||'';await fetch(EMAIL_FN_URL,{method:'POST',headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({type,data})});}catch(e){console.warn('Email failed:',e.message);}
 }
 const ALL_CATEGORIES=[
   'Fruit & Vegetables','Meat & Eggs','Deli','Dairy','Bakery','Pasta & Grains','Baking',
