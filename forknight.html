@@ -1644,7 +1644,7 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
           linkHtml=`<div class="shop-link-wrap"><a class="shop-link" href="${safeUrl(ing.lacomer_url)}" target="_blank">🛒 La Comer</a></div>`;
         }
         const addLinkBtns=!ing.lacomer_url&&(!ing._products||ing._products.length===0)&&isAdmin?`<div class="link-btn-group"><button class="find-link-btn" onclick="findOnLaComer(this.dataset.iid,this.dataset.name,this)" data-iid="${ing.id}" data-name="${esc(ing.name_es||ing.name_en)}">🔍 Find</button><button class="add-link-btn" onclick="showAddLinkForm('${ing.id}',this)">+ Paste</button></div>`:'';
-        const mealTag=ing._mealNames&&ing._mealNames.length>0?`<div style="font-size:0.7rem;color:var(--mid);margin-top:1px">For: ${ing._mealNames.join(', ')}</div>`:'';        html+=`<div class="shop-row" id="shop-row-${ing.id}"><div class="shop-names"><div class="shop-name-en">${ing.name_en}${ing._qtyStr?`<span class="shop-qty"> · ${ing._qtyStr}</span>`:''}</div><div class="shop-name-es">${ing.name_es||''}</div>${mealTag}</div>${linkHtml}${addLinkBtns}</div>`;
+        const mealTag=ing._mealNames&&ing._mealNames.length>0?`<div style="font-size:0.7rem;color:var(--mid);margin-top:1px">For: ${ing._mealNames.map(escapeHtml).join(', ')}</div>`:'';        html+=`<div class="shop-row" id="shop-row-${ing.id}"><div class="shop-names"><div class="shop-name-en">${escapeHtml(ing.name_en)}${ing._qtyStr?`<span class="shop-qty"> · ${escapeHtml(ing._qtyStr)}</span>`:''}</div><div class="shop-name-es">${escapeHtml(ing.name_es||'')}</div>${mealTag}</div>${linkHtml}${addLinkBtns}</div>`;
       }
     }
   }
