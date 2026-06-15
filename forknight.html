@@ -4357,6 +4357,7 @@ function closeReceiptScanner(){
 async function processReceiptImage(input){
   const file=input.files?.[0];
   if(!file)return;
+  if(file.size>5*1024*1024){showToast('Image too large — please use a photo under 5MB','error');return;}
   const resultEl=document.getElementById('receipt-result');
   if(resultEl)resultEl.innerHTML='<div class="receipt-processing">📖 Reading receipt… this takes a few seconds</div>';
 
@@ -5789,6 +5790,11 @@ async function deleteTestPlan(planId,planLabel){
 }
 /* ── END PLAN HISTORY ───────────────────────── */
 
+// Global error handler — catches unhandled promise rejections silently swallowed elsewhere
+window.addEventListener('unhandledrejection',function(e){
+  console.error('Unhandled error:',e.reason);
+  if(typeof showToast==='function')showToast('Something went wrong — try refreshing','error');
+});
 init();
 </script>
 </body>
