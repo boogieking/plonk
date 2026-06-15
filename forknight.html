@@ -4125,7 +4125,7 @@ async function renderScannerForm(barcode,prefill,existingProduct=null){
       <div style="font-family:monospace;font-size:0.78rem;color:var(--mid);margin-bottom:10px">${barcode}</div>
       <div class="scanner-field-row">
         <label>Product name (Spanish) *</label>
-        <input id="scan-name-es" placeholder="e.g. Leche León 900ml" value="${autoName}" style="font-size:0.95rem">
+        <input id="scan-name-es" placeholder="e.g. Leche León 900ml" value="${esc(autoName)}" style="font-size:0.95rem">
       </div>
       <div class="scanner-field-row"><label>Price (MXN)</label><input id="scan-price" type="number" min="0" step="0.01" placeholder="e.g. 20.50" style="font-size:1rem"></div>
       <details style="margin:10px 0">
