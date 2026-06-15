@@ -1130,7 +1130,7 @@ async function confirmCarryOver(homeMeals){
 async function doCreateNewPlan(homeMeals,carryOverIds,carryOverDinners=[],isTest=false){
   const allRecipes=await loadRecipes();const picked=await selectMealsForWeek(allRecipes,homeMeals);
   try{
-    await sb.from('weekly_plans').update({status:'archived'}).not('status','eq','archived');
+    await sb.from('weekly_plans').update({status:'archived'}).not('status','eq','archived').eq('created_by',userProfile.id);
     const{data:newPlan,error:planError}=await sb.from('weekly_plans').insert({week_start:getTodayDate(),eating_out_days:selectedEatingOutDays,status:'suggested',reshuffle_used:false,is_test:isTest}).select().single();if(planError)throw planError;
     currentPlan=newPlan;
     // Insert newly suggested meals
