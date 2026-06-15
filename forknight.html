@@ -723,7 +723,7 @@ const SIENNA_ID='ca779de4-2052-4bb4-89c6-59b67a5ad788';
 const KAREN_ID='60688390-f010-4e19-b7e9-bfbe2c35b04c';
 const CAMERON_ID='4581c8f1-042d-43a6-ba2d-6ec586dea301';
 let currentUser=null,userProfile=null,currentPlan=null,currentMeals=[],currentDinners=[];
-async function proxyFetch(body){const{data:{session}}=await sb.auth.getSession();const token=session?.access_token||'';return fetch('https://claude-proxy.cameronjohnking.workers.dev',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(body)});}
+async function proxyFetch(body){const{data:{session}}=await sb.auth.getSession();const token=session?.access_token;if(!token){showToast('Session expired — please sign in again','error');await sb.auth.signOut();window.location.href='index.html';return null;}return fetch('https://claude-proxy.cameronjohnking.workers.dev',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(body)});}
 
 let frozenInventoryCache=null,householdSizeCache=null;
 async function init(){
