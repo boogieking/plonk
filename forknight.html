@@ -723,6 +723,7 @@ const roleLabel={admin:'Admin',planner:'Planner',reviewer:'Reviewer'};
 const SIENNA_ID='ca779de4-2052-4bb4-89c6-59b67a5ad788';
 const KAREN_ID='60688390-f010-4e19-b7e9-bfbe2c35b04c';
 const CAMERON_ID='4581c8f1-042d-43a6-ba2d-6ec586dea301';
+const USER_NAME_MAP={'4581c8f1-042d-43a6-ba2d-6ec586dea301':'Cameron','ca779de4-2052-4bb4-89c6-59b67a5ad788':'Sienna','60688390-f010-4e19-b7e9-bfbe2c35b04c':'Karen'};
 let currentUser=null,userProfile=null,currentPlan=null,currentMeals=[],currentDinners=[];
 async function proxyFetch(body){const{data:{session}}=await sb.auth.getSession();const token=session?.access_token;if(!token){showToast('Session expired — please sign in again','error');await sb.auth.signOut();window.location.href='index.html';return null;}return fetch('https://claude-proxy.cameronjohnking.workers.dev',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(body)});}
 
@@ -1437,7 +1438,7 @@ async function loadPendingRequests(){
   const requests=data||[];if(countEl)countEl.textContent=requests.length;
   if(requests.length===0){container.innerHTML=`<div class="empty"><span class="empty-icon">📋</span>No pending requests from Sienna or Karen</div>`;return;}
   container.innerHTML=requests.map(req=>{
-    const fromName=req.requested_by==='4581c8f1-042d-43a6-ba2d-6ec586dea301'?'Cameron':req.requested_by==='ca779de4-2052-4bb4-89c6-59b67a5ad788'?'Sienna':req.requested_by==='60688390-f010-4e19-b7e9-bfbe2c35b04c'?'Karen':'Unknown';
+    const fromName=USER_NAME_MAP[req.requested_by]||'Unknown';
     const label=REQUEST_LABELS[req.request_type]||req.request_type;const date=new Date(req.created_at).toLocaleDateString('en-MX',{month:'short',day:'numeric'});
     let sideSwapDetail='';if(req.request_type==='side_swap'&&req.meta){const recipe=currentMeals.find(m=>m.recipe_id===req.meta.recipe_id)?.recipes;sideSwapDetail=`<div style="font-size:0.78rem;color:var(--mid);margin-top:3px">${escapeHtml(recipe?.name_en||'a meal')}: <em>${escapeHtml(req.meta.current_side_en||'?')}</em> → <strong>${escapeHtml(req.meta.new_side_en)}</strong>${req.meta.new_side_es?' · '+escapeHtml(req.meta.new_side_es):''}</div>`;}
     let swapDetail=req.request_type==='swap'&&req.meta?.meal_name?`<div style="font-size:0.78rem;color:var(--mid);margin-top:3px">Meal: <strong>${escapeHtml(req.meta.meal_name)}</strong></div>`:'';
