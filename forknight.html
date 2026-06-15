@@ -605,6 +605,7 @@ const EMAIL_FN_URL='https://znwoiqygmsgabyoslrbt.supabase.co/functions/v1/send-e
 
 function escapeHtml(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function esc(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');}  // safe for HTML attribute values
+function safeUrl(u){if(!u||typeof u!=='string')return'#';const t=u.trim();return(t.startsWith('https://')||t.startsWith('http://'))?t:'#';}
 async function sendEmail(type,data={}){
   try{const{data:{session}}=await sb.auth.getSession();const token=session?.access_token||'';await fetch(EMAIL_FN_URL,{method:'POST',headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({type,data})});}catch(e){console.warn('Email failed:',e.message);}
 }
@@ -1638,9 +1639,9 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
           const pref=ing._preferredProduct||ing._products[0];
           const alts=ing._products.filter(p=>p!==pref&&p.store_url);
           const prefBadge=pref.is_preferred_lacomer?'★ ':'';
-          linkHtml=`<div class="shop-link-wrap"><a class="shop-link" href="${pref.store_url}" target="_blank">🛒 ${prefBadge}${pref.name_es||pref.name_en||'La Comer'}</a>${alts.length>0?`<div class="shop-alts">${alts.map(a=>`<a class="shop-alt-link" href="${a.store_url}" target="_blank">${a.name_es||a.name_en||'La Comer'}</a>`).join('')}</div>`:''}</div>`;
+          linkHtml=`<div class="shop-link-wrap"><a class="shop-link" href="${safeUrl(pref.store_url)}" target="_blank">🛒 ${prefBadge}${pref.name_es||pref.name_en||'La Comer'}</a>${alts.length>0?`<div class="shop-alts">${alts.map(a=>`<a class="shop-alt-link" href="${safeUrl(a.store_url)}" target="_blank">${a.name_es||a.name_en||'La Comer'}</a>`).join('')}</div>`:''}</div>`;
         }else if(ing.lacomer_url){
-          linkHtml=`<div class="shop-link-wrap"><a class="shop-link" href="${ing.lacomer_url}" target="_blank">🛒 La Comer</a></div>`;
+          linkHtml=`<div class="shop-link-wrap"><a class="shop-link" href="${safeUrl(ing.lacomer_url)}" target="_blank">🛒 La Comer</a></div>`;
         }
         const addLinkBtns=!ing.lacomer_url&&(!ing._products||ing._products.length===0)&&isAdmin?`<div class="link-btn-group"><button class="find-link-btn" onclick="findOnLaComer(this.dataset.iid,this.dataset.name,this)" data-iid="${ing.id}" data-name="${esc(ing.name_es||ing.name_en)}">🔍 Find</button><button class="add-link-btn" onclick="showAddLinkForm('${ing.id}',this)">+ Paste</button></div>`:'';
         const mealTag=ing._mealNames&&ing._mealNames.length>0?`<div style="font-size:0.7rem;color:var(--mid);margin-top:1px">For: ${ing._mealNames.join(', ')}</div>`:'';        html+=`<div class="shop-row" id="shop-row-${ing.id}"><div class="shop-names"><div class="shop-name-en">${ing.name_en}${ing._qtyStr?`<span class="shop-qty"> · ${ing._qtyStr}</span>`:''}</div><div class="shop-name-es">${ing.name_es||''}</div>${mealTag}</div>${linkHtml}${addLinkBtns}</div>`;
@@ -1656,7 +1657,7 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
       const isDueSoon=!p.always_buy;
       const badge=isDueSoon?`<span style="font-size:0.7rem;color:var(--clay)">due this week</span>`:`<span style="font-size:0.7rem;color:#3a7a3a">always buy</span>`;
       const qty=p.standing_qty?`<span class="shop-qty"> · ${p.standing_qty}</span>`:'';
-      const link=p.store_url?`<a class="shop-link" href="${p.store_url}" target="_blank">🛒 La Comer</a>`:'';
+      const link=p.store_url?`<a class="shop-link" href="${safeUrl(p.store_url)}" target="_blank">🛒 La Comer</a>`:'';
       html+=`<div class="shop-row recurring-item" id="shop-row-rec-${p.id}"><div class="shop-names"><div class="shop-name-en">${escapeHtml(p.name_en||p.name_es||'')}${qty}</div><div class="shop-name-es">${escapeHtml(p.name_es||'')} ${badge}</div></div>${link}<button class="adhoc-item-remove" onclick="removeRecurringFromList('${p.id}',this)" title="Remove from this week">✕</button></div>`;
     }
     html+=`</div></div>`;
@@ -3732,7 +3733,7 @@ function productRowHtml(p){
   const unlinked=!linkedIng&&!p.is_pantry_item&&isFoodCat?`<span class="unlinked-badge">⚠ unlinked ingredient</span><button class="quick-link-btn" onclick="openQuickLink('${p.id}',this)">🔗 Link</button>`:'';
   const isIncomplete=p.notes?.includes('incomplete')||(!p.name_en||!p.category);
   const incompleteBadge=isIncomplete?`<span class="incomplete-badge">⚠ incomplete</span>`:'';
-  const urlBtn=p.store_url?`<a class="shop-link" href="${p.store_url}" target="_blank">🛒 View</a>`:'';
+  const urlBtn=p.store_url?`<a class="shop-link" href="${safeUrl(p.store_url)}" target="_blank">🛒 View</a>`:'';
   return`<div class="product-row" id="prod-row-${p.id}">
     <div class="product-main">
       <div class="product-name-en">${p.name_en||p.name_es}</div>
