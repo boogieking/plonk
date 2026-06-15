@@ -2504,7 +2504,7 @@ function renderAdhocSection(){
   sec.style.display='';
   list.innerHTML=adhocItems.map(item=>`
     <div class="adhoc-item-row" id="adhoc-row-${item.id}">
-      <span class="adhoc-item-name">${item.name}${item.savedToProducts?'<span style="font-size:0.7rem;color:var(--green);margin-left:6px">✓ saved</span>':''}</span>
+      <span class="adhoc-item-name">${escapeHtml(item.name)}${item.savedToProducts?'<span style="font-size:0.7rem;color:var(--green);margin-left:6px">✓ saved</span>':''}</span>
       <span class="adhoc-item-price">${item.price>0?'$'+item.price.toFixed(2)+' MXN':'—'}</span>
       <button class="adhoc-item-remove" onclick="removeAdhocItem('${item.id}')" title="Remove">✕</button>
     </div>`).join('');
