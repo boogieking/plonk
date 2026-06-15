@@ -604,6 +604,7 @@ const sb=createClient(SUPABASE_URL,SUPABASE_KEY);
 const EMAIL_FN_URL='https://znwoiqygmsgabyoslrbt.supabase.co/functions/v1/send-email';
 
 function escapeHtml(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function esc(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');}  // safe for HTML attribute values
 async function sendEmail(type,data={}){
   try{const{data:{session}}=await sb.auth.getSession();const token=session?.access_token||'';await fetch(EMAIL_FN_URL,{method:'POST',headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({type,data})});}catch(e){console.warn('Email failed:',e.message);}
 }
@@ -875,10 +876,10 @@ function mealRowAdmin(m){
   const tierKey=r.frequency_tier||'regular';const isLocked=r.frequency_override===true;
   const tierBadge=`<button class="tier-badge tier-${tierKey}${isLocked?' tier-locked':''}" title="${isLocked?'Override active':'Click to override'}" onclick="openTierModal('${r.id}','${tierKey}',${isLocked})">${TIER_LABELS[tierKey]||tierKey}</button>`;
   const actionHtml=!isCooked?cookedBtn(r.id,planMeal.id,false):'<span class="tag tag-green">Cooked</span>';
-  const removeBtn=!isCooked?`<button class="btn-remove-meal" onclick="removeMealFromPlan('${planMeal.id}','${r.name_en.replace(/'/g,"\\'")}')">✕ Remove</button>`:'';
-  const swapBtn=!isCooked?`<button class="btn-remove-meal" style="color:#2E5F8A;border-color:rgba(46,95,138,0.3)" onclick="openAdminSwapModal('${planMeal.id}','${r.id}','${r.name_en.replace(/'/g,"\\'")}')">⇄ Swap</button>`:'';
-  const hibernateBtn=!isCooked?`<button class="btn-remove-meal" style="color:#6B5F54;border-color:rgba(107,95,84,0.3)" onclick="openHibernateModal('${r.id}','${r.name_en.replace(/'/g,"\\'")}')">😴 Hibernate</button>`:'';
-  const sideHtml=`<div class="meal-side" id="side-row-${r.id}">🍽 With: <span id="side-label-${r.id}">${r.default_side_en||'No side set'}</span>${r.default_side_es?` · <em id="side-label-es-${r.id}">${r.default_side_es}</em>`:`<em id="side-label-es-${r.id}"></em>`} <button class="side-edit-btn" onclick="openSideDropdown(event,'${r.id}','${(r.default_side_en||'').replace(/'/g,"\\'")}')">✏️ change</button><div class="side-dropdown-wrap" id="side-dd-${r.id}" style="display:none"><div class="side-dropdown-panel"><input type="text" id="side-input-${r.id}" placeholder="Or type a new side..." oninput="filterSideOptions('${r.id}',this.value)"><div class="side-options" id="side-opts-${r.id}"></div><div class="side-dropdown-footer"><button class="side-cancel-btn" onclick="closeSideDropdown('${r.id}')">Cancel</button><button class="side-save-btn" onclick="saveSide('${r.id}')">Save</button></div></div></div></div>`;
+  const removeBtn=!isCooked?`<button class="btn-remove-meal" onclick="removeMealFromPlan(this.dataset.pmid,this.dataset.name)" data-pmid="${planMeal.id}" data-name="${esc(r.name_en)}">✕ Remove</button>`:'';
+  const swapBtn=!isCooked?`<button class="btn-remove-meal" style="color:#2E5F8A;border-color:rgba(46,95,138,0.3)" onclick="openAdminSwapModal(this.dataset.pmid,this.dataset.rid,this.dataset.name)" data-pmid="${planMeal.id}" data-rid="${r.id}" data-name="${esc(r.name_en)}">⇄ Swap</button>`:'';
+  const hibernateBtn=!isCooked?`<button class="btn-remove-meal" style="color:#6B5F54;border-color:rgba(107,95,84,0.3)" onclick="openHibernateModal(this.dataset.rid,this.dataset.name)" data-rid="${r.id}" data-name="${esc(r.name_en)}">😴 Hibernate</button>`:'';
+  const sideHtml=`<div class="meal-side" id="side-row-${r.id}">🍽 With: <span id="side-label-${r.id}">${r.default_side_en||'No side set'}</span>${r.default_side_es?` · <em id="side-label-es-${r.id}">${r.default_side_es}</em>`:`<em id="side-label-es-${r.id}"></em>`} <button class="side-edit-btn" onclick="openSideDropdown(event,this.dataset.rid,this.dataset.side)" data-rid="${r.id}" data-side="${esc(r.default_side_en||'')}">✏️ change</button><div class="side-dropdown-wrap" id="side-dd-${r.id}" style="display:none"><div class="side-dropdown-panel"><input type="text" id="side-input-${r.id}" placeholder="Or type a new side..." oninput="filterSideOptions('${r.id}',this.value)"><div class="side-options" id="side-opts-${r.id}"></div><div class="side-dropdown-footer"><button class="side-cancel-btn" onclick="closeSideDropdown('${r.id}')">Cancel</button><button class="side-save-btn" onclick="saveSide('${r.id}')">Save</button></div></div></div></div>`;
   const frozenPortions=getFrozenPortions(r.id);
   const frozenBadge=frozenPortions>0?`<span class="tag" style="background:rgba(74,124,211,0.12);color:#2E5F8A;border:1px solid rgba(46,95,138,0.25);font-size:0.65rem;padding:2px 7px">🧊 ${frozenPortions} frozen</span>`:'';
   return`<div class="meal-item ${isCooked?'cooked':''}" id="meal-item-${r.id}"><div style="flex:1"><div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${escapeHtml(r.name_en)} ${advPrepTag} ${tierBadge} ${frozenBadge}</div><div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${r.prep_time_minutes||'—'} min prep · ${r.cook_time_minutes||'—'} min cook${avgStr} ${scheduledLabel}</div>${sideHtml}${ratingHtml}${ratedHtml}</div><div class="meal-actions" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${actionHtml}${swapBtn}${removeBtn}${hibernateBtn}</div></div>`;
@@ -1263,8 +1264,8 @@ function renderSideOptions(recipeId,currentSide,query){
   const container=document.getElementById('side-opts-'+recipeId);if(!container)return;
   if(allSides.length===0){container.innerHTML='<div class="side-option" style="color:var(--mid)">Loading sides...</div>';loadSidesLibrary().then(()=>renderSideOptions(recipeId,currentSide,query));return;}
   const q=query.toLowerCase();const filtered=allSides.filter(s=>!q||s.name_en.toLowerCase().includes(q));
-  if(filtered.length===0&&query){container.innerHTML=`<div class="side-option" style="color:var(--clay)" onclick="selectSideOption('${recipeId}','${query.replace(/'/g,"\\'")}','')">＋ Add "${query}"</div>`;return;}
-  container.innerHTML=filtered.map(s=>`<div class="side-option ${s.name_en===currentSide?'current':''}" onclick="selectSideOption('${recipeId}','${s.name_en.replace(/'/g,"\\'")}','${(s.name_es||'').replace(/'/g,"\\'")}'">${escapeHtml(s.name_en)}${s.name_es?'<em style="font-size:0.7rem;color:var(--mid)"> · '+escapeHtml(s.name_es)+'</em>':''}</div>`).join('');
+  if(filtered.length===0&&query){container.innerHTML=`<div class="side-option" style="color:var(--clay)" onclick="selectSideOption(this.dataset.rid,this.dataset.name,'')" data-rid="${recipeId}" data-name="${esc(query)}">＋ Add "${query}"</div>`;return;}
+  container.innerHTML=filtered.map(s=>`<div class="side-option ${s.name_en===currentSide?'current':''}" onclick="selectSideOption(this.dataset.rid,this.dataset.nen,this.dataset.nes)" data-rid="${recipeId}" data-nen="${esc(s.name_en)}" data-nes="${esc(s.name_es||'')}">${escapeHtml(s.name_en)}${s.name_es?'<em style="font-size:0.7rem;color:var(--mid)"> · '+escapeHtml(s.name_es)+'</em>':''}</div>`).join('');
 }
 function selectSideOption(recipeId,nameEn,nameEs){const input=document.getElementById('side-input-'+recipeId);if(input){input.value=nameEn;input.dataset.nameEs=nameEs;}document.querySelectorAll(`#side-opts-${recipeId} .side-option`).forEach(el=>el.classList.toggle('current',el.textContent.trim().startsWith(nameEn)));}
 async function saveSide(recipeId){
@@ -1322,7 +1323,7 @@ function filterAddMealList(){
         ${r.name_es?`<div style="font-size:0.74rem;color:var(--mid)">${r.name_es}</div>`:''}
         <div style="font-size:0.72rem;color:var(--mid);margin-top:2px">${stars}${stars&&tier?' · ':''}${TIER_LABELS[tier]||tier}</div>
       </div>
-      <button class="btn-primary" style="font-size:0.8rem;padding:6px 14px;flex-shrink:0" onclick="addMealToPlan('${r.id}','${r.name_en.replace(/'/g,"\\'")}',this)">+ Add</button>
+      <button class="btn-primary" style="font-size:0.8rem;padding:6px 14px;flex-shrink:0" onclick="addMealToPlan(this.dataset.rid,this.dataset.name,this)" data-rid="${r.id}" data-name="${esc(r.name_en)}">+ Add</button>
     </div>`;
   }).join('');
 }
@@ -1378,7 +1379,7 @@ function filterSwapMealList(){
         ${r.name_es?`<div style="font-size:0.74rem;color:var(--mid)">${r.name_es}</div>`:''}
         <div style="font-size:0.72rem;color:var(--mid);margin-top:2px">${stars}${stars&&tier?' · ':''}${TIER_LABELS[tier]||tier}</div>
       </div>
-      <button class="btn-primary" style="font-size:0.8rem;padding:6px 14px;flex-shrink:0;background:var(--blue)" onclick="confirmAdminSwap('${el._planMealId}','${r.id}','${r.name_en.replace(/'/g,"\\'")}','${el._currentMealName.replace(/'/g,"\\'")}',this)">⇄ Swap in</button>
+      <button class="btn-primary" style="font-size:0.8rem;padding:6px 14px;flex-shrink:0;background:var(--blue)" onclick="confirmAdminSwap(this.dataset.pmid,this.dataset.rid,this.dataset.name,this.dataset.curname,this)" data-pmid="${el._planMealId}" data-rid="${r.id}" data-name="${esc(r.name_en)}" data-curname="${esc(el._currentMealName)}">⇄ Swap in</button>
     </div>`;
   }).join('');
 }
@@ -1535,7 +1536,7 @@ function mealRowSienna(m){
   const actionHtml=!isCooked?cookedBtn(r.id,planMeal.id,true):'<span class="tag tag-green">Cooked ✓</span>';
   const scheduledLabel=planMeal.assigned_day?`<span class="scheduled-tag">📅 ${dateToDayName(planMeal.assigned_day)}${planMeal.target_eat_time?' · eat '+planMeal.target_eat_time:''}${planMeal.prep_start_time?' · prep '+planMeal.prep_start_time:''}</span>`:`<button class="schedule-btn" onclick="openScheduleModal('${r.id}')">📅 Schedule</button>`;
   const advPrepTag=r.advance_prep_required?`<span class="tag tag-amber" style="font-size:0.65rem;padding:2px 7px">⏰ Advance prep</span>`:'';
-  return`<div class="meal-item ${isCooked?'cooked':''}"><div style="flex:1"><div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${escapeHtml(r.name_en)} ${advPrepTag}</div><div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${r.prep_time_minutes||'—'} min prep${avgStr} ${scheduledLabel}</div>${r.default_side_en?`<div class="meal-side">🍽 With: <span>${escapeHtml(r.default_side_en)}</span>${r.default_side_es?' · <em>'+escapeHtml(r.default_side_es)+'</em>':''}${!isCooked?`<button class="side-swap-btn" onclick="openSideSwapModal('${r.id}','${(r.default_side_en||'').replace(/'/g,"\\'")}')">⇄ Swap side</button>`:''}`:''}</div>${ratingHtml}${ratedHtml}</div><div class="meal-actions">${actionHtml}</div></div>`;
+  return`<div class="meal-item ${isCooked?'cooked':''}"><div style="flex:1"><div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${escapeHtml(r.name_en)} ${advPrepTag}</div><div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${r.prep_time_minutes||'—'} min prep${avgStr} ${scheduledLabel}</div>${r.default_side_en?`<div class="meal-side">🍽 With: <span>${escapeHtml(r.default_side_en)}</span>${r.default_side_es?' · <em>'+escapeHtml(r.default_side_es)+'</em>':''}${!isCooked?`<button class="side-swap-btn" onclick="openSideSwapModal(this.dataset.rid,this.dataset.side)" data-rid="${r.id}" data-side="${esc(r.default_side_en||'')}">⇄ Swap side</button>`:''}`:''}</div>${ratingHtml}${ratedHtml}</div><div class="meal-actions">${actionHtml}</div></div>`;
 }
 async function approvePlanAsAdmin(btn){
   if(!currentPlan)return;btn.disabled=true;btn.textContent='Approving...';
@@ -1596,7 +1597,7 @@ function mealRowKaren(m){
   const ratingHtml=ratingWindowOpen&&!myRating?ratingPromptHTML(r.id):'';
   const ratedHtml=myRating?`<div class="rating-submitted">Your rating: ${'★'.repeat(myRating)}${'☆'.repeat(5-myRating)}</div>`:'';
   const actionHtml=!isCooked?cookedBtn(r.id,planMeal.id,true):'<span class="tag tag-green">Cooked ✓</span>';
-  return`<div class="meal-item ${isCooked?'cooked':''}"><div style="flex:1"><div class="meal-name">${escapeHtml(r.name_en)}</div><div class="meal-meta">${r.prep_time_minutes||'—'} min prep${avgStr}</div>${r.default_side_en?`<div class="meal-side">🍽 With: <span>${escapeHtml(r.default_side_en)}</span>${r.default_side_es?' · <em>'+escapeHtml(r.default_side_es)+'</em>':''}${!isCooked?`<button class="side-swap-btn" onclick="openSideSwapModal('${r.id}','${(r.default_side_en||'').replace(/'/g,"\\'")}')">⇄ Swap side</button>`:''}</div>`:''}${ratingHtml}${ratedHtml}</div><div class="meal-actions">${actionHtml}</div></div>`;
+  return`<div class="meal-item ${isCooked?'cooked':''}"><div style="flex:1"><div class="meal-name">${escapeHtml(r.name_en)}</div><div class="meal-meta">${r.prep_time_minutes||'—'} min prep${avgStr}</div>${r.default_side_en?`<div class="meal-side">🍽 With: <span>${escapeHtml(r.default_side_en)}</span>${r.default_side_es?' · <em>'+escapeHtml(r.default_side_es)+'</em>':''}${!isCooked?`<button class="side-swap-btn" onclick="openSideSwapModal(this.dataset.rid,this.dataset.side)" data-rid="${r.id}" data-side="${esc(r.default_side_en||'')}">⇄ Swap side</button>`:''}</div>`:''}${ratingHtml}${ratedHtml}</div><div class="meal-actions">${actionHtml}</div></div>`;
 }
 async function loadKarenShoppingPreview(){
   const el=document.getElementById('karen-shopping-preview');if(!el)return;
@@ -1641,7 +1642,7 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
         }else if(ing.lacomer_url){
           linkHtml=`<div class="shop-link-wrap"><a class="shop-link" href="${ing.lacomer_url}" target="_blank">🛒 La Comer</a></div>`;
         }
-        const addLinkBtns=!ing.lacomer_url&&(!ing._products||ing._products.length===0)&&isAdmin?`<div class="link-btn-group"><button class="find-link-btn" onclick="findOnLaComer('${ing.id}','${(ing.name_es||ing.name_en).replace(/'/g,"\'").replace(/"/g,'&quot;')}',this)">🔍 Find</button><button class="add-link-btn" onclick="showAddLinkForm('${ing.id}',this)">+ Paste</button></div>`:'';
+        const addLinkBtns=!ing.lacomer_url&&(!ing._products||ing._products.length===0)&&isAdmin?`<div class="link-btn-group"><button class="find-link-btn" onclick="findOnLaComer(this.dataset.iid,this.dataset.name,this)" data-iid="${ing.id}" data-name="${esc(ing.name_es||ing.name_en)}">🔍 Find</button><button class="add-link-btn" onclick="showAddLinkForm('${ing.id}',this)">+ Paste</button></div>`:'';
         const mealTag=ing._mealNames&&ing._mealNames.length>0?`<div style="font-size:0.7rem;color:var(--mid);margin-top:1px">For: ${ing._mealNames.join(', ')}</div>`:'';        html+=`<div class="shop-row" id="shop-row-${ing.id}"><div class="shop-names"><div class="shop-name-en">${ing.name_en}${ing._qtyStr?`<span class="shop-qty"> · ${ing._qtyStr}</span>`:''}</div><div class="shop-name-es">${ing.name_es||''}</div>${mealTag}</div>${linkHtml}${addLinkBtns}</div>`;
       }
     }
@@ -2393,7 +2394,7 @@ async function openPrepGuide(){
       html+=`<div class="prep-meal-group"><div style="font-size:0.78rem;font-weight:500;color:var(--mid);text-transform:uppercase;letter-spacing:0.05em;margin:16px 0 8px">${recipe.name_en}</div>`;
       for(const task of tasks){
         const isOptional=task.toLowerCase().startsWith('optional');
-        html+=`<div class="prep-task-row" onclick="togglePrepTask('${recipe.id}','${task.replace(/'/g,"\'")}')">
+        html+=`<div class="prep-task-row" onclick="togglePrepTask(this.dataset.rid,this.dataset.task)" data-rid="${recipe.id}" data-task="${esc(task)}">
           <div class="prep-task-check"></div>
           <div class="prep-task-text${isOptional?' prep-task-optional':''}">${task}</div>
         </div>`;
@@ -2405,7 +2406,7 @@ async function openPrepGuide(){
       html+=`<div style="font-size:0.78rem;font-weight:500;color:var(--mid);text-transform:uppercase;letter-spacing:0.05em;margin:20px 0 8px;border-top:1px solid var(--border);padding-top:14px">✓ Done</div>`;
       for(const{recipe,task}of doneList){
         const isOptional=task.toLowerCase().startsWith('optional');
-        html+=`<div class="prep-task-row prep-task-done" onclick="togglePrepTask('${recipe.id}','${task.replace(/'/g,"\'")}')">
+        html+=`<div class="prep-task-row prep-task-done" onclick="togglePrepTask(this.dataset.rid,this.dataset.task)" data-rid="${recipe.id}" data-task="${esc(task)}">
           <div class="prep-task-check"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7L5.5 10L11.5 4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <div class="prep-task-text${isOptional?' prep-task-optional':''}">${task} <span style="font-size:0.75rem;color:var(--mid)">· ${recipe.name_en}</span></div>
         </div>`;
@@ -2796,7 +2797,7 @@ function openSideSwapModal(recipeId,currentSideEn){
   const sideOptions=allSides.map(s=>`<option value="${s.name_en}|${s.name_es||''}" ${s.name_en===currentSideEn?'selected':''}>${s.name_en}${s.name_es?' · '+s.name_es:''}</option>`).join('');
   const actionLabel=isKaren?'Change side now':'Request side swap';
   const noteText=isKaren?`<p style="font-size:0.8rem;color:var(--green);margin-bottom:12px">✓ As reviewer, your side swap applies immediately — no approval needed.</p>`:`<p style="font-size:0.8rem;color:var(--mid);margin-bottom:12px">Your request will go to Cameron for approval.</p>`;
-  el.innerHTML=`<div class="modal" style="max-width:420px"><h3>Change side for this meal</h3><p>Current side: <strong>${escapeHtml(currentSideEn)||'None set'}</strong></p>${noteText}<div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">New side</label><select id="side-swap-select" class="side-swap-select"><option value="">— Pick a side —</option>${sideOptions}</select></div>${!isKaren?`<div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Reason (required)</label><textarea id="side-swap-reason" placeholder="Why do you want to change the side?" rows="3" style="width:100%;padding:10px 12px;border:1.5px solid var(--light);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;resize:vertical;min-height:70px;outline:none"></textarea></div>`:''}<div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="submitSideSwap('${recipeId}','${currentSideEn.replace(/'/g,"\\'")}',${isKaren})">${actionLabel}</button></div></div>`;
+  el.innerHTML=`<div class="modal" style="max-width:420px"><h3>Change side for this meal</h3><p>Current side: <strong>${escapeHtml(currentSideEn)||'None set'}</strong></p>${noteText}<div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">New side</label><select id="side-swap-select" class="side-swap-select"><option value="">— Pick a side —</option>${sideOptions}</select></div>${!isKaren?`<div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Reason (required)</label><textarea id="side-swap-reason" placeholder="Why do you want to change the side?" rows="3" style="width:100%;padding:10px 12px;border:1.5px solid var(--light);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;resize:vertical;min-height:70px;outline:none"></textarea></div>`:''}<div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="submitSideSwap(this.dataset.rid,this.dataset.side,this.dataset.karen==='true')" data-rid="${recipeId}" data-side="${esc(currentSideEn)}" data-karen="${isKaren}">${actionLabel}</button></div></div>`;
   document.body.appendChild(el);
 }
 async function submitSideSwap(recipeId,currentSideEn,isKaren){
@@ -2926,7 +2927,7 @@ function componentRowHtml(r,isAdmin){
 function recipeRowHtml(r,isAdmin){
   const tier=r.hibernated?'hibernated':(r.frequency_tier||'regular');const stars=r.avg_rating?`⭐ ${parseFloat(r.avg_rating).toFixed(1)}`:'—';const time=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);
   const stepsTag=r.steps&&r.steps.trim()?`<span class="tag tag-green" style="font-size:0.65rem;padding:2px 7px">📋 steps saved</span>`:'';
-  const adminActions=isAdmin?`<button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;" onclick="event.stopPropagation();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Tier</button><button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;" onclick="event.stopPropagation();openHibernateModal('${r.id}','${r.name_en.replace(/'/g,"\\'")}')"> ${r.hibernated?'Wake':'Sleep'}</button>`:'';
+  const adminActions=isAdmin?`<button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;" onclick="event.stopPropagation();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Tier</button><button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;" onclick="event.stopPropagation();openHibernateModal(this.dataset.rid,this.dataset.name)" data-rid="${r.id}" data-name="${esc(r.name_en)}"> ${r.hibernated?'Wake':'Sleep'}</button>`:'';
   return`<div class="recipe-row${r.hibernated?' hibernated-row':''}" onclick="openRecipeDetail('${r.id}')"><div class="recipe-main"><div class="recipe-title">${r.name_en}</div>${r.name_es?`<div class="recipe-title-es">${r.name_es}</div>`:''}<div class="recipe-meta-row">${time>0?`<span class="recipe-meta-item">⏱ ${time} min</span>`:''}${r.advance_prep_required?`<span class="tag tag-amber">prep ahead</span>`:''} ${r.hibernated&&r.hibernate_until?`<span class="recipe-meta-item">🌙 until ${new Date(r.hibernate_until).toLocaleDateString('en-MX',{day:'numeric',month:'short'})}</span>`:''} ${stepsTag}</div></div><div class="recipe-badges"><span class="stars-display">${stars}</span><span class="tier-badge tier-${tier}${r.frequency_override?' tier-locked':''}">${TIER_LABELS[tier]||tier}</span></div>${isAdmin?`<div class="recipe-actions">${adminActions}</div>`:''}</div>`;
 }
 function filterRecipes(){renderFilteredRecipes();}
@@ -2958,7 +2959,7 @@ async function openRecipeDetail(recipeId){
   return`<div class="ingredient-row" id="ing-row-${ing.id}"><div class="ingredient-info"><div class="ingredient-name-en" id="sr-name-${ing.id}">${resolved._displayName_en}</div>${resolved._displayName_es?`<div class="ingredient-name-es" id="ing-name-es-display-${ing.id}">${resolved._displayName_es}</div>`:''}</div>${qty?`<div class="ingredient-qty" id="ing-qty-display-${ing.id}">${qty}</div>`:''}${link}${srToggle}${editBtn}${editForm}</div>`;}).join('')}</div>`).join('');
   const prepSection=r.advance_prep_required?`<div class="modal-section-label">Prep notes</div><div class="prep-flag"><span class="prep-flag-icon">⏰</span><div><strong>Advance prep required</strong>${r.advance_prep_description?`<div style="margin-top:3px">${r.advance_prep_description}</div>`:''}${!r.same_day_cookable?`<div style="margin-top:3px;font-size:0.78rem;color:var(--mid)">Cannot be cooked same day without prep</div>`:''}</div></div>`:'';
   const sideSection=r.default_side_en?`<div class="modal-section-label">Default side</div><div style="font-size:0.87rem;color:var(--dark)">${r.default_side_en}${r.default_side_es?` · <em style="color:var(--mid)">${r.default_side_es}</em>`:''}</div>`:'';
-  const adminFooterBtns=isAdmin?`<button class="btn-secondary" onclick="closeRecipeDetail();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Change tier</button><button class="btn-secondary" onclick="closeRecipeDetail();openHibernateModal('${r.id}','${r.name_en.replace(/'/g,"\\'")}')">😴 ${r.hibernated?'Wake up':'Hibernate'}</button><button class=\"btn-secondary\" id=\"freeze-toggle-btn-${r.id}\" onclick=\"toggleFreezable('${r.id}')\" style=\"${r.is_freezable!==false?'color:#2E5F8A;border-color:rgba(46,95,138,0.4)':''}\">🧊 ${r.is_freezable!==false?'Freezable':'Not freezable'}</button>`:'';
+  const adminFooterBtns=isAdmin?`<button class="btn-secondary" onclick="closeRecipeDetail();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Change tier</button><button class="btn-secondary" onclick="closeRecipeDetail();openHibernateModal(this.dataset.rid,this.dataset.name)" data-rid="${r.id}" data-name="${esc(r.name_en)}">😴 ${r.hibernated?'Wake up':'Hibernate'}</button><button class=\"btn-secondary\" id=\"freeze-toggle-btn-${r.id}\" onclick=\"toggleFreezable('${r.id}')\" style=\"${r.is_freezable!==false?'color:#2E5F8A;border-color:rgba(46,95,138,0.4)':''}\">🧊 ${r.is_freezable!==false?'Freezable':'Not freezable'}</button>`:'';
   const hasSavedSteps=r.steps&&r.steps.trim();const stepsBtnLabel=hasSavedSteps?'📋 View steps':'📋 Generate steps';
   document.body.insertAdjacentHTML('beforeend',`
   <div class="modal-overlay" id="recipe-detail-overlay" onclick="if(event.target===this)safeCloseRecipeDetail('${r.id}')">
@@ -3310,7 +3311,7 @@ function parseTimerTag(stepText){
 function buildStepHtml(num,rawStepText,recipeId,stepIdx){
   const{cleanText,minutes,label}=parseTimerTag(rawStepText);
   const timerId=`${recipeId}-step-${stepIdx}`;
-  const timerRow=minutes!=null?`<div class="step-timer-row"><span class="step-timer-label">⏱</span><input class="step-timer-input" id="timer-input-${timerId}" type="number" min="1" max="999" value="${minutes}"><span class="step-timer-label">min</span><button class="step-timer-btn" id="timer-btn-${timerId}" onclick="startStepTimer('${timerId}','${label.replace(/'/g,"\\'")}',${stepIdx},'${recipeId}')">▶ Start timer</button></div>`:'';
+  const timerRow=minutes!=null?`<div class="step-timer-row"><span class="step-timer-label">⏱</span><input class="step-timer-input" id="timer-input-${timerId}" type="number" min="1" max="999" value="${minutes}"><span class="step-timer-label">min</span><button class="step-timer-btn" id="timer-btn-${timerId}" onclick="startStepTimer(this.dataset.tid,this.dataset.label,this.dataset.sidx,this.dataset.rid)" data-tid="${timerId}" data-label="${esc(label)}" data-sidx="${stepIdx}" data-rid="${recipeId}">▶ Start timer</button></div>`:'';
   return`<div class="recipe-step"><div class="recipe-step-num">${num}</div><div style="flex:1"><div class="recipe-step-text">${cleanText}</div>${timerRow}</div></div>`;
 }
 function startStepTimer(timerId,label,stepIdx,recipeId){
@@ -3624,7 +3625,7 @@ async function openAddDinnerModal(){
   const lunchOptions=allLunches.map(m=>{
     const name=m.recipes?.name_en||'Unknown';
     const hasTag=assignedLunchIds.has(m.recipe_id)?'<span style="font-size:0.7rem;color:var(--mid);margin-left:6px">(has dinner)</span>':'';
-    return`<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem;width:100%" onclick="openAddDinnerStep2('${m.recipe_id}','${name.replace(/'/g,"\\'")}')">🍽 ${name}${hasTag}</button>`;
+    return`<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem;width:100%" onclick="openAddDinnerStep2(this.dataset.rid,this.dataset.name)" data-rid="${m.recipe_id}" data-name="${esc(name)}">🍽 ${name}${hasTag}</button>`;
   }).join('');
   el.innerHTML=`<div class="modal" style="max-width:420px"><h3>Add dinner</h3><p>Which lunch should this dinner be paired with?</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0;max-height:50vh;overflow-y:auto">${lunchOptions}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
   document.body.appendChild(el);el.addEventListener('click',e=>{if(e.target===el)closeModal();});
@@ -3640,7 +3641,7 @@ async function openAddDinnerStep2(lunchRecipeId,lunchName){
   closeModal();
   await new Promise(r=>setTimeout(r,80));
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-  el.innerHTML=`<div class="modal" style="max-width:420px"><h3>Add dinner</h3><p>Paired with: <strong>${escapeHtml(lunchName)}</strong>. Choose a dinner:</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">${dinnerRecipes.map(r=>`<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem;width:100%" onclick="adminAddDinner('${lunchRecipeId}','${r.id}','${r.name_en.replace(/'/g,"\\'")}')">🌙 ${escapeHtml(r.name_en)}</button>`).join('')}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
+  el.innerHTML=`<div class="modal" style="max-width:420px"><h3>Add dinner</h3><p>Paired with: <strong>${escapeHtml(lunchName)}</strong>. Choose a dinner:</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">${dinnerRecipes.map(r=>`<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem;width:100%" onclick="adminAddDinner(this.dataset.lrid,this.dataset.rid,this.dataset.name)" data-lrid="${lunchRecipeId}" data-rid="${r.id}" data-name="${esc(r.name_en)}">🌙 ${escapeHtml(r.name_en)}</button>`).join('')}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
   document.body.appendChild(el);el.addEventListener('click',e=>{if(e.target===el)closeModal();});
 }
 
@@ -3749,9 +3750,9 @@ function productRowHtml(p){
     <div class="product-actions">
       ${urlBtn}
       ${isIncomplete?`<button class="ai-fill-btn" onclick="aiFillProduct('${p.id}')" title="Fill in missing details with AI">✨ Fill</button>`:''}
-      ${p.last_price_mxn?`<button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px" onclick="showPriceHistory('${p.id}','${(p.name_en||p.name_es).replace(/'/g,"\\'")}')">📈 $${p.last_price_mxn}</button>`:''}
+      ${p.last_price_mxn?`<button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px" onclick="showPriceHistory(this.dataset.pid,this.dataset.name)" data-pid="${p.id}" data-name="${esc(p.name_en||p.name_es)}">📈 $${p.last_price_mxn}</button>`:''}
       <button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px" onclick="openEditProductModal('${p.id}')">Edit</button>
-      <button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;color:#c44;border-color:rgba(200,50,50,0.3)" onclick="deleteProduct('${p.id}','${(p.name_en||p.name_es).replace(/'/g,"\\'")}')">Delete</button>
+      <button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;color:#c44;border-color:rgba(200,50,50,0.3)" onclick="deleteProduct(this.dataset.pid,this.dataset.name)" data-pid="${p.id}" data-name="${esc(p.name_en||p.name_es)}">Delete</button>
     </div>
   </div>`;
 }
@@ -3840,7 +3841,7 @@ async function renderPriceTrendsView(){
       const col=p===max?'#c44':p===min?'#3a7a3a':'var(--clay)';
       return`<div class="spark-bar" style="height:${h}px;background:${col}"></div>`;
     }).join('');
-    return`<div class="trend-row" onclick="showPriceHistory('${t.id}','${(t.prod.name_en||t.prod.name_es).replace(/'/g,"\\'")}')">
+    return`<div class="trend-row" onclick="showPriceHistory(this.dataset.tid,this.dataset.name)" data-tid="${t.id}" data-name="${esc(t.prod.name_en||t.prod.name_es)}">
       <div style="flex:1">
         <div class="trend-name">${t.prod.name_en||t.prod.name_es}</div>
         ${t.prod.name_es&&t.prod.name_en!==t.prod.name_es?`<div class="trend-name-es">${t.prod.name_es}</div>`:''}
@@ -4759,9 +4760,9 @@ async function loadLeftovers(){
           <span class="leftover-card-amount">${formatAmount(l.amount,l.unit)}</span>
           <span class="leftover-card-storage ${STORAGE_CLASSES[storage]}">${STORAGE_LABELS[storage]}</span>
           <div style="display:flex;gap:4px">
-            <button class="leftover-move-btn" onclick="openMoveLeftoverModal('${l.id}','${l.name_en}','${l.storage}')" title="Move to different location">↗</button>
-            <button class="leftover-move-btn" onclick="openEditLeftoverModal('${l.id}','${l.name_en.replace(/'/g,"\\'")}','${l.amount}','${l.unit}','${l.storage}')" title="Edit">✏️</button>
-            <button class="leftover-move-btn" style="color:#c44" onclick="deleteLeftover('${l.id}','${l.name_en.replace(/'/g,"\\'")}',this)" title="Delete">✕</button>
+            <button class="leftover-move-btn" onclick="openMoveLeftoverModal(this.dataset.lid,this.dataset.name,this.dataset.storage)" data-lid="${l.id}" data-name="${esc(l.name_en)}" data-storage="${l.storage}" title="Move to different location">↗</button>
+            <button class="leftover-move-btn" onclick="openEditLeftoverModal(this.dataset.lid,this.dataset.name,this.dataset.amt,this.dataset.unit,this.dataset.storage)" data-lid="${l.id}" data-name="${esc(l.name_en)}" data-amt="${l.amount}" data-unit="${l.unit}" data-storage="${l.storage}" title="Edit">✏️</button>
+            <button class="leftover-move-btn" style="color:#c44" onclick="deleteLeftover(this.dataset.lid,this.dataset.name,this)" data-lid="${l.id}" data-name="${esc(l.name_en)}" title="Delete">✕</button>
             <button class="leftover-used-btn" onclick="markLeftoverUsed('${l.id}',this)">Used ✓</button>
           </div>
         </div>`;
