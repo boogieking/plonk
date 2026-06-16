@@ -262,7 +262,7 @@
 
   // If already signed in, go straight to dashboard
   sb.auth.getSession().then(({ data: { session } }) => {
-    if (session) window.location.href = 'dashboard.html';
+    if (session) window.location.href = 'forknight.html';
   });
 
   // Allow Enter key to submit
@@ -298,7 +298,7 @@
     }
 
     // Success — redirect
-    window.location.href = 'dashboard.html';
+    window.location.href = 'forknight.html';
   }
 
   function showError(msg) {
