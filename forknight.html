@@ -1,4 +1,4 @@
-<!DOCTYPE html><!-- forknight v2.0.1 -->
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data: https://world.openfoodfacts.org; connect-src 'self' https://znwoiqygmsgabyoslrbt.supabase.co https://claude-proxy.cameronjohnking.workers.dev https://open.er-api.com https://world.openfoodfacts.org;">
@@ -730,10 +730,8 @@ async function proxyFetch(body){const{data:{session}}=await sb.auth.getSession()
 
 let frozenInventoryCache=null,householdSizeCache=null;
 async function init(){
-  // Use getSession with a fallback retry to handle post-login race condition
   let{data:{session}}=await sb.auth.getSession();
   if(!session){
-    // Wait briefly and retry once — handles race where session isn't set immediately after login redirect
     await new Promise(r=>setTimeout(r,800));
     const retry=await sb.auth.getSession();
     session=retry.data.session;
@@ -798,7 +796,7 @@ function renderCameron(recipes,name){
     for(let i=0;i<maxRows;i++){
       const rem=reshuffleLog.removed[i]||'';
       const add=reshuffleLog.added[i]||'';
-      rows+=`<div class="reshuffle-diff-row">${rem?'<span class="reshuffle-removed">${rem}</span>':'<span style="opacity:0.3">—</span>'}<span style="color:var(--mid)">→</span>${add?'<span class="reshuffle-added">${add}</span>':'<span style="opacity:0.3">—</span>'}</div>`;
+      rows+=`<div class="reshuffle-diff-row">${rem?`<span class="reshuffle-removed">${rem}</span>`:'<span style="opacity:0.3">—</span>'}<span style="color:var(--mid)">→</span>${add?`<span class="reshuffle-added">${add}</span>`:'<span style="opacity:0.3">—</span>'}</div>`;
     }
     reshuffleLogHtml=`<div class="reshuffle-log"><div class="reshuffle-log-title">🔀 Sienna's reshuffle — what changed</div>${rows}</div>`;
   }
@@ -806,10 +804,10 @@ function renderCameron(recipes,name){
     ${renderDayBeforeReminder()}
     <div class="page-header"><h1>Good day, ${name} 👋</h1><p>${hasPlan?'Plan started '+planDateLabel(currentPlan):'No active plan yet'} · You have full control</p></div>
     <div class="week-banner">
-      <div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap"><div class="status-dot" style="background:${statusColor}"></div><div class="status-text">${statusText}</div></div>${currentPlan?.is_test?'<div style="margin-top:6px"><span class="tag" style="background:rgba(200,103,74,0.15);color:var(--clay);border:1px solid rgba(200,103,74,0.3);font-weight:600">🧪 Test plan</span></div>':''}</div>
+      <div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap"><div class="status-dot" style="background:${statusColor}"></div><div class="status-text">${statusText}</div></div>${currentPlan?.is_test?`<div style="margin-top:6px"><span class="tag" style="background:rgba(200,103,74,0.15);color:var(--clay);border:1px solid rgba(200,103,74,0.3);font-weight:600">🧪 Test plan</span></div>`:''}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        ${hasPlan&&currentPlan.status==='suggested'?'<button class="btn-primary" id="approve-plan-btn" onclick="approvePlanAsAdmin(this)">✓ Approve plan</button>':''}
-        ${hasPlan&&currentPlan.status==='approved'?'<button class="btn-primary" disabled style="opacity:0.6">✓ Approved</button>':''}
+        ${hasPlan&&currentPlan.status==='suggested'?`<button class="btn-primary" id="approve-plan-btn" onclick="approvePlanAsAdmin(this)">✓ Approve plan</button>`:''}
+        ${hasPlan&&currentPlan.status==='approved'?`<button class="btn-primary" disabled style="opacity:0.6">✓ Approved</button>`:''}
         <button class="btn-secondary" onclick="openEatingOutModal()">${hasPlan?'Start new plan':'Set eating-out days'}</button>
       </div>
     </div>
@@ -833,20 +831,20 @@ function renderCameron(recipes,name){
       <div class="card-header">
         <div class="card-title">Suggested meals</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          ${hasPlan?'<span class="tag tag-green">${mealCount} meals · ${eatingOutCount} day${eatingOutCount!==1?\'s\':\'\'} out</span>':`<span class="tag tag-amber">No active plan</span>`}
-          ${currentPlan?.reshuffle_used?'<span class="tag" style="background:rgba(180,120,40,0.12);color:#8a5c10;border:1px solid rgba(180,120,40,0.25)">🔀 Sienna reshuffled</span>':''}
-          ${hasPlan?'<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="openAddMealModal()">+ Add meal</button>':''}
+          ${hasPlan?`<span class="tag tag-green">${mealCount} meals · ${eatingOutCount} day${eatingOutCount!==1?'s':''} out</span>`:`<span class="tag tag-amber">No active plan</span>`}
+          ${currentPlan?.reshuffle_used?`<span class="tag" style="background:rgba(180,120,40,0.12);color:#8a5c10;border:1px solid rgba(180,120,40,0.25)">🔀 Sienna reshuffled</span>`:''}
+          ${hasPlan?`<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="openAddMealModal()">+ Add meal</button>`:''}
         </div>
       </div>
-      ${hasPlan&&currentMeals.length>0?'<div class="meal-list">${currentMeals.map(m=>mealRowAdmin(m)).join(\'\')}</div>':`<div class="empty"><span class="empty-icon">🍽️</span>No meals suggested yet — set eating-out days above</div>`}
+      ${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowAdmin(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>No meals suggested yet — set eating-out days above</div>`}
       ${reshuffleLogHtml}
     </div>
-    ${currentPlan?.status==='approved'?'<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Dinners this week</div><div style="display:flex;gap:8px;flex-wrap:wrap">${currentDinners.length>0?'<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all</button>`:''}<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="openAddDinnerModal()">+ Add dinner</button></div></div><div id="dinner-list-cam">${renderDinnerListAdmin()}</div></div>`:''}
+    ${currentPlan?.status==='approved'?`<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Dinners this week</div><div style="display:flex;gap:8px;flex-wrap:wrap">${currentDinners.length>0?`<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all</button>`:''}<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="openAddDinnerModal()">+ Add dinner</button></div></div><div id="dinner-list-cam">${renderDinnerListAdmin()}</div></div>`:''}
     ${sectionEnd()}
-    ${currentUserCan('show_inventory')?sectionHeader('cam-inventory','Inventory check', false)+'
+    ${currentUserCan('show_inventory')?sectionHeader('cam-inventory','Inventory check', false)+`
     <div class="card" style="margin-bottom:20px">
-      <div class="card-header"><div class="card-title">Fridge & freezer</div>${currentPlan?.status===\'approved\'?'<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`:`<span class="tag tag-gray">Submit plan first</span>`}</div>
-      ${currentPlan?.status==='approved'?'<div id="inv-list"><div class="empty">Loading ingredients...</div></div>':`<div class="empty" style="padding:20px 0"><span class="empty-icon">🛒</span>Once the plan is approved, inventory check unlocks here</div>`}
+      <div class="card-header"><div class="card-title">Fridge & freezer</div>${currentPlan?.status==='approved'?`<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`:`<span class="tag tag-gray">Submit plan first</span>`}</div>
+      ${currentPlan?.status==='approved'?`<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`:`<div class="empty" style="padding:20px 0"><span class="empty-icon">🛒</span>Once the plan is approved, inventory check unlocks here</div>`}
     </div>
     `+sectionEnd():''}
     ${sectionHeader('cam-shopping','Shopping list')}
@@ -860,7 +858,7 @@ function renderCameron(recipes,name){
       <div id="shopping-list-content"><div class="empty"><span class="empty-icon">🛍️</span>${hasInventory?'Click Generate list to build your shopping list':'Complete inventory check first to generate the shopping list'}</div></div>
     </div>
     ${sectionEnd()}
-    ${currentUserCan('show_leftovers')?sectionHeader('cam-leftovers','Leftovers & open packets')+'
+    ${currentUserCan('show_leftovers')?sectionHeader('cam-leftovers','Leftovers & open packets')+`
     <div class="card" id="leftovers-card" style="margin-bottom:20px">
       <div class="card-header">
         <div class="card-title">In fridge / freezer / pantry</div>
@@ -868,7 +866,7 @@ function renderCameron(recipes,name){
       </div>
       <div id="leftovers-list"><div class="empty"><span class="empty-icon">📦</span>No leftovers tracked yet — they appear here after receipt scanning</div></div>
     </div>
-    '+sectionEnd():''}
+    `+sectionEnd():''}
   </div>`;
 }
 function cookedBtn(recipeId,planMealId,small){if(!currentUserCan('mark_cooked'))return'';const sz=small?'font-size:0.75rem;padding:4px 10px':'font-size:0.78rem;padding:5px 10px';return`<button class="btn-secondary" style="${sz}" onclick="markCooked('${recipeId}','${planMealId}')">✓ Cooked</button>`;}
@@ -889,7 +887,7 @@ function mealRowAdmin(m){
   const removeBtn=!isCooked?`<button class="btn-remove-meal" onclick="removeMealFromPlan(this.dataset.pmid,this.dataset.name)" data-pmid="${planMeal.id}" data-name="${esc(r.name_en)}">✕ Remove</button>`:'';
   const swapBtn=!isCooked?`<button class="btn-remove-meal" style="color:#2E5F8A;border-color:rgba(46,95,138,0.3)" onclick="openAdminSwapModal(this.dataset.pmid,this.dataset.rid,this.dataset.name)" data-pmid="${planMeal.id}" data-rid="${r.id}" data-name="${esc(r.name_en)}">⇄ Swap</button>`:'';
   const hibernateBtn=!isCooked?`<button class="btn-remove-meal" style="color:#6B5F54;border-color:rgba(107,95,84,0.3)" onclick="openHibernateModal(this.dataset.rid,this.dataset.name)" data-rid="${r.id}" data-name="${esc(r.name_en)}">😴 Hibernate</button>`:'';
-  const sideHtml=`<div class="meal-side" id="side-row-${r.id}">🍽 With: <span id="side-label-${r.id}">${r.default_side_en||'No side set'}</span>${r.default_side_es?' · <em id="side-label-es-${r.id}">${r.default_side_es}</em>':`<em id="side-label-es-${r.id}"></em>`} <button class="side-edit-btn" onclick="openSideDropdown(event,this.dataset.rid,this.dataset.side)" data-rid="${r.id}" data-side="${esc(r.default_side_en||'')}">✏️ change</button><div class="side-dropdown-wrap" id="side-dd-${r.id}" style="display:none"><div class="side-dropdown-panel"><input type="text" id="side-input-${r.id}" placeholder="Or type a new side..." oninput="filterSideOptions('${r.id}',this.value)"><div class="side-options" id="side-opts-${r.id}"></div><div class="side-dropdown-footer"><button class="side-cancel-btn" onclick="closeSideDropdown('${r.id}')">Cancel</button><button class="side-save-btn" onclick="saveSide('${r.id}')">Save</button></div></div></div></div>`;
+  const sideHtml=`<div class="meal-side" id="side-row-${r.id}">🍽 With: <span id="side-label-${r.id}">${r.default_side_en||'No side set'}</span>${r.default_side_es?` · <em id="side-label-es-${r.id}">${r.default_side_es}</em>`:`<em id="side-label-es-${r.id}"></em>`} <button class="side-edit-btn" onclick="openSideDropdown(event,this.dataset.rid,this.dataset.side)" data-rid="${r.id}" data-side="${esc(r.default_side_en||'')}">✏️ change</button><div class="side-dropdown-wrap" id="side-dd-${r.id}" style="display:none"><div class="side-dropdown-panel"><input type="text" id="side-input-${r.id}" placeholder="Or type a new side..." oninput="filterSideOptions('${r.id}',this.value)"><div class="side-options" id="side-opts-${r.id}"></div><div class="side-dropdown-footer"><button class="side-cancel-btn" onclick="closeSideDropdown('${r.id}')">Cancel</button><button class="side-save-btn" onclick="saveSide('${r.id}')">Save</button></div></div></div></div>`;
   const frozenPortions=getFrozenPortions(r.id);
   const frozenBadge=frozenPortions>0?`<span class="tag" style="background:rgba(74,124,211,0.12);color:#2E5F8A;border:1px solid rgba(46,95,138,0.25);font-size:0.65rem;padding:2px 7px">🧊 ${frozenPortions} frozen</span>`:'';
   return`<div class="meal-item ${isCooked?'cooked':''}" id="meal-item-${r.id}"><div style="flex:1"><div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${escapeHtml(r.name_en)} ${advPrepTag} ${tierBadge} ${frozenBadge}</div><div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${r.prep_time_minutes||'—'} min prep · ${r.cook_time_minutes||'—'} min cook${avgStr} ${scheduledLabel}</div>${sideHtml}${ratingHtml}${ratedHtml}</div><div class="meal-actions" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${actionHtml}${swapBtn}${removeBtn}${hibernateBtn}</div></div>`;
@@ -1079,7 +1077,7 @@ let selectedEatingOutDays=[];
 function openEatingOutModal(){
   selectedEatingOutDays=[];
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-  el.innerHTML=`<div class="modal" style="max-width:480px"><h3>Start a new plan</h3><p>Tap the days you'll be eating out. The app will suggest the right number of home meals.</p><div class="day-selector" id="day-selector">${DAYS.map(d=>'<button class="day-btn" onclick="toggleDay(\'${d}\',this)">${d}</button>').join('')}</div><div id="meal-count-preview" style="margin:14px 0;padding:12px 14px;background:var(--cream);border-radius:10px;font-size:0.88rem;color:var(--mid)">${mealCountPreview(0)}</div><label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(200,103,74,0.06);border:1px solid rgba(200,103,74,0.2);border-radius:10px;cursor:pointer;font-size:0.85rem;margin-bottom:4px"><input type="checkbox" id="is-test-plan" style="width:16px;height:16px;accent-color:var(--clay);cursor:pointer"><span><strong>This is a test plan</strong> — hidden from history by default, can be deleted</span></label><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" id="confirm-eating-out" onclick="confirmEatingOut()">Suggest meals</button></div></div>`;
+  el.innerHTML=`<div class="modal" style="max-width:480px"><h3>Start a new plan</h3><p>Tap the days you'll be eating out. The app will suggest the right number of home meals.</p><div class="day-selector" id="day-selector">${DAYS.map(d=>`<button class="day-btn" onclick="toggleDay('${d}',this)">${d}</button>`).join('')}</div><div id="meal-count-preview" style="margin:14px 0;padding:12px 14px;background:var(--cream);border-radius:10px;font-size:0.88rem;color:var(--mid)">${mealCountPreview(0)}</div><label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(200,103,74,0.06);border:1px solid rgba(200,103,74,0.2);border-radius:10px;cursor:pointer;font-size:0.85rem;margin-bottom:4px"><input type="checkbox" id="is-test-plan" style="width:16px;height:16px;accent-color:var(--clay);cursor:pointer"><span><strong>This is a test plan</strong> — hidden from history by default, can be deleted</span></label><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" id="confirm-eating-out" onclick="confirmEatingOut()">Suggest meals</button></div></div>`;
   document.body.appendChild(el);
 }
 function mealCountPreview(outCount){const home=Math.max(0,7-outCount);return`<span class="day-count">${home}</span> home meal${home!==1?'s':''} needed<span style="margin-left:8px;color:var(--mid);font-size:0.78rem">(7 days − ${outCount} eating out)</span>`;}
@@ -1121,8 +1119,8 @@ function showCarryOverModal(uncookedLunches,uncookedDinners,homeMeals,isTest=fal
     <h3>Meals from last week</h3>
     <p style="margin-bottom:14px">These meals weren't cooked last week. Tick any you'd like to carry over into this week.</p>
     <div style="overflow-y:auto;flex:1">
-      ${uncookedLunches.length>0?'<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Lunches</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">${lunchRows}</div>':''}
-      ${uncookedDinners.length>0?'<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Dinners</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">${dinnerRows}</div>':''}
+      ${uncookedLunches.length>0?`<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Lunches</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">${lunchRows}</div>`:''}
+      ${uncookedDinners.length>0?`<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Dinners</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">${dinnerRows}</div>`:''}
     </div>
     <div class="modal-btns" style="flex-shrink:0">
       <button class="btn-ghost" onclick="doCreateNewPlan(${homeMeals},[],[],_carryOverIsTest)">Skip — don't carry any over</button>
@@ -1159,7 +1157,7 @@ async function doCreateNewPlan(homeMeals,carryOverIds,carryOverDinners=[],isTest
 const modalTitles={swap:{h:'Request a meal swap',p:'Pick the meal to remove, choose a replacement, and tell Cameron why.'},hibernate:{h:'Request hibernation',p:'Which meal should be rested? It will be hibernated for 2 months.'},new:{h:'Suggest a new meal',p:'What meal would you like to add? Briefly explain why.'}};
 function openModal(type){
   const t=modalTitles[type];const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-  const mealPickerHtml=(type==='hibernate'||type==='swap')&&currentMeals.length>0?`<div style="margin-bottom:12px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Remove this meal</label><select id="modal-recipe-select" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— Pick a meal to remove —</option>${currentMeals.filter(m=>!m.cooked).map(m=>'<option value="${m.recipe_id}">${m.recipes?.name_en||m.recipe_id}</option>').join('')}</select></div>`:'';
+  const mealPickerHtml=(type==='hibernate'||type==='swap')&&currentMeals.length>0?`<div style="margin-bottom:12px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Remove this meal</label><select id="modal-recipe-select" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— Pick a meal to remove —</option>${currentMeals.filter(m=>!m.cooked).map(m=>`<option value="${m.recipe_id}">${m.recipes?.name_en||m.recipe_id}</option>`).join('')}</select></div>`:'';
   const replaceMealHtml=type==='swap'?`<div style="margin-bottom:12px" id="replace-meal-wrap"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Replace with</label><select id="modal-replace-select" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— Loading meals... —</option></select></div>`:'';
   const newMealNameHtml=type==='new'?`<div style="margin-bottom:12px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Meal name</label><input type="text" id="modal-meal-name" placeholder="e.g. Butter Chicken, Fish Tacos..." style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='var(--clay)'" onblur="this.style.borderColor='var(--border)'"></div>`:'';
   el.innerHTML=`<div class="modal"><h3>${t.h}</h3><p>${t.p}</p>${mealPickerHtml}${replaceMealHtml}${newMealNameHtml}<textarea id="modal-text" placeholder="${type==='new'?'Why would this be a good addition?':'Add your reason here...'}" rows="4"></textarea><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="submitRequest('${type}')">${type==='new'?'Suggest to Cameron':'Send to Cameron'}</button></div></div>`;
@@ -1172,7 +1170,7 @@ async function populateReplaceDropdown(){
   const select=document.getElementById('modal-replace-select');if(!select)return;
   if(error||!data){select.innerHTML='<option value="">— Could not load meals —</option>';return;}
   const available=data.filter(r=>!currentRecipeIds.has(r.id));
-  select.innerHTML=`<option value="">— Pick a replacement —</option>${available.map(r=>'<option value="${r.id}">${escapeHtml(r.name_en)}</option>').join('')}`;
+  select.innerHTML=`<option value="">— Pick a replacement —</option>${available.map(r=>`<option value="${r.id}">${escapeHtml(r.name_en)}</option>`).join('')}`;
 }
 function closeModal(){const el=document.getElementById('modal-overlay');if(el)el.remove();}
 async function submitRequest(type){
@@ -1194,7 +1192,7 @@ async function submitRequest(type){
 let myRatingsThisWeek={};
 async function loadMyRatingsThisWeek(){if(!currentPlan)return;const recipeIds=currentMeals.map(m=>m.recipe_id);if(recipeIds.length===0)return;const{data}=await sb.from('ratings').select('recipe_id,rating').eq('user_id',userProfile.id).eq('rating_type','cook').in('recipe_id',recipeIds);if(data){for(const row of data)myRatingsThisWeek[row.recipe_id]=row.rating;}}
 function isWithin24Hours(cookedAt){if(!cookedAt)return false;return(new Date()-new Date(cookedAt))<24*60*60*1000;}
-function ratingPromptHTML(recipeId){return`<div class="rating-prompt" id="rating-prompt-${recipeId}"><div class="rating-prompt-label">⭐ Rate this meal (window closes in 24hrs)</div><div class="star-row" id="stars-${recipeId}">${[1,2,3,4,5].map(n=>'<button class="star-btn" data-val="${n}" onclick="selectStar(\'${recipeId}\',${n})">☆</button>').join('')}<button class="rating-submit-btn" id="rate-submit-${recipeId}" style="display:none" onclick="submitRating('${recipeId}')">Submit</button></div></div>`;}
+function ratingPromptHTML(recipeId){return`<div class="rating-prompt" id="rating-prompt-${recipeId}"><div class="rating-prompt-label">⭐ Rate this meal (window closes in 24hrs)</div><div class="star-row" id="stars-${recipeId}">${[1,2,3,4,5].map(n=>`<button class="star-btn" data-val="${n}" onclick="selectStar('${recipeId}',${n})">☆</button>`).join('')}<button class="rating-submit-btn" id="rate-submit-${recipeId}" style="display:none" onclick="submitRating('${recipeId}')">Submit</button></div></div>`;}
 function selectStar(recipeId,val){const row=document.getElementById(`stars-${recipeId}`);if(!row)return;row.querySelectorAll('.star-btn').forEach(btn=>{const n=parseInt(btn.dataset.val);btn.textContent=n<=val?'★':'☆';btn.classList.toggle('active',n<=val);});row.dataset.selected=val;const submitBtn=document.getElementById(`rate-submit-${recipeId}`);if(submitBtn)submitBtn.style.display='inline-block';}
 async function submitRating(recipeId){
   if(!currentUserCan('rate_meals')){showToast('Rating is not enabled for your account','error');return;}
@@ -1235,7 +1233,7 @@ async function loadPendingIdeaRatings(){
 }
 function openIdeaRatingModal(recipeId,mealName){
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-  el.innerHTML=`<div class="modal" style="max-width:420px"><h3>⭐ Rate the idea</h3><p style="margin-bottom:6px">How good does <strong>${escapeHtml(mealName)}</strong> sound as a meal? Rate the idea — not the cook.</p><div style="padding:12px 14px;background:rgba(200,103,74,0.06);border:1px solid rgba(200,103,74,0.2);border-radius:10px;margin-bottom:16px"><div style="font-size:0.78rem;color:var(--clay);font-weight:500;margin-bottom:10px">Your idea rating</div><div class="star-row" id="idea-stars-${recipeId}">${[1,2,3,4,5].map(n=>'<button class="star-btn" data-val="${n}" onclick="selectIdeaStar(\'${recipeId}\',${n})">☆</button>').join('')}</div><div style="font-size:0.75rem;color:var(--mid);margin-top:8px">All three family members will rate — combined average sets the starting frequency tier.</div></div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Rate later</button><button class="btn-primary" id="idea-submit-${recipeId}" style="display:none" onclick="submitIdeaRating('${recipeId}')">Submit rating</button></div></div>`;
+  el.innerHTML=`<div class="modal" style="max-width:420px"><h3>⭐ Rate the idea</h3><p style="margin-bottom:6px">How good does <strong>${escapeHtml(mealName)}</strong> sound as a meal? Rate the idea — not the cook.</p><div style="padding:12px 14px;background:rgba(200,103,74,0.06);border:1px solid rgba(200,103,74,0.2);border-radius:10px;margin-bottom:16px"><div style="font-size:0.78rem;color:var(--clay);font-weight:500;margin-bottom:10px">Your idea rating</div><div class="star-row" id="idea-stars-${recipeId}">${[1,2,3,4,5].map(n=>`<button class="star-btn" data-val="${n}" onclick="selectIdeaStar('${recipeId}',${n})">☆</button>`).join('')}</div><div style="font-size:0.75rem;color:var(--mid);margin-top:8px">All three family members will rate — combined average sets the starting frequency tier.</div></div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Rate later</button><button class="btn-primary" id="idea-submit-${recipeId}" style="display:none" onclick="submitIdeaRating('${recipeId}')">Submit rating</button></div></div>`;
   document.body.appendChild(el);
 }
 function selectIdeaStar(recipeId,val){const row=document.getElementById(`idea-stars-${recipeId}`);if(!row)return;row.querySelectorAll('.star-btn').forEach(btn=>{const n=parseInt(btn.dataset.val);btn.textContent=n<=val?'★':'☆';btn.classList.toggle('active',n<=val);});row.dataset.selected=val;const submitBtn=document.getElementById(`idea-submit-${recipeId}`);if(submitBtn)submitBtn.style.display='inline-block';}
@@ -1258,7 +1256,7 @@ async function finaliseIdeaRatingIfComplete(recipeId){
 }
 function renderPendingIdeaRatingCards(){
   if(!pendingIdeaRatings||pendingIdeaRatings.length===0)return'';
-  return pendingIdeaRatings.map(r=>`<div id="idea-card-${r.id}" style="padding:14px 16px;background:rgba(200,103,74,0.07);border:1.5px solid rgba(200,103,74,0.25);border-radius:var(--radius);margin-bottom:12px"><div style="font-size:0.78rem;font-weight:500;color:var(--clay);margin-bottom:4px">✨ New meal suggestion — rate the idea</div><div style="font-weight:500;margin-bottom:10px">${r.name_en}</div><div class="star-row" id="idea-stars-${r.id}">${[1,2,3,4,5].map(n=>'<button class="star-btn" data-val="${n}" onclick="selectIdeaStar(\'${r.id}\',${n})">☆</button>').join('')}<button class="rating-submit-btn" id="idea-submit-${r.id}" style="display:none" onclick="submitIdeaRating('${r.id}')">Submit</button></div></div>`).join('');
+  return pendingIdeaRatings.map(r=>`<div id="idea-card-${r.id}" style="padding:14px 16px;background:rgba(200,103,74,0.07);border:1.5px solid rgba(200,103,74,0.25);border-radius:var(--radius);margin-bottom:12px"><div style="font-size:0.78rem;font-weight:500;color:var(--clay);margin-bottom:4px">✨ New meal suggestion — rate the idea</div><div style="font-weight:500;margin-bottom:10px">${r.name_en}</div><div class="star-row" id="idea-stars-${r.id}">${[1,2,3,4,5].map(n=>`<button class="star-btn" data-val="${n}" onclick="selectIdeaStar('${r.id}',${n})">☆</button>`).join('')}<button class="rating-submit-btn" id="idea-submit-${r.id}" style="display:none" onclick="submitIdeaRating('${r.id}')">Submit</button></div></div>`).join('');
 }
 let allSides=[];
 async function loadSidesLibrary(){const{data,error}=await sb.from('sides').select('*').order('name_en');if(!error&&data)allSides=data;}
@@ -1330,7 +1328,7 @@ function filterAddMealList(){
     return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(255,255,255,0.7);border:1px solid var(--border);border-radius:10px;gap:12px">
       <div style="flex:1;min-width:0">
         <div style="font-size:0.9rem;font-weight:400;color:var(--dark)">${r.name_en}</div>
-        ${r.name_es?'<div style="font-size:0.74rem;color:var(--mid)">${r.name_es}</div>':''}
+        ${r.name_es?`<div style="font-size:0.74rem;color:var(--mid)">${r.name_es}</div>`:''}
         <div style="font-size:0.72rem;color:var(--mid);margin-top:2px">${stars}${stars&&tier?' · ':''}${TIER_LABELS[tier]||tier}</div>
       </div>
       <button class="btn-primary" style="font-size:0.8rem;padding:6px 14px;flex-shrink:0" onclick="addMealToPlan(this.dataset.rid,this.dataset.name,this)" data-rid="${r.id}" data-name="${esc(r.name_en)}">+ Add</button>
@@ -1386,7 +1384,7 @@ function filterSwapMealList(){
     return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(255,255,255,0.7);border:1px solid var(--border);border-radius:10px;gap:12px">
       <div style="flex:1;min-width:0">
         <div style="font-size:0.9rem;font-weight:400;color:var(--dark)">${r.name_en}</div>
-        ${r.name_es?'<div style="font-size:0.74rem;color:var(--mid)">${r.name_es}</div>':''}
+        ${r.name_es?`<div style="font-size:0.74rem;color:var(--mid)">${r.name_es}</div>`:''}
         <div style="font-size:0.72rem;color:var(--mid);margin-top:2px">${stars}${stars&&tier?' · ':''}${TIER_LABELS[tier]||tier}</div>
       </div>
       <button class="btn-primary" style="font-size:0.8rem;padding:6px 14px;flex-shrink:0;background:var(--blue)" onclick="confirmAdminSwap(this.dataset.pmid,this.dataset.rid,this.dataset.name,this.dataset.curname,this)" data-pmid="${el._planMealId}" data-rid="${r.id}" data-name="${esc(r.name_en)}" data-curname="${esc(el._currentMealName)}">⇄ Swap in</button>
@@ -1451,7 +1449,7 @@ async function loadPendingRequests(){
     let sideSwapDetail='';if(req.request_type==='side_swap'&&req.meta){const recipe=currentMeals.find(m=>m.recipe_id===req.meta.recipe_id)?.recipes;sideSwapDetail=`<div style="font-size:0.78rem;color:var(--mid);margin-top:3px">${escapeHtml(recipe?.name_en||'a meal')}: <em>${escapeHtml(req.meta.current_side_en||'?')}</em> → <strong>${escapeHtml(req.meta.new_side_en)}</strong>${req.meta.new_side_es?' · '+escapeHtml(req.meta.new_side_es):''}</div>`;}
     let swapDetail=req.request_type==='swap'&&req.meta?.meal_name?`<div style="font-size:0.78rem;color:var(--mid);margin-top:3px">Meal: <strong>${escapeHtml(req.meta.meal_name)}</strong></div>`:'';
     let newMealDetail=req.request_type==='new'&&req.meta?.name_en?`<div style="font-size:0.85rem;font-weight:500;color:var(--dark);margin-top:3px">🍽 "${escapeHtml(req.meta.name_en)}"</div>`:'';
-    return`<div class="request-item" id="req-${req.id}"><div class="request-from">${fromName} · ${date}</div><div class="request-text">${label}</div>${sideSwapDetail}${swapDetail}${newMealDetail}${req.reason?'<div class="request-reason">"${escapeHtml(req.reason)}"</div>':''}<div class="request-btns"><button class="btn-primary" style="font-size:0.78rem;padding:6px 14px" onclick="handleRequest('${req.id}','${req.request_type}','approved')">Approve</button><button class="btn-secondary" style="font-size:0.78rem;padding:5px 14px" onclick="handleRequest('${req.id}','${req.request_type}','rejected')">Reject</button></div></div>`;
+    return`<div class="request-item" id="req-${req.id}"><div class="request-from">${fromName} · ${date}</div><div class="request-text">${label}</div>${sideSwapDetail}${swapDetail}${newMealDetail}${req.reason?`<div class="request-reason">"${escapeHtml(req.reason)}"</div>`:''}<div class="request-btns"><button class="btn-primary" style="font-size:0.78rem;padding:6px 14px" onclick="handleRequest('${req.id}','${req.request_type}','approved')">Approve</button><button class="btn-secondary" style="font-size:0.78rem;padding:5px 14px" onclick="handleRequest('${req.id}','${req.request_type}','rejected')">Reject</button></div></div>`;
   }).join('');
 }
 async function handleRequest(requestId,type,decision){
@@ -1508,8 +1506,8 @@ function renderSienna(recipes,name){
     ${renderDayBeforeReminder()}
     <div class="page-header"><h1>Hi ${name} 👋</h1><p>${hasPlan?'Plan started '+planDateLabel(currentPlan):'No active plan yet'}</p></div>
     <div class="week-banner">
-      <div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap"><div class="status-dot" style="background:${hasPlan?'#4A7C59':'#C8674A'}"></div><div class="status-text">${hasPlan?'${mealCount} meal${mealCount!==1?\'s\':\'\'} suggested · status: <strong>${planStatus}</strong>':"Waiting for Cameron to start this week's plan"}</div></div></div>
-      ${hasPlan?'<div style="display:flex;gap:10px;flex-wrap:wrap">${currentUserCan(\'reshuffle_plan\')?'<button class="btn-secondary" ${reshuffleUsed||alreadySubmitted?'disabled':''} onclick="doReshuffle(this)">${reshuffleUsed?'🔀 Reshuffle used':'🔀 Reshuffle'}</button>`:''}<button class="btn-primary" id="submit-plan-btn" ${alreadySubmitted?'disabled style="opacity:0.6"':''} onclick="submitPlan(this)">${submitLabel}</button></div>`:''}
+      <div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap"><div class="status-dot" style="background:${hasPlan?'#4A7C59':'#C8674A'}"></div><div class="status-text">${hasPlan?`${mealCount} meal${mealCount!==1?'s':''} suggested · status: <strong>${planStatus}</strong>`:"Waiting for Cameron to start this week's plan"}</div></div></div>
+      ${hasPlan?`<div style="display:flex;gap:10px;flex-wrap:wrap">${currentUserCan('reshuffle_plan')?`<button class="btn-secondary" ${reshuffleUsed||alreadySubmitted?'disabled':''} onclick="doReshuffle(this)">${reshuffleUsed?'🔀 Reshuffle used':'🔀 Reshuffle'}</button>`:''}<button class="btn-primary" id="submit-plan-btn" ${alreadySubmitted?'disabled style="opacity:0.6"':''} onclick="submitPlan(this)">${submitLabel}</button></div>`:''}
     </div>
     <div class="collapse-controls">
       <button class="collapse-btn" onclick="collapseAll(['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping'])">Collapse all</button>
@@ -1519,22 +1517,22 @@ function renderSienna(recipes,name){
     ${currentUserCan('show_prep_reminders')?renderPrepReminders():''}
     ${renderFrozenNudge()}
     <div class="card" style="margin-bottom:20px">
-      <div class="card-header"><div class="card-title">Meal pool</div>${hasPlan?'<span class="tag tag-green">${mealCount} meals</span>':''}</div>
-      ${hasPlan&&currentMeals.length>0?'<div class="meal-list">${currentMeals.map(m=>mealRowSienna(m)).join(\'\')}</div>':`<div class="empty"><span class="empty-icon">🍽️</span>${hasPlan?'No meals in plan yet':'No plan yet this week'}</div>`}
+      <div class="card-header"><div class="card-title">Meal pool</div>${hasPlan?`<span class="tag tag-green">${mealCount} meals</span>`:''}</div>
+      ${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowSienna(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>${hasPlan?'No meals in plan yet':'No plan yet this week'}</div>`}
     </div>
     ${sectionEnd()}
-   ${userProfile.role==='planner'&&currentPlan?.status==='approved'&&currentUserCan('manage_dinners')&&currentUserCan('show_dinners')?sectionHeader('sie-dinners','Dinners this week')+'<div class="card" style="margin-bottom:20px" id="dinner-section"><div class="card-header"><div class="card-title">Tonight\\'s options</div><button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all dinners</button></div><div id="dinner-list">${renderDinnerList()}</div></div>'+sectionEnd():''}
-    ${currentUserCan('show_requests')?sectionHeader('sie-requests','Requests')+'
-    <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Requests</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">${currentUserCan(\'submit_swap\')?'<button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button>`:''}<button class="btn-secondary" onclick="openModal('hibernate')">😴 Request hibernation</button>${currentUserCan('suggest_meals')?'<button class="btn-secondary" onclick="openModal(\'new\')">✨ Suggest new meal</button>':''}</div></div>
+   ${userProfile.role==='planner'&&currentPlan?.status==='approved'&&currentUserCan('manage_dinners')&&currentUserCan('show_dinners')?sectionHeader('sie-dinners','Dinners this week')+`<div class="card" style="margin-bottom:20px" id="dinner-section"><div class="card-header"><div class="card-title">Tonight\'s options</div><button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all dinners</button></div><div id="dinner-list">${renderDinnerList()}</div></div>`+sectionEnd():''}
+    ${currentUserCan('show_requests')?sectionHeader('sie-requests','Requests')+`
+    <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Requests</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">${currentUserCan('submit_swap')?`<button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button>`:''}<button class="btn-secondary" onclick="openModal('hibernate')">😴 Request hibernation</button>${currentUserCan('suggest_meals')?`<button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button>`:''}</div></div>
     `+sectionEnd():''}
     ${pendingIdeaRatings.length>0&&currentUserCan('show_ratings')?sectionHeader('sie-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
-    ${currentUserCan('show_inventory')?sectionHeader('sie-inventory','Inventory check', false)+'
+    ${currentUserCan('show_inventory')?sectionHeader('sie-inventory','Inventory check', false)+`
     <div class="card" style="margin-bottom:20px">
-      <div class="card-header"><div class="card-title">Fridge & freezer</div>${planStatus===\'approved\'?'<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`:''}</div>
-      ${planStatus==='approved'?'<div id="inv-list"><div class="empty">Loading ingredients...</div></div>':`<div class="empty" style="padding:20px 0"><span class="empty-icon">🛒</span>Unlocks once Cameron approves the plan</div>`}
+      <div class="card-header"><div class="card-title">Fridge & freezer</div>${planStatus==='approved'?`<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`:''}</div>
+      ${planStatus==='approved'?`<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`:`<div class="empty" style="padding:20px 0"><span class="empty-icon">🛒</span>Unlocks once Cameron approves the plan</div>`}
     </div>
     `+sectionEnd():''}
-    ${currentUserCan('view_shopping')?sectionHeader('sie-shopping','Shopping preview')+'<div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer</div><span class="tag tag-gray">View only · Cameron generates</span></div><div id="sienna-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>'+sectionEnd():''}
+    ${currentUserCan('view_shopping')?sectionHeader('sie-shopping','Shopping preview')+`<div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer</div><span class="tag tag-gray">View only · Cameron generates</span></div><div id="sienna-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`+sectionEnd():''}
   </div>`;
 }
 function mealRowSienna(m){
@@ -1546,7 +1544,7 @@ function mealRowSienna(m){
   const actionHtml=!isCooked?cookedBtn(r.id,planMeal.id,true):'<span class="tag tag-green">Cooked ✓</span>';
   const scheduledLabel=planMeal.assigned_day?`<span class="scheduled-tag">📅 ${dateToDayName(planMeal.assigned_day)}${planMeal.target_eat_time?' · eat '+planMeal.target_eat_time:''}${planMeal.prep_start_time?' · prep '+planMeal.prep_start_time:''}</span>`:`<button class="schedule-btn" onclick="openScheduleModal('${r.id}')">📅 Schedule</button>`;
   const advPrepTag=r.advance_prep_required?`<span class="tag tag-amber" style="font-size:0.65rem;padding:2px 7px">⏰ Advance prep</span>`:'';
-  return`<div class="meal-item ${isCooked?'cooked':''}"><div style="flex:1"><div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${escapeHtml(r.name_en)} ${advPrepTag}</div><div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${r.prep_time_minutes||'—'} min prep${avgStr} ${scheduledLabel}</div>${r.default_side_en?'<div class="meal-side">🍽 With: <span>${escapeHtml(r.default_side_en)}</span>${r.default_side_es?\' · <em>\'+escapeHtml(r.default_side_es)+\'</em>\':\'\'}${!isCooked?'<button class="side-swap-btn" onclick="openSideSwapModal(this.dataset.rid,this.dataset.side)" data-rid="${r.id}" data-side="${esc(r.default_side_en||'')}">⇄ Swap side</button>`:''}`:''}</div>${ratingHtml}${ratedHtml}</div><div class="meal-actions">${actionHtml}</div></div>`;
+  return`<div class="meal-item ${isCooked?'cooked':''}"><div style="flex:1"><div class="meal-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${escapeHtml(r.name_en)} ${advPrepTag}</div><div class="meal-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">${r.prep_time_minutes||'—'} min prep${avgStr} ${scheduledLabel}</div>${r.default_side_en?`<div class="meal-side">🍽 With: <span>${escapeHtml(r.default_side_en)}</span>${r.default_side_es?' · <em>'+escapeHtml(r.default_side_es)+'</em>':''}${!isCooked?`<button class="side-swap-btn" onclick="openSideSwapModal(this.dataset.rid,this.dataset.side)" data-rid="${r.id}" data-side="${esc(r.default_side_en||'')}">⇄ Swap side</button>`:''}`:''}</div>${ratingHtml}${ratedHtml}</div><div class="meal-actions">${actionHtml}</div></div>`;
 }
 async function approvePlanAsAdmin(btn){
   if(!currentPlan)return;btn.disabled=true;btn.textContent='Approving...';
@@ -1583,21 +1581,21 @@ function renderKaren(recipes,name){
   const bannerSeen=sessionStorage.getItem(bannerKey);
   const showFinalBanner=isApproved&&!bannerSeen;
   return`<div class="fade-in">
-    ${showFinalBanner?'<div id="finalised-banner" style="background:rgba(74,124,89,0.1);border:1px solid rgba(74,124,89,0.3);border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px"><div style="display:flex;align-items:center;gap:12px"><span style="font-size:1.3rem">✅</span><div><div style="font-weight:600;color:#2d5a3d;font-size:0.92rem">This week\'s plan is finalised!</div><div style="font-size:0.82rem;color:#4A7C59;margin-top:2px">Cameron has approved the meal plan. See your meals below.</div></div></div><button onclick="sessionStorage.setItem(\'${bannerKey}\',\'1\');document.getElementById(\'finalised-banner\').remove()" style="background:none;border:none;cursor:pointer;font-size:1.1rem;color:#4A7C59;padding:4px 8px" title="Dismiss">✕</button></div>':''}
+    ${showFinalBanner?`<div id="finalised-banner" style="background:rgba(74,124,89,0.1);border:1px solid rgba(74,124,89,0.3);border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px"><div style="display:flex;align-items:center;gap:12px"><span style="font-size:1.3rem">✅</span><div><div style="font-weight:600;color:#2d5a3d;font-size:0.92rem">This week's plan is finalised!</div><div style="font-size:0.82rem;color:#4A7C59;margin-top:2px">Cameron has approved the meal plan. See your meals below.</div></div></div><button onclick="sessionStorage.setItem('${bannerKey}','1');document.getElementById('finalised-banner').remove()" style="background:none;border:none;cursor:pointer;font-size:1.1rem;color:#4A7C59;padding:4px 8px" title="Dismiss">✕</button></div>`:''}
     <div class="page-header"><h1>Hi ${name} 👋</h1><p>${hasPlan?'Plan started '+planDateLabel(currentPlan):'No active plan yet'}</p></div>
-    <div class="week-banner"><div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap"><div class="status-dot" style="background:${hasPlan?'#4A7C59':'#C8674A'}"></div><div class="status-text">${hasPlan?'${mealCount} meal${mealCount!==1?\'s\':\'\'} this week · status: <strong>${currentPlan.status}</strong>':'No active plan yet'}</div></div></div></div>
+    <div class="week-banner"><div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap"><div class="status-dot" style="background:${hasPlan?'#4A7C59':'#C8674A'}"></div><div class="status-text">${hasPlan?`${mealCount} meal${mealCount!==1?'s':''} this week · status: <strong>${currentPlan.status}</strong>`:'No active plan yet'}</div></div></div></div>
     <div class="collapse-controls">
       <button class="collapse-btn" onclick="collapseAll(['kar-meals','kar-requests','kar-ratings','kar-shopping'])">Collapse all</button>
       <button class="collapse-btn" onclick="expandAll(['kar-meals','kar-requests','kar-ratings','kar-shopping'])">Expand all</button>
     </div>
     ${sectionHeader('kar-meals',"This week's meals")}
-    <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Meal pool</div>${hasPlan?'<span class="tag tag-blue">${mealCount} meals</span>':''}</div>${hasPlan&&currentMeals.length>0?'<div class="meal-list">${currentMeals.map(m=>mealRowKaren(m)).join(\'\')}</div>':`<div class="empty"><span class="empty-icon">🍽️</span>No meals yet this week</div>`}</div>
+    <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Meal pool</div>${hasPlan?`<span class="tag tag-blue">${mealCount} meals</span>`:''}</div>${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowKaren(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>No meals yet this week</div>`}</div>
     ${sectionEnd()}
-    ${currentUserCan('show_requests')?sectionHeader('kar-requests','Suggest a change')+'
-    <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Requests (require Cameron\'s approval)</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">${currentUserCan(\'submit_swap\')?'<button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button>`:''  }${currentUserCan('suggest_meals')?'<button class="btn-secondary" onclick="openModal(\'new\')">✨ Suggest new meal</button>':''}</div></div>
+    ${currentUserCan('show_requests')?sectionHeader('kar-requests','Suggest a change')+`
+    <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Requests (require Cameron's approval)</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">${currentUserCan('submit_swap')?`<button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button>`:''  }${currentUserCan('suggest_meals')?`<button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button>`:''}</div></div>
     `+sectionEnd():''}
     ${pendingIdeaRatings.length>0&&currentUserCan('show_ratings')?sectionHeader('kar-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
-    ${currentUserCan('view_shopping')?sectionHeader('kar-shopping','Shopping list')+'<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Your additions</div><span class="tag tag-blue">Mixed into the list</span></div><div class="karen-add-row"><input class="karen-add-input" id="karen-add-input" placeholder="e.g. olive oil, chocolate, shampoo..." onkeydown="if(event.key===\'Enter\')addKarenItem()"><button class="btn-primary" style="padding:8px 16px;font-size:0.85rem" onclick="addKarenItem()">Add</button></div><div id="karen-additions-list"><div style="font-size:0.82rem;color:var(--mid)">No items added yet</div></div></div><div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer</div><span class="tag tag-gray">View only</span></div><div id="karen-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>'+sectionEnd():''}
+    ${currentUserCan('view_shopping')?sectionHeader('kar-shopping','Shopping list')+`<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Your additions</div><span class="tag tag-blue">Mixed into the list</span></div><div class="karen-add-row"><input class="karen-add-input" id="karen-add-input" placeholder="e.g. olive oil, chocolate, shampoo..." onkeydown="if(event.key==='Enter')addKarenItem()"><button class="btn-primary" style="padding:8px 16px;font-size:0.85rem" onclick="addKarenItem()">Add</button></div><div id="karen-additions-list"><div style="font-size:0.82rem;color:var(--mid)">No items added yet</div></div></div><div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer</div><span class="tag tag-gray">View only</span></div><div id="karen-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`+sectionEnd():''}
   </div>`;
 }
 function mealRowKaren(m){
@@ -1607,7 +1605,7 @@ function mealRowKaren(m){
   const ratingHtml=ratingWindowOpen&&!myRating?ratingPromptHTML(r.id):'';
   const ratedHtml=myRating?`<div class="rating-submitted">Your rating: ${'★'.repeat(myRating)}${'☆'.repeat(5-myRating)}</div>`:'';
   const actionHtml=!isCooked?cookedBtn(r.id,planMeal.id,true):'<span class="tag tag-green">Cooked ✓</span>';
-  return`<div class="meal-item ${isCooked?'cooked':''}"><div style="flex:1"><div class="meal-name">${escapeHtml(r.name_en)}</div><div class="meal-meta">${r.prep_time_minutes||'—'} min prep${avgStr}</div>${r.default_side_en?'<div class="meal-side">🍽 With: <span>${escapeHtml(r.default_side_en)}</span>${r.default_side_es?\' · <em>\'+escapeHtml(r.default_side_es)+\'</em>\':\'\'}${!isCooked?'<button class="side-swap-btn" onclick="openSideSwapModal(this.dataset.rid,this.dataset.side)" data-rid="${r.id}" data-side="${esc(r.default_side_en||'')}">⇄ Swap side</button>`:''}</div>`:''}${ratingHtml}${ratedHtml}</div><div class="meal-actions">${actionHtml}</div></div>`;
+  return`<div class="meal-item ${isCooked?'cooked':''}"><div style="flex:1"><div class="meal-name">${escapeHtml(r.name_en)}</div><div class="meal-meta">${r.prep_time_minutes||'—'} min prep${avgStr}</div>${r.default_side_en?`<div class="meal-side">🍽 With: <span>${escapeHtml(r.default_side_en)}</span>${r.default_side_es?' · <em>'+escapeHtml(r.default_side_es)+'</em>':''}${!isCooked?`<button class="side-swap-btn" onclick="openSideSwapModal(this.dataset.rid,this.dataset.side)" data-rid="${r.id}" data-side="${esc(r.default_side_en||'')}">⇄ Swap side</button>`:''}</div>`:''}${ratingHtml}${ratedHtml}</div><div class="meal-actions">${actionHtml}</div></div>`;
 }
 async function loadKarenShoppingPreview(){
   const el=document.getElementById('karen-shopping-preview');if(!el)return;
@@ -1648,12 +1646,12 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
           const pref=ing._preferredProduct||ing._products[0];
           const alts=ing._products.filter(p=>p!==pref&&p.store_url);
           const prefBadge=pref.is_preferred_lacomer?'★ ':'';
-          linkHtml=`<div class="shop-link-wrap"><a class="shop-link" href="${safeUrl(pref.store_url)}" target="_blank">🛒 ${prefBadge}${pref.name_es||pref.name_en||'La Comer'}</a>${alts.length>0?'<div class="shop-alts">${alts.map(a=>'<a class="shop-alt-link" href="${safeUrl(a.store_url)}" target="_blank">${a.name_es||a.name_en||'La Comer'}</a>`).join('')}</div>`:''}</div>`;
+          linkHtml=`<div class="shop-link-wrap"><a class="shop-link" href="${safeUrl(pref.store_url)}" target="_blank">🛒 ${prefBadge}${pref.name_es||pref.name_en||'La Comer'}</a>${alts.length>0?`<div class="shop-alts">${alts.map(a=>`<a class="shop-alt-link" href="${safeUrl(a.store_url)}" target="_blank">${a.name_es||a.name_en||'La Comer'}</a>`).join('')}</div>`:''}</div>`;
         }else if(ing.lacomer_url){
           linkHtml=`<div class="shop-link-wrap"><a class="shop-link" href="${safeUrl(ing.lacomer_url)}" target="_blank">🛒 La Comer</a></div>`;
         }
         const addLinkBtns=!ing.lacomer_url&&(!ing._products||ing._products.length===0)&&isAdmin?`<div class="link-btn-group"><button class="find-link-btn" onclick="findOnLaComer(this.dataset.iid,this.dataset.name,this)" data-iid="${ing.id}" data-name="${esc(ing.name_es||ing.name_en)}">🔍 Find</button><button class="add-link-btn" onclick="showAddLinkForm('${ing.id}',this)">+ Paste</button></div>`:'';
-        const mealTag=ing._mealNames&&ing._mealNames.length>0?`<div style="font-size:0.7rem;color:var(--mid);margin-top:1px">For: ${ing._mealNames.map(escapeHtml).join(', ')}</div>`:'';        html+=`<div class="shop-row" id="shop-row-${ing.id}"><div class="shop-names"><div class="shop-name-en">${escapeHtml(ing.name_en)}${ing._qtyStr?'<span class="shop-qty"> · ${escapeHtml(ing._qtyStr)}</span>':''}</div><div class="shop-name-es">${escapeHtml(ing.name_es||'')}</div>${mealTag}</div>${linkHtml}${addLinkBtns}</div>`;
+        const mealTag=ing._mealNames&&ing._mealNames.length>0?`<div style="font-size:0.7rem;color:var(--mid);margin-top:1px">For: ${ing._mealNames.map(escapeHtml).join(', ')}</div>`:'';        html+=`<div class="shop-row" id="shop-row-${ing.id}"><div class="shop-names"><div class="shop-name-en">${escapeHtml(ing.name_en)}${ing._qtyStr?`<span class="shop-qty"> · ${escapeHtml(ing._qtyStr)}</span>`:''}</div><div class="shop-name-es">${escapeHtml(ing.name_es||'')}</div>${mealTag}</div>${linkHtml}${addLinkBtns}</div>`;
       }
     }
   }
@@ -1703,9 +1701,9 @@ function showDueSoonNudge(items){
       <h3>🛒 Usually buy these now</h3>
       <p style="font-size:0.83rem;color:var(--mid);margin-bottom:14px">These products are due based on how often you buy them. Tick any to add to this week's list.</p>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
-        ${items.map(p=>'<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--cream);border-radius:10px;cursor:pointer;font-size:0.88rem">
-          <input type="checkbox" class="due-soon-check" value="${p.id}" data-name="${(p.name_en||p.name_es).replace(/"/g,\'&quot;\')}" style="width:16px;height:16px;accent-color:var(--clay);cursor:pointer" checked>
-          <span style="flex:1">${escapeHtml(p.name_en||p.name_es||\'\')}${p.name_es&&p.name_en!==p.name_es?'<span style="font-size:0.75rem;color:var(--mid)"> · ${escapeHtml(p.name_es)}</span>`:''}</span>
+        ${items.map(p=>`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--cream);border-radius:10px;cursor:pointer;font-size:0.88rem">
+          <input type="checkbox" class="due-soon-check" value="${p.id}" data-name="${(p.name_en||p.name_es).replace(/"/g,'&quot;')}" style="width:16px;height:16px;accent-color:var(--clay);cursor:pointer" checked>
+          <span style="flex:1">${escapeHtml(p.name_en||p.name_es||'')}${p.name_es&&p.name_en!==p.name_es?`<span style="font-size:0.75rem;color:var(--mid)"> · ${escapeHtml(p.name_es)}</span>`:''}</span>
           <span style="font-size:0.75rem;color:var(--mid)">every ${p.buy_every_weeks}w</span>
         </label>`).join('')}
       </div>
@@ -1862,7 +1860,7 @@ async function generateShoppingList(){
     // Show frozen skip notice if any
     const frozenNotes=Object.values(frozenMealNotes);
     let frozenNoticeHtml='';
-    if(frozenNotes.length>0){frozenNoticeHtml=`<div style="background:rgba(46,95,138,0.08);border:1px solid rgba(46,95,138,0.2);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:0.82rem;color:#2E5F8A">🧊 <strong>Frozen meals — main ingredients skipped:</strong><ul style="margin:6px 0 0 16px;padding:0">${frozenNotes.map(n=>'<li>${n}</li>').join('')}</ul></div>`;}
+    if(frozenNotes.length>0){frozenNoticeHtml=`<div style="background:rgba(46,95,138,0.08);border:1px solid rgba(46,95,138,0.2);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:0.82rem;color:#2E5F8A">🧊 <strong>Frozen meals — main ingredients skipped:</strong><ul style="margin:6px 0 0 16px;padding:0">${frozenNotes.map(n=>`<li>${n}</li>`).join('')}</ul></div>`;}
     if(needIds.length===0){content.innerHTML=`<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;btn.textContent='Generate list';btn.disabled=false;return;}
     const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit,has_ready_alt,ready_name_en,ready_name_es,ready_quantity,ready_unit,ready_lacomer_url,ready_lacomer_category,ready_prep_delta_minutes').in('id',needIds);if(error)throw error;
     const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipes[ing.id]||[]).map(rid=>recipeNameMap[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
@@ -2277,10 +2275,10 @@ function renderPresetManagerUI(){
         <div style="font-weight:500;font-size:0.9rem">${p.name}${p.is_default?'<span style="font-size:0.7rem;color:var(--blue);margin-left:6px">default</span>':''}</div>
         <div style="display:flex;gap:6px">
           <button onclick="editPresetOrder('${p.id}')" style="font-size:0.75rem;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);cursor:pointer">Edit order</button>
-          ${!p.is_default?'<button onclick="setDefaultPreset(\'${p.id}\')" style="font-size:0.75rem;padding:4px 10px;border:1px solid rgba(46,95,138,0.3);border-radius:6px;background:var(--card);cursor:pointer;color:#2E5F8A">Set default</button>':''}          ${!p.is_default?'<button onclick="confirmDeletePreset(\'${p.id}\')" style="font-size:0.75rem;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);cursor:pointer;color:var(--red)">Delete</button>':''}
+          ${!p.is_default?`<button onclick="setDefaultPreset('${p.id}')" style="font-size:0.75rem;padding:4px 10px;border:1px solid rgba(46,95,138,0.3);border-radius:6px;background:var(--card);cursor:pointer;color:#2E5F8A">Set default</button>`:''}          ${!p.is_default?`<button onclick="confirmDeletePreset('${p.id}')" style="font-size:0.75rem;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);cursor:pointer;color:var(--red)">Delete</button>`:''}
         </div>
       </div>
-      <div style="font-size:0.72rem;color:var(--mid);line-height:1.7">${(p.category_order||[]).slice(0,8).join(' → ')}${(p.category_order||[]).length>8?' … +${p.category_order.length-8} more':''}</div>
+      <div style="font-size:0.72rem;color:var(--mid);line-height:1.7">${(p.category_order||[]).slice(0,8).join(' → ')}${(p.category_order||[]).length>8?` … +${p.category_order.length-8} more`:''}</div>
     </div>`).join('');
 }
 
@@ -2318,13 +2316,13 @@ function editPresetOrder(id){
       </div>
       <div style="font-size:0.78rem;color:var(--mid);margin-bottom:14px">Drag to reorder categories</div>
       <div id="preset-order-list" style="display:flex;flex-direction:column;gap:6px">
-        ${order.map((cat,i)=>'
+        ${order.map((cat,i)=>`
           <div class="preset-order-row" draggable="true" data-cat="${cat}" data-idx="${i}"
             style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);cursor:grab;font-size:0.85rem;user-select:none;"
-            ondragstart="presetDragStart(event)" ondragover="presetDragOver(event)" ondrop="presetDrop(event,\'${id}\')">
+            ondragstart="presetDragStart(event)" ondragover="presetDragOver(event)" ondrop="presetDrop(event,'${id}')">
             <span style="color:var(--mid);font-size:1rem">⠿</span>
             <span style="flex:1">${cat}</span>
-          </div>').join('')}
+          </div>`).join('')}
       </div>
       <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
         <button onclick="document.getElementById('preset-order-modal').remove()" style="padding:9px 18px;border:1px solid var(--border);border-radius:8px;background:var(--card);cursor:pointer;font-size:0.85rem">Cancel</button>
@@ -2714,7 +2712,7 @@ let _prepWarningCallback=null;
 function proceedAnywayFromWarning(){closeModal();if(_prepWarningCallback){_prepWarningCallback();_prepWarningCallback=null;}}
 function showPrepWarningModal(mealName,reason,alternatives,onProceedAnyway){
   _prepWarningCallback=onProceedAnyway;
-  const altHtml=alternatives.length>0?`<div class="alt-label">Same-day alternatives from this week</div>${alternatives.slice(0,3).map(r=>'<div class="prep-alt-item">✓ ${r.name_en}</div>').join('')}`:`<div class="prep-alt-item" style="background:rgba(107,95,84,0.07);border-color:var(--border)">No ready-to-cook alternatives this week</div>`;
+  const altHtml=alternatives.length>0?`<div class="alt-label">Same-day alternatives from this week</div>${alternatives.slice(0,3).map(r=>`<div class="prep-alt-item">✓ ${r.name_en}</div>`).join('')}`:`<div class="prep-alt-item" style="background:rgba(107,95,84,0.07);border-color:var(--border)">No ready-to-cook alternatives this week</div>`;
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
   el.innerHTML=`<div class="prep-warning-modal"><div class="warn-icon">⚠️</div><h3>Not enough time to cook ${escapeHtml(mealName)} today</h3><div class="warn-reason">${escapeHtml(reason)}</div>${altHtml}<div class="modal-btns" style="margin-top:18px"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-secondary" style="color:#c44;border-color:#c44" onclick="proceedAnywayFromWarning()">Cook it anyway</button></div></div>`;
   document.body.appendChild(el);
@@ -2723,7 +2721,7 @@ function openScheduleModal(recipeId){
   const meal=currentMeals.find(m=>m.recipe_id===recipeId);const recipe=meal?.recipes;if(!meal||!recipe)return;
   const totalPrepCook=(recipe.prep_time_minutes||0)+(recipe.cook_time_minutes||0);
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-  el.innerHTML=`<div class="modal" style="max-width:400px"><h3>Schedule ${escapeHtml(recipe.name_en)}</h3><p>Set which day and what time you want to eat. The app will tell you when to start prep.</p><div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Day</label><select id="sched-day" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— Pick a day —</option>${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d=>'<option value="${d}">${d}</option>').join('')}</select></div><div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Target eat time</label><input type="time" id="sched-time" value="13:00" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none"></div><div id="sched-calc" style="font-size:0.83rem;color:var(--mid);padding:10px 12px;background:var(--cream);border-radius:8px;margin-bottom:4px">Total prep + cook: <strong>${totalPrepCook} min</strong>. Set a time above to see when to start.</div><div id="sched-warn" style="display:none;margin-top:8px;padding:10px 12px;background:rgba(200,50,50,0.07);border-left:3px solid #c44;border-radius:0 8px 8px 0;font-size:0.82rem;color:#c03030"></div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="confirmSchedule('${meal.id}','${recipeId}',${totalPrepCook})">Save schedule</button></div></div>`;
+  el.innerHTML=`<div class="modal" style="max-width:400px"><h3>Schedule ${escapeHtml(recipe.name_en)}</h3><p>Set which day and what time you want to eat. The app will tell you when to start prep.</p><div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Day</label><select id="sched-day" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— Pick a day —</option>${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div><div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Target eat time</label><input type="time" id="sched-time" value="13:00" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none"></div><div id="sched-calc" style="font-size:0.83rem;color:var(--mid);padding:10px 12px;background:var(--cream);border-radius:8px;margin-bottom:4px">Total prep + cook: <strong>${totalPrepCook} min</strong>. Set a time above to see when to start.</div><div id="sched-warn" style="display:none;margin-top:8px;padding:10px 12px;background:rgba(200,50,50,0.07);border-left:3px solid #c44;border-radius:0 8px 8px 0;font-size:0.82rem;color:#c03030"></div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="confirmSchedule('${meal.id}','${recipeId}',${totalPrepCook})">Save schedule</button></div></div>`;
   document.body.appendChild(el);
   document.getElementById('sched-time').addEventListener('input',()=>updateSchedCalc(totalPrepCook));
   document.getElementById('sched-day').addEventListener('change',()=>updateSchedCalc(totalPrepCook));
@@ -2807,7 +2805,7 @@ function openSideSwapModal(recipeId,currentSideEn){
   const sideOptions=allSides.map(s=>`<option value="${s.name_en}|${s.name_es||''}" ${s.name_en===currentSideEn?'selected':''}>${s.name_en}${s.name_es?' · '+s.name_es:''}</option>`).join('');
   const actionLabel=isKaren?'Change side now':'Request side swap';
   const noteText=isKaren?`<p style="font-size:0.8rem;color:var(--green);margin-bottom:12px">✓ As reviewer, your side swap applies immediately — no approval needed.</p>`:`<p style="font-size:0.8rem;color:var(--mid);margin-bottom:12px">Your request will go to Cameron for approval.</p>`;
-  el.innerHTML=`<div class="modal" style="max-width:420px"><h3>Change side for this meal</h3><p>Current side: <strong>${escapeHtml(currentSideEn)||'None set'}</strong></p>${noteText}<div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">New side</label><select id="side-swap-select" class="side-swap-select"><option value="">— Pick a side —</option>${sideOptions}</select></div>${!isKaren?'<div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Reason (required)</label><textarea id="side-swap-reason" placeholder="Why do you want to change the side?" rows="3" style="width:100%;padding:10px 12px;border:1.5px solid var(--light);border-radius:10px;font-family:\'DM Sans\',sans-serif;font-size:0.88rem;resize:vertical;min-height:70px;outline:none"></textarea></div>':''}<div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="submitSideSwap(this.dataset.rid,this.dataset.side,this.dataset.karen==='true')" data-rid="${recipeId}" data-side="${esc(currentSideEn)}" data-karen="${isKaren}">${actionLabel}</button></div></div>`;
+  el.innerHTML=`<div class="modal" style="max-width:420px"><h3>Change side for this meal</h3><p>Current side: <strong>${escapeHtml(currentSideEn)||'None set'}</strong></p>${noteText}<div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">New side</label><select id="side-swap-select" class="side-swap-select"><option value="">— Pick a side —</option>${sideOptions}</select></div>${!isKaren?`<div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Reason (required)</label><textarea id="side-swap-reason" placeholder="Why do you want to change the side?" rows="3" style="width:100%;padding:10px 12px;border:1.5px solid var(--light);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;resize:vertical;min-height:70px;outline:none"></textarea></div>`:''}<div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="submitSideSwap(this.dataset.rid,this.dataset.side,this.dataset.karen==='true')" data-rid="${recipeId}" data-side="${esc(currentSideEn)}" data-karen="${isKaren}">${actionLabel}</button></div></div>`;
   document.body.appendChild(el);
 }
 async function submitSideSwap(recipeId,currentSideEn,isKaren){
@@ -2830,7 +2828,7 @@ function openTierModal(recipeId,currentTier,isLocked){
   const meal=currentMeals.find(m=>m.recipe_id===recipeId);const mealName=meal?.recipes?.name_en||'this meal';const avgRating=meal?.recipes?.avg_rating;const autoTier=avgRating?TIER_LABELS[tierFromRating(avgRating)]:null;
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
   const optionsHtml=TIER_OPTIONS.map(o=>`<option value="${o.value}" ${o.value===currentTier?'selected':''}>${o.label} — ${o.note}</option>`).join('');
-  const lockNote=isLocked?`<div style="font-size:0.8rem;padding:8px 12px;background:rgba(200,103,74,0.07);border-left:3px solid var(--clay);border-radius:0 8px 8px 0;margin-bottom:12px">🔒 Override active — ratings won't auto-change this tier. ${autoTier?'Auto tier from ratings would be: <strong>'+autoTier+'</strong>.':''}<button class="btn-ghost" style="font-size:0.78rem;padding:4px 10px;margin-left:8px;color:var(--clay)" onclick="unlockTierOverride('${recipeId}')">Remove override</button></div>`:`<div style="font-size:0.78rem;color:var(--mid);margin-bottom:12px">Setting a tier locks it — ratings won't auto-change it until you remove the override.</div>`;
+  const lockNote=isLocked?`<div style="font-size:0.8rem;padding:8px 12px;background:rgba(200,103,74,0.07);border-left:3px solid var(--clay);border-radius:0 8px 8px 0;margin-bottom:12px">🔒 Override active — ratings won't auto-change this tier. ${autoTier?`Auto tier from ratings would be: <strong>${autoTier}</strong>.`:''}<button class="btn-ghost" style="font-size:0.78rem;padding:4px 10px;margin-left:8px;color:var(--clay)" onclick="unlockTierOverride('${recipeId}')">Remove override</button></div>`:`<div style="font-size:0.78rem;color:var(--mid);margin-bottom:12px">Setting a tier locks it — ratings won't auto-change it until you remove the override.</div>`;
   el.innerHTML=`<div class="modal" style="max-width:420px"><h3>Frequency tier — ${escapeHtml(mealName)}</h3>${lockNote}<label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Set tier</label><select id="tier-select" class="tier-select">${optionsHtml}</select><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="saveTierOverride('${recipeId}')">Save &amp; lock</button></div></div>`;
   document.body.appendChild(el);
 }
@@ -2908,7 +2906,7 @@ async function renderRecipeListView(){
   const total=tabRecipes.length;const withSteps=tabRecipes.filter(r=>r.steps&&r.steps.trim()).length;const pct=total>0?Math.round((withSteps/total)*100):0;
   const progressHtml=`<div class="steps-progress-bar"><span style="font-size:0.9rem">📋</span><div class="steps-progress-track"><div class="steps-progress-fill" style="width:${pct}%"></div></div><span class="steps-progress-count">${withSteps} of ${total}</span><span class="steps-progress-label">recipes have saved steps</span></div>`;
   const addRecipeBtn=userProfile?.role==='admin'?`<button class="btn-primary" style="font-size:0.82rem;padding:7px 14px;white-space:nowrap;margin-left:auto" onclick="openAddRecipeModal()">+ Add Recipe</button>`:'';
-  content.innerHTML=`<div class="fade-in" id="recipe-list-root"><div class="page-header"><h1>Recipes</h1><p>Browse and manage the full meal library</p></div>${progressHtml}<div class="recipes-toolbar"><div style="display:flex;gap:6px;margin-right:10px;background:rgba(200,180,160,0.2);border-radius:9px;padding:3px"><button class="filter-pill${recipeFilterType==='lunch'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('lunch')">🍽 Lunches</button><button class="filter-pill${recipeFilterType==='dinner'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('dinner')">🌙 Dinners</button>${isAdmin?'<button class="filter-pill${recipeFilterType===\'component\'?\' active\':\'\'}" style="border-radius:7px;font-weight:500" onclick="setRecipeType(\'component\')">🧩 Components</button>':''}</div>${recipeFilterType==='component'?'':'<input class="search-input" id="recipe-search" placeholder="Search recipes…" oninput="filterRecipes()" value="${recipeFilterSearch}"><button class="filter-pill ${recipeFilterTier===\'all\'?\'active\':\'\'}" onclick="setTierFilter(\'all\')">All</button><button class="filter-pill ${recipeFilterTier===\'weekly\'?\'active\':\'\'}" onclick="setTierFilter(\'weekly\')">Weekly</button><button class="filter-pill ${recipeFilterTier===\'regular\'?\'active\':\'\'}" onclick="setTierFilter(\'regular\')">Regular</button><button class="filter-pill ${recipeFilterTier===\'occasional\'?\'active\':\'\'}" onclick="setTierFilter(\'occasional\')">Occasional</button><button class="filter-pill ${recipeFilterTier===\'rare\'?\'active\':\'\'}" onclick="setTierFilter(\'rare\')">Rare</button><button class="filter-pill ${recipeShowHibernated?\'active\':\'\'}" onclick="toggleHibernated()">💤 Hibernated</button>${addRecipeBtn}</div>'}</div><div id="recipe-grid-container"><div class="empty"><span class="empty-icon">🍳</span>Loading recipes…</div></div></div>`;
+  content.innerHTML=`<div class="fade-in" id="recipe-list-root"><div class="page-header"><h1>Recipes</h1><p>Browse and manage the full meal library</p></div>${progressHtml}<div class="recipes-toolbar"><div style="display:flex;gap:6px;margin-right:10px;background:rgba(200,180,160,0.2);border-radius:9px;padding:3px"><button class="filter-pill${recipeFilterType==='lunch'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('lunch')">🍽 Lunches</button><button class="filter-pill${recipeFilterType==='dinner'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('dinner')">🌙 Dinners</button>${isAdmin?`<button class="filter-pill${recipeFilterType==='component'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('component')">🧩 Components</button>`:''}</div>${recipeFilterType==='component'?'':`<input class="search-input" id="recipe-search" placeholder="Search recipes…" oninput="filterRecipes()" value="${recipeFilterSearch}"><button class="filter-pill ${recipeFilterTier==='all'?'active':''}" onclick="setTierFilter('all')">All</button><button class="filter-pill ${recipeFilterTier==='weekly'?'active':''}" onclick="setTierFilter('weekly')">Weekly</button><button class="filter-pill ${recipeFilterTier==='regular'?'active':''}" onclick="setTierFilter('regular')">Regular</button><button class="filter-pill ${recipeFilterTier==='occasional'?'active':''}" onclick="setTierFilter('occasional')">Occasional</button><button class="filter-pill ${recipeFilterTier==='rare'?'active':''}" onclick="setTierFilter('rare')">Rare</button><button class="filter-pill ${recipeShowHibernated?'active':''}" onclick="toggleHibernated()">💤 Hibernated</button>${addRecipeBtn}</div>`}</div><div id="recipe-grid-container"><div class="empty"><span class="empty-icon">🍳</span>Loading recipes…</div></div></div>`;
   renderFilteredRecipes();
 }
 function renderFilteredRecipes(){
@@ -2931,13 +2929,13 @@ function renderFilteredRecipes(){
 }
 function componentRowHtml(r,isAdmin){
   const time=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);
-  return`<div class="recipe-row" onclick="openRecipeDetail('${r.id}')" style="opacity:0.85;border-style:dashed"><div class="recipe-main"><div class="recipe-title">🧩 ${r.name_en}</div>${r.name_es?'<div class="recipe-title-es">${r.name_es}</div>':''}<div class="recipe-meta-row">${time>0?'<span class="recipe-meta-item">⏱ ${time} min</span>':''}<span class="tag" style="background:rgba(100,100,200,0.08);color:#555;border:1px solid rgba(100,100,200,0.2)">component</span></div></div></div>`;
+  return`<div class="recipe-row" onclick="openRecipeDetail('${r.id}')" style="opacity:0.85;border-style:dashed"><div class="recipe-main"><div class="recipe-title">🧩 ${r.name_en}</div>${r.name_es?`<div class="recipe-title-es">${r.name_es}</div>`:''}<div class="recipe-meta-row">${time>0?`<span class="recipe-meta-item">⏱ ${time} min</span>`:''}<span class="tag" style="background:rgba(100,100,200,0.08);color:#555;border:1px solid rgba(100,100,200,0.2)">component</span></div></div></div>`;
 }
 function recipeRowHtml(r,isAdmin){
   const tier=r.hibernated?'hibernated':(r.frequency_tier||'regular');const stars=r.avg_rating?`⭐ ${parseFloat(r.avg_rating).toFixed(1)}`:'—';const time=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);
   const stepsTag=r.steps&&r.steps.trim()?`<span class="tag tag-green" style="font-size:0.65rem;padding:2px 7px">📋 steps saved</span>`:'';
   const adminActions=isAdmin?`<button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;" onclick="event.stopPropagation();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Tier</button><button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;" onclick="event.stopPropagation();openHibernateModal(this.dataset.rid,this.dataset.name)" data-rid="${r.id}" data-name="${esc(r.name_en)}"> ${r.hibernated?'Wake':'Sleep'}</button>`:'';
-  return`<div class="recipe-row${r.hibernated?' hibernated-row':''}" onclick="openRecipeDetail('${r.id}')"><div class="recipe-main"><div class="recipe-title">${r.name_en}</div>${r.name_es?'<div class="recipe-title-es">${r.name_es}</div>':''}<div class="recipe-meta-row">${time>0?'<span class="recipe-meta-item">⏱ ${time} min</span>':''}${r.advance_prep_required?'<span class="tag tag-amber">prep ahead</span>':''} ${r.hibernated&&r.hibernate_until?'<span class="recipe-meta-item">🌙 until ${new Date(r.hibernate_until).toLocaleDateString(\'en-MX\',{day:\'numeric\',month:\'short\'})}</span>':''} ${stepsTag}</div></div><div class="recipe-badges"><span class="stars-display">${stars}</span><span class="tier-badge tier-${tier}${r.frequency_override?' tier-locked':''}">${TIER_LABELS[tier]||tier}</span></div>${isAdmin?'<div class="recipe-actions">${adminActions}</div>':''}</div>`;
+  return`<div class="recipe-row${r.hibernated?' hibernated-row':''}" onclick="openRecipeDetail('${r.id}')"><div class="recipe-main"><div class="recipe-title">${r.name_en}</div>${r.name_es?`<div class="recipe-title-es">${r.name_es}</div>`:''}<div class="recipe-meta-row">${time>0?`<span class="recipe-meta-item">⏱ ${time} min</span>`:''}${r.advance_prep_required?`<span class="tag tag-amber">prep ahead</span>`:''} ${r.hibernated&&r.hibernate_until?`<span class="recipe-meta-item">🌙 until ${new Date(r.hibernate_until).toLocaleDateString('en-MX',{day:'numeric',month:'short'})}</span>`:''} ${stepsTag}</div></div><div class="recipe-badges"><span class="stars-display">${stars}</span><span class="tier-badge tier-${tier}${r.frequency_override?' tier-locked':''}">${TIER_LABELS[tier]||tier}</span></div>${isAdmin?`<div class="recipe-actions">${adminActions}</div>`:''}</div>`;
 }
 function filterRecipes(){renderFilteredRecipes();}
 function setRecipeType(type){recipeFilterType=type;recipeFilterTier='all';recipeShowHibernated=false;recipeFilterSearch='';allRecipesCache=null;renderRecipeListView();}
@@ -2948,7 +2946,7 @@ async function openRecipeDetail(recipeId){
   const isAdmin=userProfile?.role==='admin';const tier=r.hibernated?'hibernated':(r.frequency_tier||'regular');
   const stars=r.avg_rating?`⭐ ${parseFloat(r.avg_rating).toFixed(1)}`:'Not yet rated';const baseTime=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);const recipeDefaults=r.scratch_ready_defaults||{};const srDelta=(r.ingredients||[]).reduce((sum,ing)=>{const s=getSRState(String(ing.id),recipeDefaults);return sum+(s==='ready'&&ing.has_ready_alt?(ing.ready_prep_delta_minutes||0):0);},0);const time=Math.max(0,baseTime+srDelta);
   const ingredients=r.ingredients||[];const canToggle=currentUserCan('can_toggle_scratch_ready');const canEditIng=currentUserCan('edit_ingredients');const grouped={};ingredients.forEach(ing=>{const resolved=resolveIngredient(ing,recipeDefaults);const cat=resolved._displayCategory||ing.lacomer_category||'Other';if(!grouped[cat])grouped[cat]=[];grouped[cat].push({ing,resolved});});
-  const ingredientHtml=Object.entries(grouped).map(([cat,items])=>`<div class="modal-section-label">${cat}</div><div class="ingredient-list">${items.map(({ing,resolved})=>{const qty=resolved._displayQty?(resolved._displayQty+(resolved._displayUnit?' '+resolved._displayUnit:'')):'' ;const link=resolved._displayUrl?'<a class="ingredient-link" id="sr-link-'+ing.id+'" href="'+resolved._displayUrl+'" target="_blank">🛒 La Comer</a>':'<span id="sr-link-'+ing.id+'" style="display:none"></span>';const srToggle=ing.has_ready_alt&&canToggle?`<div class="sr-toggle-wrap"><button class="sr-pill ${resolved._srState}" id="sr-pill-${ing.id}" onclick="toggleSRState('${ing.id}','${r.id}')">${resolved._srState==='ready'?'⚡ Ready-made':'👨‍🍳 Made from scratch'}</button><span class="sr-time-save" id="sr-time-${ing.id}">${resolved._prepDelta<0?'saves '+Math.abs(resolved._prepDelta)+' min':''}</span></div>`:ing.has_ready_alt?`<div class="sr-toggle-wrap"><span style="font-size:0.67rem;color:var(--mid)">alt available</span></div>`:'';
+  const ingredientHtml=Object.entries(grouped).map(([cat,items])=>`<div class="modal-section-label">${cat}</div><div class="ingredient-list">${items.map(({ing,resolved})=>{const qty=resolved._displayQty?`${resolved._displayQty}${resolved._displayUnit?' '+resolved._displayUnit:''}`:'' ;const link=resolved._displayUrl?`<a class="ingredient-link" id="sr-link-${ing.id}" href="${resolved._displayUrl}" target="_blank">🛒 La Comer</a>`:`<span id="sr-link-${ing.id}" style="display:none"></span>`;const srToggle=ing.has_ready_alt&&canToggle?`<div class="sr-toggle-wrap"><button class="sr-pill ${resolved._srState}" id="sr-pill-${ing.id}" onclick="toggleSRState('${ing.id}','${r.id}')">${resolved._srState==='ready'?'⚡ Ready-made':'👨‍🍳 Made from scratch'}</button><span class="sr-time-save" id="sr-time-${ing.id}">${resolved._prepDelta<0?'saves '+Math.abs(resolved._prepDelta)+' min':''}</span></div>`:ing.has_ready_alt?`<div class="sr-toggle-wrap"><span style="font-size:0.67rem;color:var(--mid)">alt available</span></div>`:'';
   const editBtn=canEditIng?`<button class="ing-edit-btn" onclick="toggleIngEdit('${ing.id}')" title="Edit ingredient">✏️</button>`:'';
   const catOptions=AR_CATS.map(c=>`<option value="${c}"${(ing.lacomer_category||'Other')===c?' selected':''}>${c}</option>`).join('');
   const editForm=canEditIng?`<div class="ing-edit-form" id="ing-edit-form-${ing.id}">
@@ -2965,9 +2963,9 @@ async function openRecipeDetail(recipeId){
       <button class="ing-edit-save" onclick="saveIngredientEdit('${ing.id}','${r.id}')">Save</button>
     </div>
   </div>`:'';
-  return`<div class="ingredient-row" id="ing-row-${ing.id}"><div class="ingredient-info"><div class="ingredient-name-en" id="sr-name-${ing.id}">${resolved._displayName_en}</div>${resolved._displayName_es?'<div class="ingredient-name-es" id="ing-name-es-display-${ing.id}">${resolved._displayName_es}</div>':''}</div>${qty?'<div class="ingredient-qty" id="ing-qty-display-${ing.id}">${qty}</div>':''}${link}${srToggle}${editBtn}${editForm}</div>`;}).join('')}</div>`).join('');
-  const prepSection=r.advance_prep_required?`<div class="modal-section-label">Prep notes</div><div class="prep-flag"><span class="prep-flag-icon">⏰</span><div><strong>Advance prep required</strong>${r.advance_prep_description?'<div style="margin-top:3px">${r.advance_prep_description}</div>':''}${!r.same_day_cookable?'<div style="margin-top:3px;font-size:0.78rem;color:var(--mid)">Cannot be cooked same day without prep</div>':''}</div></div>`:'';
-  const sideSection=r.default_side_en?`<div class="modal-section-label">Default side</div><div style="font-size:0.87rem;color:var(--dark)">${r.default_side_en}${r.default_side_es?' · <em style="color:var(--mid)">${r.default_side_es}</em>':''}</div>`:'';
+  return`<div class="ingredient-row" id="ing-row-${ing.id}"><div class="ingredient-info"><div class="ingredient-name-en" id="sr-name-${ing.id}">${resolved._displayName_en}</div>${resolved._displayName_es?`<div class="ingredient-name-es" id="ing-name-es-display-${ing.id}">${resolved._displayName_es}</div>`:''}</div>${qty?`<div class="ingredient-qty" id="ing-qty-display-${ing.id}">${qty}</div>`:''}${link}${srToggle}${editBtn}${editForm}</div>`;}).join('')}</div>`).join('');
+  const prepSection=r.advance_prep_required?`<div class="modal-section-label">Prep notes</div><div class="prep-flag"><span class="prep-flag-icon">⏰</span><div><strong>Advance prep required</strong>${r.advance_prep_description?`<div style="margin-top:3px">${r.advance_prep_description}</div>`:''}${!r.same_day_cookable?`<div style="margin-top:3px;font-size:0.78rem;color:var(--mid)">Cannot be cooked same day without prep</div>`:''}</div></div>`:'';
+  const sideSection=r.default_side_en?`<div class="modal-section-label">Default side</div><div style="font-size:0.87rem;color:var(--dark)">${r.default_side_en}${r.default_side_es?` · <em style="color:var(--mid)">${r.default_side_es}</em>`:''}</div>`:'';
   const adminFooterBtns=isAdmin?`<button class="btn-secondary" onclick="closeRecipeDetail();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Change tier</button><button class="btn-secondary" onclick="closeRecipeDetail();openHibernateModal(this.dataset.rid,this.dataset.name)" data-rid="${r.id}" data-name="${esc(r.name_en)}">😴 ${r.hibernated?'Wake up':'Hibernate'}</button><button class=\"btn-secondary\" id=\"freeze-toggle-btn-${r.id}\" onclick=\"toggleFreezable('${r.id}')\" style=\"${r.is_freezable!==false?'color:#2E5F8A;border-color:rgba(46,95,138,0.4)':''}\">🧊 ${r.is_freezable!==false?'Freezable':'Not freezable'}</button>`:'';
   const hasSavedSteps=r.steps&&r.steps.trim();const stepsBtnLabel=hasSavedSteps?'📋 View steps':'📋 Generate steps';
   document.body.insertAdjacentHTML('beforeend',`
@@ -2976,12 +2974,12 @@ async function openRecipeDetail(recipeId){
       <button class="recipe-modal-close" onclick="safeCloseRecipeDetail('${r.id}')">✕</button>
       <div class="recipe-modal-header">
         <div class="recipe-modal-title">${r.name_en}</div>
-        ${r.name_es?'<div class="recipe-modal-title-es">${r.name_es}</div>':''}
-        ${time>0?'<div id="sr-modal-time-${r.id}" style="font-size:0.78rem;color:var(--mid);margin-top:4px">⏱ ${time} min${srDelta<0?' <span style="color:var(--green);font-weight:500">(saves ${Math.abs(srDelta)} min)</span>`:''}</div>`:''}
+        ${r.name_es?`<div class="recipe-modal-title-es">${r.name_es}</div>`:''}
+        ${time>0?`<div id="sr-modal-time-${r.id}" style="font-size:0.78rem;color:var(--mid);margin-top:4px">⏱ ${time} min${srDelta<0?` <span style="color:var(--green);font-weight:500">(saves ${Math.abs(srDelta)} min)</span>`:''}</div>`:''}
       </div>
       <div class="recipe-modal-body">
         ${prepSection}${sideSection}
-        ${ingredients.length>0?'<div class="modal-section-label">Ingredients</div>${ingredientHtml}':'<div style="font-size:0.85rem;color:var(--mid)">No ingredients loaded yet</div>'}
+        ${ingredients.length>0?`<div class="modal-section-label">Ingredients</div>${ingredientHtml}`:'<div style="font-size:0.85rem;color:var(--mid)">No ingredients loaded yet</div>'}
         <div id="steps-container-${r.id}" style="display:none"></div>
       </div>
       <div id="modal-timers-slot-${r.id}" style="display:none;padding:0 28px 10px;flex-shrink:0"></div>
@@ -3087,7 +3085,7 @@ async function toggleSRState(ingId, recipeId){
     const newDelta=(recipe.ingredients||[]).reduce((sum,i)=>{const s=getSRState(String(i.id),recipeDefaults);return sum+(s==='ready'&&i.has_ready_alt?(i.ready_prep_delta_minutes||0):0);},0);
     const base=(recipe.prep_time_minutes||0)+(recipe.cook_time_minutes||0);
     const eff=Math.max(0,base+newDelta);
-    timeEl.innerHTML=eff>0?`⏱ ${eff} min${newDelta<0?' <span style="color:var(--green);font-weight:500">(saves ${Math.abs(newDelta)} min)</span>':''}`:'';}
+    timeEl.innerHTML=eff>0?`⏱ ${eff} min${newDelta<0?` <span style="color:var(--green);font-weight:500">(saves ${Math.abs(newDelta)} min)</span>`:''}`:'';}
   showToast(next==='ready'?'Switched to ready-made ⚡':'Switched to scratch 👨‍🍳');
 }
 
@@ -3137,13 +3135,13 @@ function arIngRowsHtml(){
       <input placeholder="Nombre (ES)" value="${ing.name_es}" oninput="arIngUpdate(${ing.id},'name_es',this.value)" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none">
       <input placeholder="Qty" type="number" min="0" step="any" value="${ing.quantity}" oninput="arIngUpdate(${ing.id},'quantity',this.value)" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none">
       <select oninput="arIngUpdate(${ing.id},'unit',this.value)" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;background:white">
-        <option value="">unit</option>${AR_UNITS.map(u=>'<option value="${u}"${ing.unit===u?\' selected\':\'\'}>${u}</option>').join('')}
+        <option value="">unit</option>${AR_UNITS.map(u=>`<option value="${u}"${ing.unit===u?' selected':''}>${u}</option>`).join('')}
       </select>
       <button onclick="arIngRemove(${ing.id})" style="background:none;border:none;color:var(--mid);font-size:1rem;cursor:pointer;padding:4px 6px;line-height:1">✕</button>
     </div>
     <div style="margin-bottom:10px">
       <select oninput="arIngUpdate(${ing.id},'category',this.value)" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;background:white">
-        <option value="">— La Comer category —</option>${AR_CATS.map(c=>'<option value="${c}"${ing.category===c?\' selected\':\'\'}>${c}</option>').join('')}
+        <option value="">— La Comer category —</option>${AR_CATS.map(c=>`<option value="${c}"${ing.category===c?' selected':''}>${c}</option>`).join('')}
       </select>
     </div>`).join('');
 }
@@ -3250,15 +3248,15 @@ Do not use any other category value. Keep it home-style, practical, serves ${ser
     const clean=raw.replace(/```json|```/g,'').trim();
     const recipe=JSON.parse(clean);
     window._aiRecipeDraft=recipe;
-    const ingPreview=recipe.ingredients?.map(i=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.82rem"><span>${i.name_en}${i.name_es&&i.name_es!==i.name_en?' · <em style="color:var(--mid)">${i.name_es}</em>':''}</span><span style="color:var(--mid);flex-shrink:0;margin-left:8px">${i.quantity?i.quantity+' '+(i.unit||''):''}</span></div>`).join('')||'';
+    const ingPreview=recipe.ingredients?.map(i=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.82rem"><span>${i.name_en}${i.name_es&&i.name_es!==i.name_en?` · <em style="color:var(--mid)">${i.name_es}</em>`:''}</span><span style="color:var(--mid);flex-shrink:0;margin-left:8px">${i.quantity?i.quantity+' '+(i.unit||''):''}</span></div>`).join('')||'';
     resultEl.style.display='block';
     resultEl.innerHTML=`
       <div style="background:rgba(107,95,84,0.06);border-radius:10px;padding:14px;margin-bottom:12px">
         <div style="font-size:1rem;font-weight:600;color:var(--dark)">${recipe.name_en}</div>
-        ${recipe.name_es?'<div style="font-size:0.82rem;color:var(--mid)">${recipe.name_es}</div>':''}
+        ${recipe.name_es?`<div style="font-size:0.82rem;color:var(--mid)">${recipe.name_es}</div>`:''}
         <div style="display:flex;gap:12px;margin-top:8px;font-size:0.78rem;color:var(--mid)">
           <span>⏱ Prep ${recipe.prep_time_minutes||0} min</span><span>🍳 Cook ${recipe.cook_time_minutes||0} min</span>
-          ${recipe.advance_prep_required?'<span style="color:#b07030">⏰ Advance prep</span>':''}
+          ${recipe.advance_prep_required?`<span style="color:#b07030">⏰ Advance prep</span>`:''}
         </div>
         <div style="margin-top:12px;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Ingredients (${recipe.ingredients?.length||0})</div>
         ${ingPreview}
@@ -3563,7 +3561,7 @@ async function openDinnerSwapModal(planMealId,lunchRecipeId,currentDinnerRecipeI
   const options=dinnerRecipes.filter(r=>String(r.id)!==String(currentDinnerRecipeId));
   if(options.length===0){showToast('No other options available for this pairing','error');return;}
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-  el.innerHTML=`<div class="modal" style="max-width:400px"><h3>Change dinner</h3><p>Choose from the 3 paired options for this lunch.</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">${options.map(r=>'<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem;width:100%" onclick="swapDinner(\'${planMealId}\',\'${r.id}\')">${escapeHtml(r.name_en)}</button>').join('')}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
+  el.innerHTML=`<div class="modal" style="max-width:400px"><h3>Change dinner</h3><p>Choose from the 3 paired options for this lunch.</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">${options.map(r=>`<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem;width:100%" onclick="swapDinner('${planMealId}','${r.id}')">${escapeHtml(r.name_en)}</button>`).join('')}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
   document.body.appendChild(el);el.addEventListener('click',e=>{if(e.target===el)closeModal();});
 }
 async function swapDinner(planMealId,newDinnerRecipeId){
@@ -3606,7 +3604,7 @@ async function openAdminDinnerReplaceModal(planMealId,lunchRecipeId,currentDinne
   const options=dinnerRecipes.filter(r=>String(r.id)!==String(currentDinnerRecipeId));
   if(options.length===0){showToast('No other options available for this pairing','error');return;}
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-  el.innerHTML=`<div class="modal" style="max-width:400px"><h3>Replace dinner</h3><p>Choose a different dinner from the paired options for this lunch.</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">${options.map(r=>'<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem;width:100%" onclick="adminReplaceDinner(\'${planMealId}\',\'${r.id}\',\'${r.name_en}\')">${escapeHtml(r.name_en)}</button>').join('')}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
+  el.innerHTML=`<div class="modal" style="max-width:400px"><h3>Replace dinner</h3><p>Choose a different dinner from the paired options for this lunch.</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">${options.map(r=>`<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem;width:100%" onclick="adminReplaceDinner('${planMealId}','${r.id}','${r.name_en}')">${escapeHtml(r.name_en)}</button>`).join('')}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
   document.body.appendChild(el);el.addEventListener('click',e=>{if(e.target===el)closeModal();});
 }
 
@@ -3650,7 +3648,7 @@ async function openAddDinnerStep2(lunchRecipeId,lunchName){
   closeModal();
   await new Promise(r=>setTimeout(r,80));
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-  el.innerHTML=`<div class="modal" style="max-width:420px"><h3>Add dinner</h3><p>Paired with: <strong>${escapeHtml(lunchName)}</strong>. Choose a dinner:</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">${dinnerRecipes.map(r=>'<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem;width:100%" onclick="adminAddDinner(this.dataset.lrid,this.dataset.rid,this.dataset.name)" data-lrid="${lunchRecipeId}" data-rid="${r.id}" data-name="${esc(r.name_en)}">🌙 ${escapeHtml(r.name_en)}</button>').join('')}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
+  el.innerHTML=`<div class="modal" style="max-width:420px"><h3>Add dinner</h3><p>Paired with: <strong>${escapeHtml(lunchName)}</strong>. Choose a dinner:</p><div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">${dinnerRecipes.map(r=>`<button class="btn-secondary" style="text-align:left;padding:12px 16px;font-size:0.88rem;width:100%" onclick="adminAddDinner(this.dataset.lrid,this.dataset.rid,this.dataset.name)" data-lrid="${lunchRecipeId}" data-rid="${r.id}" data-name="${esc(r.name_en)}">🌙 ${escapeHtml(r.name_en)}</button>`).join('')}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
   document.body.appendChild(el);el.addEventListener('click',e=>{if(e.target===el)closeModal();});
 }
 
@@ -3745,21 +3743,21 @@ function productRowHtml(p){
   return`<div class="product-row" id="prod-row-${p.id}">
     <div class="product-main">
       <div class="product-name-en">${p.name_en||p.name_es}</div>
-      ${p.name_es&&p.name_en!==p.name_es?'<div class="product-name-es">${p.name_es}</div>':''}
+      ${p.name_es&&p.name_en!==p.name_es?`<div class="product-name-es">${p.name_es}</div>`:''}
       <div class="product-meta">
         <span class="product-store-tag">${p.store||'La Comer'}</span>
         ${prefLaComer}${prefCity}
-        ${linkedIng?'<span style="font-size:0.72rem;color:var(--mid)">→ ${linkedIng}</span>':''}
+        ${linkedIng?`<span style="font-size:0.72rem;color:var(--mid)">→ ${linkedIng}</span>`:''}
         ${alwaysBuyBadge}${dueSoonBadge}
         ${unlinked}
         ${incompleteBadge}
-        ${p.notes&&!p.notes.includes('incomplete')?'<span style="font-size:0.72rem;color:var(--mid);font-style:italic">${p.notes}</span>':''}
+        ${p.notes&&!p.notes.includes('incomplete')?`<span style="font-size:0.72rem;color:var(--mid);font-style:italic">${p.notes}</span>`:''}
       </div>
     </div>
     <div class="product-actions">
       ${urlBtn}
-      ${isIncomplete?'<button class="ai-fill-btn" onclick="aiFillProduct(\'${p.id}\')" title="Fill in missing details with AI">✨ Fill</button>':''}
-      ${p.last_price_mxn?'<button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px" onclick="showPriceHistory(this.dataset.pid,this.dataset.name)" data-pid="${p.id}" data-name="${esc(p.name_en||p.name_es)}">📈 $${p.last_price_mxn}</button>':''}
+      ${isIncomplete?`<button class="ai-fill-btn" onclick="aiFillProduct('${p.id}')" title="Fill in missing details with AI">✨ Fill</button>`:''}
+      ${p.last_price_mxn?`<button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px" onclick="showPriceHistory(this.dataset.pid,this.dataset.name)" data-pid="${p.id}" data-name="${esc(p.name_en||p.name_es)}">📈 $${p.last_price_mxn}</button>`:''}
       <button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px" onclick="openEditProductModal('${p.id}')">Edit</button>
       <button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;color:#c44;border-color:rgba(200,50,50,0.3)" onclick="deleteProduct(this.dataset.pid,this.dataset.name)" data-pid="${p.id}" data-name="${esc(p.name_en||p.name_es)}">Delete</button>
     </div>
@@ -3787,7 +3785,7 @@ async function showPriceHistory(productId,productName){
   }).join('');
   const first=data[0].price_mxn;const last=data[data.length-1].price_mxn;
   const overallChange=last-first;
-  const overallHtml=data.length>1?`<div style="margin-top:12px;padding:10px;background:var(--light);border-radius:8px;font-size:0.82rem;color:var(--mid);text-align:center">${data.length} shops recorded · overall ${overallChange>0?'<span style="color:#c44">▲ $${overallChange.toFixed(2)}</span>':overallChange<0?`<span style="color:var(--green)">▼ $${Math.abs(overallChange).toFixed(2)}</span>`:'<span>no change</span>'}</div>`:'';
+  const overallHtml=data.length>1?`<div style="margin-top:12px;padding:10px;background:var(--light);border-radius:8px;font-size:0.82rem;color:var(--mid);text-align:center">${data.length} shops recorded · overall ${overallChange>0?`<span style="color:#c44">▲ $${overallChange.toFixed(2)}</span>`:overallChange<0?`<span style="color:var(--green)">▼ $${Math.abs(overallChange).toFixed(2)}</span>`:'<span>no change</span>'}</div>`:'';
   body.innerHTML=`<div style="padding:16px">${trend}${overallHtml}</div>`;
 }
 
@@ -3853,7 +3851,7 @@ async function renderPriceTrendsView(){
     return`<div class="trend-row" onclick="showPriceHistory(this.dataset.tid,this.dataset.name)" data-tid="${t.id}" data-name="${esc(t.prod.name_en||t.prod.name_es)}">
       <div style="flex:1">
         <div class="trend-name">${t.prod.name_en||t.prod.name_es}</div>
-        ${t.prod.name_es&&t.prod.name_en!==t.prod.name_es?'<div class="trend-name-es">${t.prod.name_es}</div>':''}
+        ${t.prod.name_es&&t.prod.name_en!==t.prod.name_es?`<div class="trend-name-es">${t.prod.name_es}</div>`:''}
       </div>
       <div class="sparkline">${bars}</div>
       <div class="trend-price">$${t.last.toFixed(2)}</div>
@@ -3868,7 +3866,7 @@ async function renderPriceTrendsView(){
     </div>
     <div class="trend-filter-row">${filterBtns}</div>
     <div class="card" style="padding:0 16px">
-      ${filtered.length?rows:'<div class="empty" style="padding:20px">No products in this filter</div>'}
+      ${filtered.length?rows:`<div class="empty" style="padding:20px">No products in this filter</div>`}
     </div>
     <div style="font-size:0.74rem;color:var(--mid);margin-top:12px;text-align:center">Tap any row to see full price history · Change shown from first to last recorded price</div>`;
 }
@@ -3885,7 +3883,7 @@ async function openAddProductModal(prefill={}){
     <div style="display:flex;flex-direction:column;gap:12px">
       <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Spanish name *</label><input id="prod-name-es" class="search-input" placeholder="e.g. Filete de Pollo Selecto" value="${prefill.name_es||''}" style="width:100%"></div>
       <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">English name</label><input id="prod-name-en" class="search-input" placeholder="e.g. Chicken Breast Fillet" value="${prefill.name_en||''}" style="width:100%"></div>
-      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Store</label><select id="prod-store" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white">${STORE_OPTIONS.map(s=>'<option value="${s}" ${(prefill.store||\'La Comer\')===s?\'selected\':\'\'}>${s}</option>').join('')}</select></div>
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Store</label><select id="prod-store" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white">${STORE_OPTIONS.map(s=>`<option value="${s}" ${(prefill.store||'La Comer')===s?'selected':''}>${s}</option>`).join('')}</select></div>
       <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Category</label><input id="prod-category" class="search-input" placeholder="e.g. Meats & Eggs, Produce, Dairy…" value="${prefill.category||''}" style="width:100%"></div>
       <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Store URL</label><input id="prod-url" class="search-input" placeholder="Paste La Comer product URL…" type="url" value="${prefill.store_url||''}" style="width:100%"></div>
       <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Links to ingredient</label><select id="prod-ingredient" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— No ingredient linked —</option>${ingOptions}</select></div>
@@ -4110,8 +4108,8 @@ async function renderScannerForm(barcode,prefill,existingProduct=null){
         <div class="scanner-result-card">
           <div style="font-size:0.72rem;font-weight:600;color:var(--amber);margin-bottom:8px">⚠ Already in your products</div>
           <div style="font-size:0.95rem;font-weight:500;margin-bottom:4px">${existing.name_es||existing.name_en}</div>
-          ${existing.name_en&&existing.name_en!==existing.name_es?'<div style="font-size:0.78rem;color:var(--mid);margin-bottom:10px">${existing.name_en}</div>':''}
-          ${existing.last_price_mxn?'<div style="font-size:0.85rem;color:var(--mid);margin-bottom:14px">Last price: <strong style="color:var(--dark)">$${existing.last_price_mxn} MXN</strong></div>':'<div style="font-size:0.82rem;color:var(--mid);margin-bottom:14px">No price recorded yet</div>'}
+          ${existing.name_en&&existing.name_en!==existing.name_es?`<div style="font-size:0.78rem;color:var(--mid);margin-bottom:10px">${existing.name_en}</div>`:''}
+          ${existing.last_price_mxn?`<div style="font-size:0.85rem;color:var(--mid);margin-bottom:14px">Last price: <strong style="color:var(--dark)">$${existing.last_price_mxn} MXN</strong></div>`:'<div style="font-size:0.82rem;color:var(--mid);margin-bottom:14px">No price recorded yet</div>'}
           <div class="scanner-field-row"><label>Update price (MXN)</label><input id="scan-update-price" type="number" min="0" step="0.01" placeholder="${existing.last_price_mxn||'Enter price'}" value="${existing.last_price_mxn||''}"></div>
           <div style="display:flex;gap:8px;margin-top:12px">
             <button class="btn-ghost" onclick="closeBarcodeScanner()">Cancel</button>
@@ -4142,7 +4140,7 @@ async function renderScannerForm(barcode,prefill,existingProduct=null){
           <div class="scanner-field-row"><label>Store URL</label><input id="scan-url" type="url" placeholder="Paste La Comer URL"></div>
         </div>
       </details>
-      ${scannerContext==='shopping'?'<div style="display:flex;align-items:center;gap:8px;margin:8px 0"><input type="checkbox" id="scan-add-to-list" checked><label for="scan-add-to-list" style="font-size:0.85rem;cursor:pointer">Add to this week\'s list</label></div>':''}
+      ${scannerContext==='shopping'?`<div style="display:flex;align-items:center;gap:8px;margin:8px 0"><input type="checkbox" id="scan-add-to-list" checked><label for="scan-add-to-list" style="font-size:0.85rem;cursor:pointer">Add to this week's list</label></div>`:''}
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn-ghost" onclick="closeBarcodeScanner()">Cancel</button>
         <button class="btn-secondary" style="flex:0 0 auto;font-size:0.8rem" onclick="startScanner();document.getElementById('scanner-result').innerHTML='';document.getElementById('scanner-status').textContent='Scanning…'">↩ Rescan</button>
@@ -4247,15 +4245,15 @@ async function openMergeDuplicatesModal(){
       </div>
       <p style="font-size:0.82rem;color:var(--mid);margin-bottom:14px">${groups.length} duplicate group${groups.length!==1?'s':''} found. Select which row to keep for each group — the others will be deleted.</p>
       <div id="merge-groups">
-        ${groups.map((group,gi)=>'
+        ${groups.map((group,gi)=>`
           <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid rgba(200,180,160,0.2)">
             <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Group ${gi+1}</div>
-            ${group.map((p,pi)=>'
+            ${group.map((p,pi)=>`
               <label style="display:flex;align-items:flex-start;gap:10px;padding:8px;border-radius:8px;cursor:pointer;margin-bottom:4px;background:${pi===0?'rgba(74,124,89,0.07)':'transparent'}">
                 <input type="radio" name="merge-group-${gi}" value="${p.id}" ${pi===0?'checked':''} style="margin-top:3px;flex-shrink:0">
                 <div style="flex:1;min-width:0">
                   <div style="font-size:0.88rem;font-weight:500">${p.name_en||p.name_es}</div>
-                  <div style="font-size:0.75rem;color:var(--mid)">${p.name_es}${p.barcode?' · ${p.barcode}':''}${p.last_price_mxn?' · $${p.last_price_mxn} MXN':''}</div>
+                  <div style="font-size:0.75rem;color:var(--mid)">${p.name_es}${p.barcode?` · ${p.barcode}`:''}${p.last_price_mxn?` · $${p.last_price_mxn} MXN`:''}</div>
                   <div style="font-size:0.7rem;color:var(--mid)">${p.notes||''}</div>
                 </div>
               </label>`).join('')}
@@ -4291,7 +4289,7 @@ async function executeMerge(groupIds){
   document.getElementById('merge-overlay')?.remove();
   productsCache=null;
   await loadAndRenderProducts();
-  showToast(`Merged — ${merged} duplicate${merged!==1?'s':''} removed${errors?', ${errors} errors':''} ✓`);
+  showToast(`Merged — ${merged} duplicate${merged!==1?'s':''} removed${errors?`, ${errors} errors`:''} ✓`);
 }
 /* ── END MERGE DUPLICATES ──────────────────────── */
 
@@ -4304,7 +4302,7 @@ async function aiFillProduct(productId){
   try{
     const prompt=`You are helping fill in product details for a Mexican supermarket product database.
 Product Spanish name: "${p.name_es}"
-${p.notes?'Notes: ${p.notes}':''}
+${p.notes?`Notes: ${p.notes}`:''}
 
 Please provide the following in JSON only, no other text:
 {
@@ -4490,10 +4488,10 @@ async function renderReceiptResults(items,promotions=[]){
   const promoHtml=promotions.length?`
     <div style="background:rgba(184,134,72,0.08);border:1px solid rgba(184,134,72,0.3);border-radius:10px;padding:10px 12px;margin-bottom:12px">
       <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--clay);margin-bottom:6px">🎟 Promotions on this receipt</div>
-      ${promotions.map(p=>'
+      ${promotions.map(p=>`
         <div style="font-size:0.8rem;padding:4px 0;border-bottom:1px solid rgba(184,134,72,0.15)">
           <div style="font-weight:500;color:var(--dark)">${p.description_en||p.description_es}</div>
-          <div style="font-size:0.72rem;color:var(--mid)">${p.description_es&&p.description_en?p.description_es+\' · \':\'\'}${p.value_mxn?'$${Number(p.value_mxn).toFixed(2)} MXN`:''}${p.expires?' · ⏳ expires ${p.expires}':''}</div>
+          <div style="font-size:0.72rem;color:var(--mid)">${p.description_es&&p.description_en?p.description_es+' · ':''}${p.value_mxn?`$${Number(p.value_mxn).toFixed(2)} MXN`:''}${p.expires?` · ⏳ expires ${p.expires}`:''}</div>
         </div>`).join('')}
     </div>`:'';
 
@@ -4501,30 +4499,30 @@ async function renderReceiptResults(items,promotions=[]){
     <div style="background:rgba(74,124,89,0.07);border:1px solid rgba(74,124,89,0.25);border-radius:10px;padding:10px 12px;margin-bottom:12px">
       <div style="font-size:0.85rem;font-weight:600;color:var(--dark)">${items.length} item${items.length!==1?'s':''} · $${summaryTotal.toFixed(2)} MXN</div>
       <div style="font-size:0.74rem;color:var(--mid);margin-top:2px">Mostly: ${topCats}</div>
-      ${riseCount?'<div style="font-size:0.74rem;color:#c44;margin-top:2px">📈 ${riseCount} item${riseCount!==1?\'s\':\'\'} cost more than last time</div>':''}
-      ${unrecCount?'<div style="font-size:0.74rem;color:#b8731a;margin-top:2px">❓ ${unrecCount} unrecognised item${unrecCount!==1?\'s\':\'\'} — check before saving</div>':''}
+      ${riseCount?`<div style="font-size:0.74rem;color:#c44;margin-top:2px">📈 ${riseCount} item${riseCount!==1?'s':''} cost more than last time</div>`:''}
+      ${unrecCount?`<div style="font-size:0.74rem;color:#b8731a;margin-top:2px">❓ ${unrecCount} unrecognised item${unrecCount!==1?'s':''} — check before saving</div>`:''}
     </div>
     ${promoHtml}
     <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:10px">Untick any to skip</div>
     <div id="receipt-items-list">
-      ${matched.map((item,i)=>'
-        <div class="receipt-item-row"${item.unrecognised?\' style="background:rgba(184,115,26,0.05);border-radius:8px;padding-left:6px;padding-right:6px"\':\'\'}>
+      ${matched.map((item,i)=>`
+        <div class="receipt-item-row"${item.unrecognised?' style="background:rgba(184,115,26,0.05);border-radius:8px;padding-left:6px;padding-right:6px"':''}>
           <input type="checkbox" class="receipt-item-check" id="rcheck-${i}" checked>
           <div class="receipt-item-info">
             <div class="receipt-item-name">${item.name_en||item.name_es}</div>
-            <div style="font-size:0.75rem;color:var(--mid)">${item.name_es}${item.weight_or_qty?' · ${item.weight_or_qty}`:''}</div>
+            <div style="font-size:0.75rem;color:var(--mid)">${item.name_es}${item.weight_or_qty?` · ${item.weight_or_qty}`:''}</div>
             <div class="receipt-item-sub">${item.existingProduct
               ?(item.barcode&&productsByBarcode[item.barcode]
-                ?'🔗 Barcode match: ${item.existingProduct.name_en||item.existingProduct.name_es}'
+                ?`🔗 Barcode match: ${item.existingProduct.name_en||item.existingProduct.name_es}`
                 :`~ Name match: ${item.existingProduct.name_en||item.existingProduct.name_es}`)
               :item.matchedIngredient
                 ?`Links to: ${item.matchedIngredient.name_en}`
                 :'<span style="color:#b8731a;font-weight:600">❓ Unrecognised — new product, no ingredient match</span>'}</div>
-            ${item.priceRise?'<div style="font-size:0.72rem;color:#c44;font-weight:600;margin-top:2px">📈 Was $${item.priceRise.was.toFixed(2)} — up ${item.priceRise.pct}%</div>':''}
+            ${item.priceRise?`<div style="font-size:0.72rem;color:#c44;font-weight:600;margin-top:2px">📈 Was $${item.priceRise.was.toFixed(2)} — up ${item.priceRise.pct}%</div>`:''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
             <span class="receipt-item-price"${item.priceRise?' style="color:#c44"':''}>$${item.price_mxn?.toFixed(2)||'?'}</span>
-            ${item.unit_price_mxn&&item.unit_price_mxn!==item.price_mxn?'<span style="font-size:0.7rem;color:var(--mid)">$${item.unit_price_mxn?.toFixed(2)}/unit</span>':''}
+            ${item.unit_price_mxn&&item.unit_price_mxn!==item.price_mxn?`<span style="font-size:0.7rem;color:var(--mid)">$${item.unit_price_mxn?.toFixed(2)}/unit</span>`:''}
             <span class="${item.existingProduct?'receipt-status-update':'receipt-status-new'}">${item.existingProduct?'update':'new'}</span>
           </div>
         </div>`).join('')}
@@ -4597,7 +4595,7 @@ async function saveReceiptItems(){
   if(leftovers.length>0){
     // Show leftover review step instead of closing immediately
     if(btn){btn.disabled=false;btn.textContent='Save leftovers ✓';}
-    const msg=`${updated} price${updated!==1?'s':''} updated, ${added} new product${added!==1?'s':''} added${errors?', ${errors} errors':''}`;
+    const msg=`${updated} price${updated!==1?'s':''} updated, ${added} new product${added!==1?'s':''} added${errors?`, ${errors} errors`:''}`;
     showToast('Products saved — review leftovers below');
     showLeftoverReviewStep(leftovers, async (confirmed)=>{await saveLeftovers(confirmed);});
     productsCache=null;
@@ -4607,7 +4605,7 @@ async function saveReceiptItems(){
   closeReceiptScanner();
   productsCache=null;
   await loadAndRenderProducts();
-  const msg=`Receipt saved — ${updated} price${updated!==1?'s':''} updated, ${added} new product${added!==1?'s':''} added${errors?', ${errors} errors':''}`;
+  const msg=`Receipt saved — ${updated} price${updated!==1?'s':''} updated, ${added} new product${added!==1?'s':''} added${errors?`, ${errors} errors`:''}`;
   showToast(msg);
 }
 /* ── LEFTOVER TRACKING ────────────────────────── */
@@ -4694,7 +4692,7 @@ function showLeftoverReviewStep(leftovers, onConfirm){
     <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:4px">Leftovers to track</div>
     <div style="font-size:0.78rem;color:var(--mid);margin-bottom:14px">These were bought but not fully needed this week. Set where you're storing them.</div>
     <div id="leftover-review-list">
-      ${leftovers.map((l,i)=>'
+      ${leftovers.map((l,i)=>`
         <div class="leftover-review-item">
           <div style="flex:1">
             <div class="leftover-name">${l.name_en}</div>
@@ -4707,7 +4705,7 @@ function showLeftoverReviewStep(leftovers, onConfirm){
             <option value="freezer">❄️ Freezer</option>
             <option value="cupboard">🚪 Cupboard</option>
           </select>
-        </div>').join('')}
+        </div>`).join('')}
     </div>
     <div style="display:flex;gap:10px;margin-top:16px">
       <button class="btn-ghost" onclick="saveLeftovers([])">Skip</button>
@@ -5208,7 +5206,7 @@ function showCSVPreviewModal(recipes){
   const totalIngs=recipes.reduce((s,r)=>s+r.ingredients.length,0);
   const recipeRows=recipes.map((r,ri)=>{
     const ingList=r.ingredients.length>0
-      ?r.ingredients.map(i=>`<div style="font-size:0.75rem;color:var(--mid);padding:2px 0 2px 12px;border-left:2px solid var(--border)">• ${i.name_en}${i.quantity?' · ${i.quantity}${i.unit?\' \'+i.unit:\'\'}':''} <em style="color:#aaa">${i.lacomer_category}</em></div>`).join('')
+      ?r.ingredients.map(i=>`<div style="font-size:0.75rem;color:var(--mid);padding:2px 0 2px 12px;border-left:2px solid var(--border)">• ${i.name_en}${i.quantity?` · ${i.quantity}${i.unit?' '+i.unit:''}`:''} <em style="color:#aaa">${i.lacomer_category}</em></div>`).join('')
       :`<div style="font-size:0.75rem;color:#c44;padding:2px 0 2px 12px">⚠ No ingredients</div>`;
     const dinnerTag=r.is_dinner?`<span style="font-size:0.68rem;background:rgba(46,95,138,0.12);color:#2E5F8A;border:1px solid rgba(46,95,138,0.25);border-radius:5px;padding:1px 7px;margin-left:6px">Dinner</span>`:'';
     const timeStr=[r.prep_time_minutes?`${r.prep_time_minutes}m prep`:'',r.cook_time_minutes?`${r.cook_time_minutes}m cook`:''].filter(Boolean).join(' · ');
@@ -5217,7 +5215,7 @@ function showCSVPreviewModal(recipes){
         <div style="font-size:0.88rem;font-weight:600;color:var(--dark)">${ri+1}. ${r.name_en}${dinnerTag}</div>
         <span style="font-size:0.72rem;color:var(--mid)">${r.ingredients.length} ing${timeStr?' · '+timeStr:''}</span>
       </div>
-      ${r.name_es?'<div style="font-size:0.75rem;color:var(--mid);margin-bottom:6px">${r.name_es}</div>':''}
+      ${r.name_es?`<div style="font-size:0.75rem;color:var(--mid);margin-bottom:6px">${r.name_es}</div>`:''}
       <div style="display:flex;flex-direction:column;gap:1px">${ingList}</div>
     </div>`;
   }).join('');
@@ -5299,7 +5297,7 @@ function wizardStepHTML(){
   return`<div class="modal" style="max-width:540px;max-height:90vh;display:flex;flex-direction:column;gap:0">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
       <h3 style="margin:0">Meal ${mealNum}</h3>
-      ${w.meals.length>0?'<span style="font-size:0.75rem;color:var(--clay);font-weight:600">${w.meals.length} saved so far</span>':''}
+      ${w.meals.length>0?`<span style="font-size:0.75rem;color:var(--clay);font-weight:600">${w.meals.length} saved so far</span>`:''}
     </div>
     <p style="font-size:0.82rem;color:var(--mid);margin-bottom:16px">Fill in the details for this meal. Ingredients can be added one by one below.</p>
     <div style="flex:1;overflow-y:auto;padding-right:2px">
@@ -5339,7 +5337,7 @@ function wizardStepHTML(){
       </div>
       <div style="font-size:0.72rem;font-weight:600;color:var(--mid);margin-bottom:8px;border-top:1px solid var(--border);padding-top:14px">INGREDIENTS</div>
       <div id="wiz-ing-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
-        ${w.current.ingredients.length===0?'<div style="font-size:0.8rem;color:var(--mid);padding:8px 0">No ingredients added yet</div>':w.current.ingredients.map((ing,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:rgba(107,95,84,0.05);border-radius:7px;font-size:0.8rem"><span style="color:var(--dark)">${ing.name_en}${ing.quantity?' · '+ing.quantity+(ing.unit?' '+ing.unit:''):''} <em style="color:var(--mid)">${ing.lacomer_category}</em></span><button onclick="wizRemoveIng(${i})" style="background:none;border:none;cursor:pointer;color:var(--mid);font-size:0.85rem;padding:0 4px">✕</button></div>`).join('')}
+        ${w.current.ingredients.length===0?`<div style="font-size:0.8rem;color:var(--mid);padding:8px 0">No ingredients added yet</div>`:w.current.ingredients.map((ing,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:rgba(107,95,84,0.05);border-radius:7px;font-size:0.8rem"><span style="color:var(--dark)">${ing.name_en}${ing.quantity?' · '+ing.quantity+(ing.unit?' '+ing.unit:''):''} <em style="color:var(--mid)">${ing.lacomer_category}</em></span><button onclick="wizRemoveIng(${i})" style="background:none;border:none;cursor:pointer;color:var(--mid);font-size:0.85rem;padding:0 4px">✕</button></div>`).join('')}
       </div>
       <div style="border:1px dashed var(--border);border-radius:8px;padding:10px 12px;background:rgba(107,95,84,0.03)">
         <div style="font-size:0.72rem;font-weight:600;color:var(--mid);margin-bottom:8px">ADD INGREDIENT</div>
@@ -5358,7 +5356,7 @@ function wizardStepHTML(){
     <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px;display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap">
       <div style="display:flex;gap:8px">
         <button class="btn-ghost" onclick="wizCancel()">Cancel</button>
-        ${w.meals.length>0?'<button class="btn-secondary" style="font-size:0.82rem" onclick="wizFinish()">✓ Done — save ${w.meals.length} meal${w.meals.length!==1?\'s\':\'\'}</button>':''}
+        ${w.meals.length>0?`<button class="btn-secondary" style="font-size:0.82rem" onclick="wizFinish()">✓ Done — save ${w.meals.length} meal${w.meals.length!==1?'s':''}</button>`:''}
       </div>
       <button class="btn-primary" onclick="wizNextMeal()">Save & add another meal →</button>
     </div>
@@ -5435,7 +5433,7 @@ function aiWizardHTML(){
   return`<div class="modal" style="max-width:520px;max-height:90vh;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
       <h3 style="margin:0">✨ AI Wizard</h3>
-      ${count>0?'<span style="font-size:0.75rem;color:var(--clay);font-weight:600">${count} meal${count!==1?\'s\':\'\'} saved</span>':''}
+      ${count>0?`<span style="font-size:0.75rem;color:var(--clay);font-weight:600">${count} meal${count!==1?'s':''} saved</span>`:''}
     </div>
     <p style="font-size:0.82rem;color:var(--mid);margin-bottom:16px">Type a meal name and AI will fill in all the ingredients, times and details. You review before saving.</p>
     <div style="flex:1;overflow-y:auto">
@@ -5451,7 +5449,7 @@ function aiWizardHTML(){
     </div>
     <div style="border-top:1px solid var(--border);padding-top:14px;display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap">
       <button class="btn-ghost" onclick="aiWizCancel()">Cancel</button>
-      ${count>0?'<button class="btn-secondary" onclick="aiWizFinish()">✓ Done — review ${count} meal${count!==1?\'s\':\'\'}</button>':''}
+      ${count>0?`<button class="btn-secondary" onclick="aiWizFinish()">✓ Done — review ${count} meal${count!==1?'s':''}</button>`:''}
     </div>
   </div>`;
 }
@@ -5492,17 +5490,17 @@ Return ONLY valid JSON. No explanation, no markdown fences. Ingredients should b
     const recipe=JSON.parse(clean);
     recipe._type=type;
     window._aiwiz._draft=recipe;
-    const ingPreview=(recipe.ingredients||[]).map(i=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:0.8rem"><span style="color:var(--dark)">${i.name_en}${i.name_es&&i.name_es!==i.name_en?' · <em style="color:var(--mid)">${i.name_es}</em>':''}</span><span style="color:var(--mid);flex-shrink:0;margin-left:8px">${i.quantity!=null?i.quantity+(i.unit?' '+i.unit:''):''} <em style="font-size:0.7rem">${i.category||''}</em></span></div>`).join('');
+    const ingPreview=(recipe.ingredients||[]).map(i=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:0.8rem"><span style="color:var(--dark)">${i.name_en}${i.name_es&&i.name_es!==i.name_en?` · <em style="color:var(--mid)">${i.name_es}</em>`:''}</span><span style="color:var(--mid);flex-shrink:0;margin-left:8px">${i.quantity!=null?i.quantity+(i.unit?' '+i.unit:''):''} <em style="font-size:0.7rem">${i.category||''}</em></span></div>`).join('');
     if(resultEl){
       resultEl.style.display='block';
       resultEl.innerHTML=`<div style="background:rgba(107,95,84,0.06);border-radius:10px;padding:14px;margin-bottom:12px">
         <div style="font-size:1rem;font-weight:600;color:var(--dark)">${recipe.name_en}</div>
-        ${recipe.name_es?'<div style="font-size:0.82rem;color:var(--mid);margin-bottom:6px">${recipe.name_es}</div>':''}
+        ${recipe.name_es?`<div style="font-size:0.82rem;color:var(--mid);margin-bottom:6px">${recipe.name_es}</div>`:''}
         <div style="display:flex;gap:12px;font-size:0.78rem;color:var(--mid);flex-wrap:wrap;margin-bottom:10px">
           <span>⏱ Prep ${recipe.prep_time_minutes||0} min</span>
           <span>🍳 Cook ${recipe.cook_time_minutes||0} min</span>
-          ${recipe.advance_prep_required?'<span style="color:#b07030">⏰ Advance prep</span>':''}
-          ${recipe.is_dinner?'<span style="color:#2E5F8A">🌙 Dinner</span>':''}
+          ${recipe.advance_prep_required?`<span style="color:#b07030">⏰ Advance prep</span>`:''}
+          ${recipe.is_dinner?`<span style="color:#2E5F8A">🌙 Dinner</span>`:''}
         </div>
         <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Ingredients (${(recipe.ingredients||[]).length})</div>
         ${ingPreview}
@@ -5568,7 +5566,7 @@ async function renderFrozenInventoryPanel(){
   el.innerHTML=Object.entries(grouped).map(([rid,g])=>{
     const total=g.rows.reduce((s,r)=>s+r.portions,0);
     const sufficient=total>=householdSize;
-    return`<div class="perm-row"><div><div class="perm-label">${g.name}</div><div class="perm-sublabel">${total} portion${total!==1?'s':''} · ${sufficient?'<span style="color:#4A7C59">✓ Enough for everyone</span>':`<span style="color:var(--mid)">Not enough for ${householdSize}</span>`}</div></div><div style="display:flex;gap:8px;align-items:center"><input type="number" min="0" max="50" value="${total}" id="frozen-edit-${rid}" style="width:56px;padding:4px 8px;border:1px solid var(--border);border-radius:7px;font-size:0.88rem;text-align:center"><button class="btn-secondary" style="font-size:0.75rem;padding:4px 10px" onclick="updateFrozenPortions('${rid}',${g.rows[0]?.id?'\'${g.rows[0].id}\'':'null'})">Update</button><button class="btn-ghost" style="font-size:0.75rem;padding:4px 10px;color:#c44" onclick="clearFrozenPortions('${rid}')">Clear</button></div></div>`;
+    return`<div class="perm-row"><div><div class="perm-label">${g.name}</div><div class="perm-sublabel">${total} portion${total!==1?'s':''} · ${sufficient?`<span style="color:#4A7C59">✓ Enough for everyone</span>`:`<span style="color:var(--mid)">Not enough for ${householdSize}</span>`}</div></div><div style="display:flex;gap:8px;align-items:center"><input type="number" min="0" max="50" value="${total}" id="frozen-edit-${rid}" style="width:56px;padding:4px 8px;border:1px solid var(--border);border-radius:7px;font-size:0.88rem;text-align:center"><button class="btn-secondary" style="font-size:0.75rem;padding:4px 10px" onclick="updateFrozenPortions('${rid}',${g.rows[0]?.id?`'${g.rows[0].id}'`:'null'})">Update</button><button class="btn-ghost" style="font-size:0.75rem;padding:4px 10px;color:#c44" onclick="clearFrozenPortions('${rid}')">Clear</button></div></div>`;
   }).join('');
 }
 async function updateFrozenPortions(recipeId,rowId){
@@ -5773,8 +5771,8 @@ async function renderHistoryView(){
         ${deleteBtn}
       </div>
       <div class="sec-body${isOpen?'':' collapsed'}" id="sec-${secId}" style="padding-top:4px">
-        ${lunches.length>0?'<div style="font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--mid);margin-bottom:4px">Lunches</div>${lunchRows}':''}
-        ${dinners.length>0?'<div style="font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--mid);margin-top:14px;margin-bottom:4px">Dinners</div>${dinnerRows}':''}
+        ${lunches.length>0?`<div style="font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--mid);margin-bottom:4px">Lunches</div>${lunchRows}`:''}
+        ${dinners.length>0?`<div style="font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--mid);margin-top:14px;margin-bottom:4px">Dinners</div>${dinnerRows}`:''}
       </div>
     </div>`;
   }).join('');
