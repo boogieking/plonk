@@ -730,7 +730,14 @@ async function proxyFetch(body){const{data:{session}}=await sb.auth.getSession()
 
 let frozenInventoryCache=null,householdSizeCache=null;
 async function init(){
-  const{data:{session}}=await sb.auth.getSession();
+  // Use getSession with a fallback retry to handle post-login race condition
+  let{data:{session}}=await sb.auth.getSession();
+  if(!session){
+    // Wait briefly and retry once — handles race where session isn't set immediately after login redirect
+    await new Promise(r=>setTimeout(r,800));
+    const retry=await sb.auth.getSession();
+    session=retry.data.session;
+  }
   if(!session){window.location.href='index.html';return;}
   currentUser=session.user;
   const{data,error}=await sb.from('users').select('*').eq('id',currentUser.id).single();
@@ -2941,7 +2948,7 @@ async function openRecipeDetail(recipeId){
   const isAdmin=userProfile?.role==='admin';const tier=r.hibernated?'hibernated':(r.frequency_tier||'regular');
   const stars=r.avg_rating?`⭐ ${parseFloat(r.avg_rating).toFixed(1)}`:'Not yet rated';const baseTime=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);const recipeDefaults=r.scratch_ready_defaults||{};const srDelta=(r.ingredients||[]).reduce((sum,ing)=>{const s=getSRState(String(ing.id),recipeDefaults);return sum+(s==='ready'&&ing.has_ready_alt?(ing.ready_prep_delta_minutes||0):0);},0);const time=Math.max(0,baseTime+srDelta);
   const ingredients=r.ingredients||[];const canToggle=currentUserCan('can_toggle_scratch_ready');const canEditIng=currentUserCan('edit_ingredients');const grouped={};ingredients.forEach(ing=>{const resolved=resolveIngredient(ing,recipeDefaults);const cat=resolved._displayCategory||ing.lacomer_category||'Other';if(!grouped[cat])grouped[cat]=[];grouped[cat].push({ing,resolved});});
-  const ingredientHtml=Object.entries(grouped).map(([cat,items])=>`<div class="modal-section-label">${cat}</div><div class="ingredient-list">${items.map(({ing,resolved})=>{const qty=resolved._displayQty?`${resolved._displayQty}${resolved._displayUnit?' '+resolved._displayUnit:''}`:'' ;const link=resolved._displayUrl?`<a class="ingredient-link" id="sr-link-${ing.id}" href="${resolved._displayUrl}" target="_blank">🛒 La Comer</a>`:`<span id="sr-link-${ing.id}" style="display:none"></span>`;const srToggle=ing.has_ready_alt&&canToggle?`<div class="sr-toggle-wrap"><button class="sr-pill ${resolved._srState}" id="sr-pill-${ing.id}" onclick="toggleSRState('${ing.id}','${r.id}')">${resolved._srState==='ready'?'⚡ Ready-made':'👨‍🍳 Made from scratch'}</button><span class="sr-time-save" id="sr-time-${ing.id}">${resolved._prepDelta<0?'saves '+Math.abs(resolved._prepDelta)+' min':''}</span></div>`:ing.has_ready_alt?`<div class="sr-toggle-wrap"><span style="font-size:0.67rem;color:var(--mid)">alt available</span></div>`:'';
+  const ingredientHtml=Object.entries(grouped).map(([cat,items])=>`<div class="modal-section-label">${cat}</div><div class="ingredient-list">${items.map(({ing,resolved})=>{const qty=resolved._displayQty?(resolved._displayQty+(resolved._displayUnit?' '+resolved._displayUnit:'')):'' ;const link=resolved._displayUrl?'<a class="ingredient-link" id="sr-link-'+ing.id+'" href="'+resolved._displayUrl+'" target="_blank">🛒 La Comer</a>':'<span id="sr-link-'+ing.id+'" style="display:none"></span>';const srToggle=ing.has_ready_alt&&canToggle?`<div class="sr-toggle-wrap"><button class="sr-pill ${resolved._srState}" id="sr-pill-${ing.id}" onclick="toggleSRState('${ing.id}','${r.id}')">${resolved._srState==='ready'?'⚡ Ready-made':'👨‍🍳 Made from scratch'}</button><span class="sr-time-save" id="sr-time-${ing.id}">${resolved._prepDelta<0?'saves '+Math.abs(resolved._prepDelta)+' min':''}</span></div>`:ing.has_ready_alt?`<div class="sr-toggle-wrap"><span style="font-size:0.67rem;color:var(--mid)">alt available</span></div>`:'';
   const editBtn=canEditIng?`<button class="ing-edit-btn" onclick="toggleIngEdit('${ing.id}')" title="Edit ingredient">✏️</button>`:'';
   const catOptions=AR_CATS.map(c=>`<option value="${c}"${(ing.lacomer_category||'Other')===c?' selected':''}>${c}</option>`).join('');
   const editForm=canEditIng?`<div class="ing-edit-form" id="ing-edit-form-${ing.id}">
