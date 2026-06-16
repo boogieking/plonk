@@ -725,6 +725,7 @@ const SIENNA_ID='ca779de4-2052-4bb4-89c6-59b67a5ad788';
 const KAREN_ID='60688390-f010-4e19-b7e9-bfbe2c35b04c';
 const CAMERON_ID='4581c8f1-042d-43a6-ba2d-6ec586dea301';
 const USER_NAME_MAP={'4581c8f1-042d-43a6-ba2d-6ec586dea301':'Cameron','ca779de4-2052-4bb4-89c6-59b67a5ad788':'Sienna','60688390-f010-4e19-b7e9-bfbe2c35b04c':'Karen'};
+const REQUEST_LABELS={swap:'Swap request',hibernate:'Hibernation request',new:'New meal suggestion',side_swap:'Side dish swap',plan_submitted:'Plan submitted',week_finalised:'Week finalised',reshuffle:'Reshuffle request'};
 let currentUser=null,userProfile=null,currentPlan=null,currentMeals=[],currentDinners=[];
 async function proxyFetch(body){const{data:{session}}=await sb.auth.getSession();const token=session?.access_token;if(!token){showToast('Session expired — please sign in again','error');await sb.auth.signOut();window.location.href='index.html';return null;}return fetch('https://claude-proxy.cameronjohnking.workers.dev',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(body)});}
 
