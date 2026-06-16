@@ -3244,6 +3244,8 @@ IMPORTANT: The category field for each ingredient MUST be exactly one of these v
 Do not use any other category value. Keep it home-style, practical, serves ${serves}. Ingredients should be things available at a Mexican supermarket.`;
   try{
     const resp=await proxyFetch({model:'claude-sonnet-4-6',max_tokens:1500,system:systemPrompt,messages:[{role:'user',content:`${prompt}. Type: ${type==='dinner'?'dinner':'lunch'}.`}]});
+    if(!resp){btn.textContent='✨ Generate';btn.disabled=false;return;}
+    if(!resp.ok){const errData=await resp.json().catch(()=>({}));const msg=errData?.error||('Request failed ('+resp.status+')');showToast(msg,'error');btn.textContent='✨ Generate';btn.disabled=false;return;}
     const data=await resp.json();
     const raw=data.content?.map(c=>c.text||'').join('').trim();
     const clean=raw.replace(/```json|```/g,'').trim();
