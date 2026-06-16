@@ -2900,6 +2900,7 @@ let currentView='dashboard';
 function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){if(!currentUserCan('view_recipes')&&userProfile?.role!=='admin'){showToast('Recipe library is not enabled for your account','error');switchView('dashboard');return;}renderRecipeListView();}else if(view==='products'){renderProductsView();}else if(view==='history'){renderHistoryView();}else if(view==='permissions'){renderPermissionsView();}}
 let recipeFilterTier='all',recipeFilterSearch='',recipeShowHibernated=false,allRecipesCache=null,recipeFilterType='lunch';
 async function renderRecipeListView(){
+  const isAdmin=userProfile?.role==='admin';
   const content=document.getElementById('dashboard-content');
   if(!allRecipesCache){const{data,error}=await sb.from('recipes').select('*, scratch_ready_defaults, ingredients(id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit,has_ready_alt,ready_name_en,ready_name_es,ready_quantity,ready_unit,ready_lacomer_url,ready_lacomer_category,ready_prep_delta_minutes)').order('name_en');if(error){content.innerHTML=`<div class="fade-in"><div class="empty" style="color:#c44">Could not load recipes: ${error.message}</div></div>`;return;}allRecipesCache=data;}
   const tabRecipes=allRecipesCache.filter(r=>r.is_component?false:recipeFilterType==='dinner'?r.is_dinner===true:r.is_dinner!==true);
