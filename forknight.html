@@ -2827,7 +2827,6 @@ function openTierModal(recipeId,currentTier,isLocked){
   el.innerHTML=`<div class="modal" style="max-width:420px"><h3>Frequency tier — ${escapeHtml(mealName)}</h3>${lockNote}<label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Set tier</label><select id="tier-select" class="tier-select">${optionsHtml}</select><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="saveTierOverride('${recipeId}')">Save &amp; lock</button></div></div>`;
   document.body.appendChild(el);
 }
-async function toggleFreezable(recipeId){
 function toggleIngEdit(ingId){
   const form=document.getElementById(`ing-edit-form-${ingId}`);
   if(form)form.classList.toggle('open');
