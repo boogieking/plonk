@@ -1415,7 +1415,73 @@ async function doMarkCooked(recipeId,planMealId){
   // Prompt for frozen portions if recipe is freezable
   const recipe=pm?.recipes||(allRecipesCache||[]).find(r=>r.id===recipeId);
   const isFreezable=recipe?.is_freezable!==false;
-  if(isFreezable)promptFreezePortions(recipeId,recipe?.name_en||'this meal');
+  if(isFreezable){promptFreezePortions(recipeId,recipe?.name_en||'this meal');}
+  // Depletion nudge — check pantry after freeze prompt settles
+  setTimeout(()=>showDepletionNudge(recipeId,recipe?.name_en||'this meal'),isFreezable?800:200);
+}
+async function showDepletionNudge(recipeId,mealName){
+  if(!pantryStockCache||pantryStockCache.length===0)return;
+  // Load ingredients for this recipe
+  const{data:ings}=await sb.from('ingredients').select('id,name_en,name_es').eq('recipe_id',recipeId);
+  if(!ings||ings.length===0)return;
+  // Find pantry items that match recipe ingredients
+  const ingNames=new Set(ings.map(i=>(i.name_en||'').toLowerCase()));
+  const ingIds=new Set(ings.map(i=>i.id));
+  const matches=pantryStockCache.filter(p=>
+    (p.ingredient_id&&ingIds.has(p.ingredient_id))||
+    ingNames.has((p.ingredient_name||'').toLowerCase())
+  );
+  if(matches.length===0)return;
+  const overlay=document.createElement('div');
+  overlay.id='depletion-nudge-overlay';
+  overlay.className='scanner-overlay';
+  const confidenceLabel=(c)=>c==='high'?'&#10003; We have it':c==='medium'?'&#9888; Wait! I better check':'&#8595; Running low';
+  const nextConf=(c)=>c==='high'?'medium':c==='medium'?'low':'low';
+  const nextLabel=(c)=>c==='high'?'&#8595; Running low now':c==='medium'?'&#8595; Running low':'Already low';
+  const rows=matches.map(item=>`
+    <div class="pantry-row" id="dep-row-${item.id}" style="justify-content:space-between">
+      <div>
+        <div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div>
+        <div style="font-size:0.78rem;color:var(--mid);margin-top:2px" id="dep-status-${item.id}">${confidenceLabel(item.confidence)}</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="scan-btn" style="font-size:0.75rem;padding:4px 10px" onclick="depleteItem('${item.id}','${item.confidence}')" id="dep-btn-${item.id}">${nextLabel(item.confidence)}</button>
+        <button class="scan-btn" style="font-size:0.75rem;padding:4px 10px" onclick="removeDepletedItem('${item.id}')">Used it all &#x2715;</button>
+      </div>
+    </div>`).join('');
+  overlay.innerHTML=`
+    <div class="scanner-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <h3>&#x1F373; After cooking ${escapeHtml(mealName)}</h3>
+        <button onclick="document.getElementById('depletion-nudge-overlay')?.remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid);padding:4px 8px">&#x2715;</button>
+      </div>
+      <p style="font-size:0.85rem;color:var(--mid);margin-bottom:14px">These pantry items were used in this meal. Did any run low or run out?</p>
+      <div style="max-height:340px;overflow-y:auto">${rows}</div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <button class="btn-primary" style="width:100%" onclick="document.getElementById('depletion-nudge-overlay')?.remove()">All good &#10003;</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+async function depleteItem(id,currentConf){
+  const next=currentConf==='high'?'medium':'low';
+  const{error}=await sb.from('pantry_stock').update({confidence:next,last_updated:new Date().toISOString()}).eq('id',id);
+  if(error){showToast('Error: '+error.message,'error');return;}
+  const item=pantryStockCache?.find(i=>i.id===id);if(item)item.confidence=next;
+  const statusEl=document.getElementById(`dep-status-${id}`);
+  const btn=document.getElementById(`dep-btn-${id}`);
+  if(statusEl)statusEl.innerHTML=next==='medium'?'&#9888; Wait! I better check':'&#8595; Running low';
+  if(btn)btn.textContent=next==='medium'?'Running low now':'Already marked';
+  if(btn)btn.disabled=true;
+  showToast('Updated ✓');
+}
+async function removeDepletedItem(id){
+  const{error}=await sb.from('pantry_stock').delete().eq('id',id);
+  if(error){showToast('Error: '+error.message,'error');return;}
+  pantryStockCache=(pantryStockCache||[]).filter(i=>i.id!==id);
+  const row=document.getElementById(`dep-row-${id}`);
+  if(row){row.style.opacity='0.4';row.innerHTML=row.innerHTML.replace(/<div style="display:flex.*<\/div>$/,'<span style="font-size:0.78rem;color:var(--clay)">Removed from pantry</span>');}
+  showToast('Removed from pantry');
 }
 function promptFreezePortions(recipeId,mealName){
   const el=document.getElementById('modal-overlay');if(!el)return;
