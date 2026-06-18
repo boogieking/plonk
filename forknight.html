@@ -4613,6 +4613,7 @@ Please provide the following in JSON only, no other text:
 
 /* ── RECEIPT SCANNER ───────────────────────────── */
 let receiptItems=[];
+let _lastReceiptSavedItems=[];
 
 function openReceiptScanner(){
   const overlay=document.createElement('div');
@@ -4859,6 +4860,15 @@ async function saveReceiptItems(){
     }catch(e){errors++;console.warn('Receipt save error:',e.message);}
   }
 
+  // Collect names of all checked items for pantry offer
+  _lastReceiptSavedItems=[];
+  for(let i=0;i<receiptItems.length;i++){
+    const check=document.getElementById(`rcheck-${i}`);
+    if(!check?.checked)continue;
+    const item=receiptItems[i];
+    const name=item.name_en||item.name_es||'';
+    if(name)_lastReceiptSavedItems.push({name,quantity:null,unit:null});
+  }
   // Collect saved items that have a matched ingredient and weight for leftover calc
   const savedForLeftovers=[];
   for(let i=0;i<receiptItems.length;i++){
@@ -4876,7 +4886,10 @@ async function saveReceiptItems(){
     if(btn){btn.disabled=false;btn.textContent='Save leftovers ✓';}
     const msg=`${updated} price${updated!==1?'s':''} updated, ${added} new product${added!==1?'s':''} added${errors?`, ${errors} errors`:''}`;
     showToast('Products saved — review leftovers below');
-    showLeftoverReviewStep(leftovers, async (confirmed)=>{await saveLeftovers(confirmed);});
+    showLeftoverReviewStep(leftovers, async (confirmed)=>{
+      await saveLeftovers(confirmed);
+      offerPantryFromReceipt(_lastReceiptSavedItems);
+    });
     productsCache=null;
     return;
   }
@@ -4886,6 +4899,61 @@ async function saveReceiptItems(){
   await loadAndRenderProducts();
   const msg=`Receipt saved — ${updated} price${updated!==1?'s':''} updated, ${added} new product${added!==1?'s':''} added${errors?`, ${errors} errors`:''}`;
   showToast(msg);
+  offerPantryFromReceipt(_lastReceiptSavedItems);
+}
+function offerPantryFromReceipt(items){
+  if(!items||items.length===0)return;
+  const overlay=document.createElement('div');
+  overlay.id='pantry-receipt-overlay';
+  overlay.className='scanner-overlay';
+  const unitOptions=['','g','kg','ml','l','tsp','tbsp','cup','pcs','slices','cans','bags','bottles','jars'].map(u=>`<option value="${u}">${u||'unit'}</option>`).join('');
+  const rows=items.map((item,i)=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <input type="checkbox" id="pr-check-${i}" checked style="width:18px;height:18px;accent-color:var(--clay);flex-shrink:0">
+      <div style="flex:1;font-size:0.88rem;font-weight:500">${escapeHtml(item.name)}</div>
+      <select class="karen-add-input" id="pr-conf-${i}" style="width:160px;flex:none;font-size:0.78rem;padding:4px 8px">
+        <option value="high">&#10003; We have it</option>
+        <option value="medium">&#9888; Wait! I better check</option>
+        <option value="low">&#8595; Running low</option>
+      </select>
+    </div>`).join('');
+  overlay.innerHTML=`
+    <div class="scanner-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <h3>&#x1F9FA; Add to pantry?</h3>
+        <button onclick="document.getElementById('pantry-receipt-overlay')?.remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid);padding:4px 8px">&#x2715;</button>
+      </div>
+      <p style="font-size:0.85rem;color:var(--mid);margin-bottom:14px">These items were on your receipt. Tick the ones you want to add to your pantry stock.</p>
+      <div style="max-height:340px;overflow-y:auto">${rows}</div>
+      <div style="display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <button class="btn-ghost" onclick="document.getElementById('pantry-receipt-overlay')?.remove()">Skip</button>
+        <button class="btn-primary" style="flex:1" onclick="savePantryReceiptItems(${items.length})">Add selected &#10003;</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function savePantryReceiptItems(count){
+  const hid=userProfile?.household_id;if(!hid){showToast('No household found','error');return;}
+  const toInsert=[];
+  for(let i=0;i<count;i++){
+    const checked=document.getElementById(`pr-check-${i}`)?.checked;
+    if(!checked)continue;
+    const nameEl=document.querySelector(`#pantry-receipt-overlay #pr-check-${i}`)?.closest('div')?.querySelector('div.flex-1, div[style*="font-weight"]');
+    // get name from _lastReceiptSavedItems
+    const name=_lastReceiptSavedItems[i]?.name||'';
+    if(!name)continue;
+    const confidence=document.getElementById(`pr-conf-${i}`)?.value||'high';
+    const{data:match}=await sb.from('ingredients').select('id').ilike('name_en',name).limit(1).maybeSingle();
+    toInsert.push({household_id:hid,ingredient_id:match?.id||null,ingredient_name:name,quantity:null,unit:null,confidence,source:'receipt',last_updated:new Date().toISOString()});
+  }
+  if(toInsert.length===0){showToast('No items selected','error');return;}
+  const{error}=await sb.from('pantry_stock').insert(toInsert);
+  if(error){showToast('Error: '+error.message,'error');return;}
+  document.getElementById('pantry-receipt-overlay')?.remove();
+  await loadPantryStock();
+  rerenderPantryList();
+  showToast(`${toInsert.length} item${toInsert.length!==1?'s':''} added to pantry ✓`);
 }
 /* ── LEFTOVER TRACKING ────────────────────────── */
 const STORAGE_LABELS={fridge:'🧊 Fridge',freezer:'❄️ Freezer',pantry:'🗄 Pantry',cupboard:'🚪 Cupboard'};
