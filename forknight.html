@@ -580,6 +580,8 @@
     <div class="nav-tabs" id="nav-tabs">
       <button class="nav-tab active" data-view="dashboard" onclick="switchView('dashboard')">This Week</button>
       <button class="nav-tab" data-view="recipes" onclick="switchView('recipes')">Recipes</button>
+      <button class="nav-tab" data-view="pantry" onclick="switchView('pantry')" id="pantry-tab">Pantry</button>
+      <button class="nav-tab" data-view="pantry" onclick="switchView('pantry')" id="pantry-tab">Pantry</button>
       <button class="nav-tab" data-view="products" onclick="switchView('products')" id="products-tab" style="display:none">Products</button>
       <button class="nav-tab" data-view="history" onclick="switchView('history')" id="history-tab" style="display:none">History</button>
       <button class="nav-tab" data-view="permissions" onclick="switchView('permissions')" id="permissions-tab" style="display:none">Permissions</button>
@@ -780,10 +782,10 @@ function getFrozenPortions(recipeId){return(frozenInventoryCache||[]).filter(f=>
 async function hasSufficientFrozen(recipeId){const portions=getFrozenPortions(recipeId);const size=await loadHouseholdSize();return portions>=size;}
 async function renderDashboard(){
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
-  await loadKarenAdditions();await loadPendingIdeaRatings();await loadShopPresets();await loadFrozenInventory();await loadHouseholdSize();await loadPantryStock();
-  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);applySectionOrder('admin',['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers','cam-pantry']);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();}
-  else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);applySectionOrder('planner',['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping','sie-pantry']);if(currentUserCan('show_inventory'))await loadInventory();}
-  else{content.innerHTML=renderKaren(recipes,userProfile.name);applySectionOrder('reviewer',['kar-meals','kar-requests','kar-ratings','kar-shopping','kar-pantry']);renderKarenAdditionsList();loadKarenShoppingPreview();}
+  await loadKarenAdditions();await loadPendingIdeaRatings();await loadShopPresets();await loadFrozenInventory();await loadHouseholdSize();
+  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);applySectionOrder('admin',['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers']);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();}
+  else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);applySectionOrder('planner',['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping']);if(currentUserCan('show_inventory'))await loadInventory();}
+  else{content.innerHTML=renderKaren(recipes,userProfile.name);applySectionOrder('reviewer',['kar-meals','kar-requests','kar-ratings','kar-shopping']);renderKarenAdditionsList();loadKarenShoppingPreview();}
 }
 function renderCameron(recipes,name){
   const hasPlan=currentPlan!==null;
@@ -822,8 +824,8 @@ function renderCameron(recipes,name){
       <div class="card stat-tile"><div class="stat-num">${hasPlan?mealCount:'—'}</div><div class="stat-label">Meals this plan</div></div>
     </div>
     <div class="collapse-controls">
-      <button class="collapse-btn" onclick="collapseAll(['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers','cam-pantry'])">Collapse all</button>
-      <button class="collapse-btn" onclick="expandAll(['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers','cam-pantry'])">Expand all</button>
+      <button class="collapse-btn" onclick="collapseAll(['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers'])">Collapse all</button>
+      <button class="collapse-btn" onclick="expandAll(['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers'])">Expand all</button>
     </div>
     ${sectionHeader('cam-requests','Pending requests')}
     <div class="card" style="margin-bottom:20px" id="requests-container"><div class="empty"><span class="empty-icon">📋</span>Loading requests...</div></div>
@@ -872,9 +874,6 @@ function renderCameron(recipes,name){
       <div id="leftovers-list"><div class="empty"><span class="empty-icon">📦</span>No leftovers tracked yet — they appear here after receipt scanning</div></div>
     </div>
     `+sectionEnd():''}
-    ${sectionHeader('cam-pantry','Pantry')}
-    ${renderPantrySection()}
-    ${sectionEnd()}
   </div>`;
 }
 function cookedBtn(recipeId,planMealId,small){if(!currentUserCan('mark_cooked'))return'';const sz=small?'font-size:0.75rem;padding:4px 10px':'font-size:0.78rem;padding:5px 10px';return`<button class="btn-secondary" style="${sz}" onclick="markCooked('${recipeId}','${planMealId}')">✓ Cooked</button>`;}
@@ -1518,8 +1517,8 @@ function renderSienna(recipes,name){
       ${hasPlan?`<div style="display:flex;gap:10px;flex-wrap:wrap">${currentUserCan('reshuffle_plan')?`<button class="btn-secondary" ${reshuffleUsed||alreadySubmitted?'disabled':''} onclick="doReshuffle(this)">${reshuffleUsed?'🔀 Reshuffle used':'🔀 Reshuffle'}</button>`:''}<button class="btn-primary" id="submit-plan-btn" ${alreadySubmitted?'disabled style="opacity:0.6"':''} onclick="submitPlan(this)">${submitLabel}</button></div>`:''}
     </div>
     <div class="collapse-controls">
-      <button class="collapse-btn" onclick="collapseAll(['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping','sie-pantry'])">Collapse all</button>
-      <button class="collapse-btn" onclick="expandAll(['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping','sie-pantry'])">Expand all</button>
+      <button class="collapse-btn" onclick="collapseAll(['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping'])">Collapse all</button>
+      <button class="collapse-btn" onclick="expandAll(['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping'])">Expand all</button>
     </div>
     ${sectionHeader('sie-meals',"This week's meals")}
     ${currentUserCan('show_prep_reminders')?renderPrepReminders():''}
@@ -1541,9 +1540,6 @@ function renderSienna(recipes,name){
     </div>
     `+sectionEnd():''}
     ${currentUserCan('view_shopping')?sectionHeader('sie-shopping','Shopping preview')+`<div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer</div><span class="tag tag-gray">View only · Cameron generates</span></div><div id="sienna-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`+sectionEnd():''}
-    ${sectionHeader('sie-pantry','Pantry')}
-    ${renderPantrySection()}
-    ${sectionEnd()}
   </div>`;
 }
 function mealRowSienna(m){
@@ -1596,8 +1592,8 @@ function renderKaren(recipes,name){
     <div class="page-header"><h1>Hi ${name} 👋</h1><p>${hasPlan?'Plan started '+planDateLabel(currentPlan):'No active plan yet'}</p></div>
     <div class="week-banner"><div><div class="status-label">Plan status</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap"><div class="status-dot" style="background:${hasPlan?'#4A7C59':'#C8674A'}"></div><div class="status-text">${hasPlan?`${mealCount} meal${mealCount!==1?'s':''} this week · status: <strong>${currentPlan.status}</strong>`:'No active plan yet'}</div></div></div></div>
     <div class="collapse-controls">
-      <button class="collapse-btn" onclick="collapseAll(['kar-meals','kar-requests','kar-ratings','kar-shopping','kar-pantry'])">Collapse all</button>
-      <button class="collapse-btn" onclick="expandAll(['kar-meals','kar-requests','kar-ratings','kar-shopping','kar-pantry'])">Expand all</button>
+      <button class="collapse-btn" onclick="collapseAll(['kar-meals','kar-requests','kar-ratings','kar-shopping'])">Collapse all</button>
+      <button class="collapse-btn" onclick="expandAll(['kar-meals','kar-requests','kar-ratings','kar-shopping'])">Expand all</button>
     </div>
     ${sectionHeader('kar-meals',"This week's meals")}
     <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Meal pool</div>${hasPlan?`<span class="tag tag-blue">${mealCount} meals</span>`:''}</div>${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowKaren(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>No meals yet this week</div>`}</div>
@@ -1607,9 +1603,6 @@ function renderKaren(recipes,name){
     `+sectionEnd():''}
     ${pendingIdeaRatings.length>0&&currentUserCan('show_ratings')?sectionHeader('kar-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
     ${currentUserCan('view_shopping')?sectionHeader('kar-shopping','Shopping list')+`<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Your additions</div><span class="tag tag-blue">Mixed into the list</span></div><div class="karen-add-row"><input class="karen-add-input" id="karen-add-input" placeholder="e.g. olive oil, chocolate, shampoo..." onkeydown="if(event.key==='Enter')addKarenItem()"><button class="btn-primary" style="padding:8px 16px;font-size:0.85rem" onclick="addKarenItem()">Add</button></div><div id="karen-additions-list"><div style="font-size:0.82rem;color:var(--mid)">No items added yet</div></div></div><div class="card"><div class="card-header"><div class="card-title">Items needed · La Comer</div><span class="tag tag-gray">View only</span></div><div id="karen-shopping-preview"><div class="empty"><span class="empty-icon">📋</span>Loading preview...</div></div></div>`+sectionEnd():''}
-    ${sectionHeader('kar-pantry','Pantry')}
-    ${renderPantrySection()}
-    ${sectionEnd()}
   </div>`;
 }
 function mealRowKaren(m){
@@ -2807,26 +2800,25 @@ function renderDayBeforeReminder(){
   const rows=tomorrowMeals.map(m=>{const r=m.recipes;const eatLabel=m.target_eat_time?` · eat at ${m.target_eat_time}`:'';return`<div class="day-before-meal-row"><div class="day-before-meal-name">${r.name_en}${eatLabel}</div><div class="day-before-meal-prep">⏰ ${r.advance_prep_description||'Advance preparation required'}</div></div>`;}).join('');
   return`<div class="day-before-alert"><div class="day-before-alert-header"><div class="day-before-alert-icon">🔔</div><div><div class="day-before-alert-title">Prep needed today</div><div class="day-before-alert-subtitle">You have ${tomorrowMeals.length===1?'a meal':'meals'} scheduled for tomorrow that need advance preparation</div></div></div>${rows}</div>`;
 }
+function renderPantryView(){
+  const main=document.getElementById('main-content')||document.getElementById('dashboard-content');
+  if(!main)return;
+  main.innerHTML=`<div class="fade-in" style="max-width:700px;margin:0 auto;padding:20px 16px">
+    <div class="page-header"><h1>Pantry</h1><p>Track what you have at home</p></div>
+    <div id="pantry-view-content">${renderPantrySection()}</div>
+  </div>`;
+}
 function renderPantrySection(){
   const items=pantryStockCache||[];
   const confidenceBadge=(c)=>{
-    if(c==='high')return'<span style="background:rgba(74,124,89,0.15);color:#2d5a3d;border:1px solid rgba(74,124,89,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">✓ High</span>';
-    if(c==='medium')return'<span style="background:rgba(180,140,40,0.15);color:#7a5c10;border:1px solid rgba(180,140,40,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">~ Medium</span>';
+    if(c==='high')return'<span style="background:rgba(74,124,89,0.15);color:#2d5a3d;border:1px solid rgba(74,124,89,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#10003; High</span>';
+    if(c==='medium')return'<span style="background:rgba(180,140,40,0.15);color:#7a5c10;border:1px solid rgba(180,140,40,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#126; Medium</span>';
     return'<span style="background:rgba(200,103,74,0.12);color:var(--clay);border:1px solid rgba(200,103,74,0.25);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">? Low</span>';
   };
-  const rows=items.length===0?'<div class="empty"><span class="empty-icon">🥫</span>No pantry items yet — add something below</div>':
-    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}">
-      <div style="flex:1">
-        <div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div>
-        <div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.quantity?item.quantity+' '+(item.unit||''):'Amount unknown'} · ${confidenceBadge(item.confidence)}</div>
-      </div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">↻ Confidence</button>
-        <button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">✕</button>
-      </div>
-    </div>`).join('');
+  const rows=items.length===0?'<div class="empty"><span class="empty-icon">&#x1F9C0;</span>No pantry items yet &mdash; add something below</div>':
+    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}"><div style="flex:1"><div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div><div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.quantity?item.quantity+' '+(item.unit||''):'Amount unknown'} &middot; ${confidenceBadge(item.confidence)}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">&#8635; Confidence</button><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">&#x2715;</button></div></div>`).join('');
   const unitOptions=['g','kg','ml','l','tsp','tbsp','cup','pcs','slices','cans','bags','bottles','jars'].map(u=>`<option value="${u}">${u}</option>`).join('');
-  return`<div class="card pantry-card" style="margin-bottom:20px">
+  return`<div class="card" style="margin-bottom:20px">
     <div class="card-header">
       <div class="card-title">Pantry stock</div>
       <span class="tag tag-gray">${items.length} item${items.length!==1?'s':''}</span>
@@ -2837,12 +2829,12 @@ function renderPantrySection(){
       <div style="display:flex;flex-direction:column;gap:8px">
         <input class="karen-add-input" id="pantry-name-input" placeholder="e.g. flour, tinned tomatoes, olive oil..." list="pantry-ingredient-suggestions" oninput="pantryAutocomplete(this.value)">
         <datalist id="pantry-ingredient-suggestions"></datalist>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <input class="karen-add-input" id="pantry-qty-input" placeholder="Qty (optional)" type="number" min="0" style="width:120px;flex:none">
           <select class="karen-add-input" id="pantry-unit-input" style="width:100px;flex:none"><option value="">unit</option>${unitOptions}</select>
           <select class="karen-add-input" id="pantry-conf-input" style="flex:none">
-            <option value="high">✓ High confidence</option>
-            <option value="medium">~ Medium confidence</option>
+            <option value="high">&#10003; High confidence</option>
+            <option value="medium">&#126; Medium confidence</option>
             <option value="low">? Low confidence</option>
           </select>
           <button class="btn-primary" style="padding:8px 18px;font-size:0.85rem" onclick="addPantryItem()">Add</button>
@@ -2859,43 +2851,40 @@ async function addPantryItem(){
   const unit=document.getElementById('pantry-unit-input')?.value||null;
   const confidence=document.getElementById('pantry-conf-input')?.value||'high';
   const hid=userProfile?.household_id;if(!hid)return;
-  // try to match to ingredients table
-  const{data:match}=await sb.from('ingredients').select('id,name_en').ilike('name_en',name).limit(1).maybeSingle();
+  const{data:match}=await sb.from('ingredients').select('id').ilike('name_en',name).limit(1).maybeSingle();
   const{error}=await sb.from('pantry_stock').insert({household_id:hid,ingredient_id:match?.id||null,ingredient_name:name,quantity:qty,unit:unit||null,confidence,source:'manual',last_updated:new Date().toISOString()});
   if(error){showToast('Error: '+error.message,'error');return;}
   nameEl.value='';document.getElementById('pantry-qty-input').value='';document.getElementById('pantry-unit-input').value='';document.getElementById('pantry-conf-input').value='high';
   await loadPantryStock();
   rerenderPantryList();
-  showToast(escapeHtml(name)+' added to pantry ✓');
+  showToast(escapeHtml(name)+' added to pantry');
 }
 async function deletePantryItem(id){
   const{error}=await sb.from('pantry_stock').delete().eq('id',id);
   if(error){showToast('Error: '+error.message,'error');return;}
   pantryStockCache=(pantryStockCache||[]).filter(i=>i.id!==id);
-  document.getElementById('pantry-row-'+id)?.remove();
-  const listEl=document.getElementById('pantry-items-list');
-  if(listEl&&(pantryStockCache||[]).length===0)listEl.innerHTML='<div class="empty"><span class="empty-icon">🥫</span>No pantry items yet — add something below</div>';
-  showToast('Removed ✓');
+  rerenderPantryList();
+  showToast('Removed');
 }
 async function cyclePantryConfidence(id,current){
   const next=current==='high'?'medium':current==='medium'?'low':'high';
   const{error}=await sb.from('pantry_stock').update({confidence:next,last_updated:new Date().toISOString()}).eq('id',id);
   if(error){showToast('Error: '+error.message,'error');return;}
-  const item=pantryStockCache?.find(i=>i.id===id);
-  if(item)item.confidence=next;
+  const item=pantryStockCache?.find(i=>i.id===id);if(item)item.confidence=next;
   rerenderPantryList();
-  showToast('Confidence updated ✓');
+  showToast('Confidence updated');
 }
 function rerenderPantryList(){
   const items=pantryStockCache||[];
   const confidenceBadge=(c)=>{
-    if(c==='high')return'<span style="background:rgba(74,124,89,0.15);color:#2d5a3d;border:1px solid rgba(74,124,89,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">✓ High</span>';
-    if(c==='medium')return'<span style="background:rgba(180,140,40,0.15);color:#7a5c10;border:1px solid rgba(180,140,40,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">~ Medium</span>';
+    if(c==='high')return'<span style="background:rgba(74,124,89,0.15);color:#2d5a3d;border:1px solid rgba(74,124,89,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#10003; High</span>';
+    if(c==='medium')return'<span style="background:rgba(180,140,40,0.15);color:#7a5c10;border:1px solid rgba(180,140,40,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#126; Medium</span>';
     return'<span style="background:rgba(200,103,74,0.12);color:var(--clay);border:1px solid rgba(200,103,74,0.25);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">? Low</span>';
   };
-  const rows=items.length===0?'<div class="empty"><span class="empty-icon">🥫</span>No pantry items yet — add something below</div>':
-    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}"><div style="flex:1"><div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div><div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.quantity?item.quantity+' '+(item.unit||''):'Amount unknown'} · ${confidenceBadge(item.confidence)}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">↻ Confidence</button><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">✕</button></div></div>`).join('');
+  const rows=items.length===0?'<div class="empty"><span class="empty-icon">&#x1F9C0;</span>No pantry items yet &mdash; add something below</div>':
+    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}"><div style="flex:1"><div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div><div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.quantity?item.quantity+' '+(item.unit||''):'Amount unknown'} &middot; ${confidenceBadge(item.confidence)}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">&#8635; Confidence</button><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">&#x2715;</button></div></div>`).join('');
   document.querySelectorAll('#pantry-items-list').forEach(el=>{el.innerHTML=rows;});
+  const countTags=document.querySelectorAll('.pantry-count-tag');countTags.forEach(el=>{el.textContent=items.length+' item'+(items.length!==1?'s':'');});
 }
 async function pantryAutocomplete(val){
   if(!val||val.length<2)return;
@@ -3007,7 +2996,7 @@ async function checkHibernationWakeUps(){
   wokenUp.forEach(r=>showToast(`🌅 ${r.name} is back! Restored to ${TIER_LABELS[r.tier]}`,'success'));
 }
 let currentView='dashboard';
-function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){if(!currentUserCan('view_recipes')&&userProfile?.role!=='admin'){showToast('Recipe library is not enabled for your account','error');switchView('dashboard');return;}renderRecipeListView();}else if(view==='products'){renderProductsView();}else if(view==='history'){renderHistoryView();}else if(view==='permissions'){renderPermissionsView();}}
+function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){if(!currentUserCan('view_recipes')&&userProfile?.role!=='admin'){showToast('Recipe library is not enabled for your account','error');switchView('dashboard');return;}renderRecipeListView();}else if(view==='pantry'){renderPantryView();}else if(view==='pantry'){renderPantryView();}else if(view==='products'){renderProductsView();}else if(view==='history'){renderHistoryView();}else if(view==='permissions'){renderPermissionsView();}}
 let recipeFilterTier='all',recipeFilterSearch='',recipeShowHibernated=false,allRecipesCache=null,recipeFilterType='lunch';
 async function renderRecipeListView(){
   const isAdmin=userProfile?.role==='admin';
