@@ -1417,9 +1417,9 @@ async function doMarkCooked(recipeId,planMealId){
   const isFreezable=recipe?.is_freezable!==false;
   if(isFreezable){promptFreezePortions(recipeId,recipe?.name_en||'this meal');}
   // Depletion nudge — check pantry after freeze prompt settles
-  setTimeout(()=>showDepletionNudge(recipeId,recipe?.name_en||'this meal'),isFreezable?800:200);
+  setTimeout(()=>showDepletionNudge(recipeId,recipe?.name_en||'this meal',true),isFreezable?800:200);
 }
-async function showDepletionNudge(recipeId,mealName){
+async function showDepletionNudge(recipeId,mealName,chainLeftover=false){
   if(!pantryStockCache||pantryStockCache.length===0)return;
   // Load ingredients for this recipe
   const{data:ings}=await sb.from('ingredients').select('id,name_en,name_es').eq('recipe_id',recipeId);
@@ -1453,12 +1453,12 @@ async function showDepletionNudge(recipeId,mealName){
     <div class="scanner-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
         <h3>&#x1F373; After cooking ${escapeHtml(mealName)}</h3>
-        <button onclick="document.getElementById('depletion-nudge-overlay')?.remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid);padding:4px 8px">&#x2715;</button>
+        <button onclick="document.getElementById('depletion-nudge-overlay')?.remove();if(chainLeftover)showLeftoverNudge(mealName)" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid);padding:4px 8px">&#x2715;</button>
       </div>
       <p style="font-size:0.85rem;color:var(--mid);margin-bottom:14px">These pantry items were used in this meal. Did any run low or run out?</p>
       <div style="max-height:340px;overflow-y:auto">${rows}</div>
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
-        <button class="btn-primary" style="width:100%" onclick="document.getElementById('depletion-nudge-overlay')?.remove()">All good &#10003;</button>
+        <button class="btn-primary" style="width:100%" onclick="document.getElementById('depletion-nudge-overlay')?.remove();if(chainLeftover)showLeftoverNudge(mealName)">All good &#10003;</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -5266,6 +5266,61 @@ async function deleteLeftover(id,name,btn){
 }
 
 
+function showLeftoverNudge(mealName){
+  const storageOpts=Object.entries(STORAGE_LABELS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+  const overlay=document.createElement('div');
+  overlay.id='leftover-nudge-overlay';
+  overlay.className='scanner-overlay';
+  overlay.innerHTML=`
+    <div class="scanner-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <h3>&#x1F37D;&#xFE0F; Any leftovers?</h3>
+        <button onclick="document.getElementById('leftover-nudge-overlay')?.remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid);padding:4px 8px">&#x2715;</button>
+      </div>
+      <p style="font-size:0.85rem;color:var(--mid);margin-bottom:16px">Did <strong>${escapeHtml(mealName)}</strong> leave anything in the fridge or freezer?</p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div>
+          <label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">What's left over?</label>
+          <input class="karen-add-input" id="ln-name" placeholder="e.g. Bolognese sauce, leftover pasta...">
+        </div>
+        <div style="display:flex;gap:8px">
+          <div style="flex:1">
+            <label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Amount</label>
+            <input class="karen-add-input" id="ln-amount" type="number" min="0" step="any" placeholder="e.g. 300">
+          </div>
+          <div>
+            <label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Unit</label>
+            <select class="karen-add-input" id="ln-unit" style="width:80px">
+              <option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option>
+              <option value="L">L</option><option value="pcs">pcs</option><option value="cups">cups</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style="font-size:0.8rem;font-weight:500;display:block;margin-bottom:4px">Where?</label>
+          <select class="karen-add-input" id="ln-storage" style="width:100%">${storageOpts}</select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn-ghost" onclick="document.getElementById('leftover-nudge-overlay')?.remove()">No leftovers</button>
+        <button class="btn-primary" style="flex:1" onclick="saveLeftoverNudge()">Save leftover &#10003;</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(()=>document.getElementById('ln-name')?.focus(),100);
+}
+async function saveLeftoverNudge(){
+  const name=document.getElementById('ln-name')?.value.trim();
+  const amount=parseFloat(document.getElementById('ln-amount')?.value)||0;
+  const unit=document.getElementById('ln-unit')?.value||'g';
+  const storage=document.getElementById('ln-storage')?.value||'fridge';
+  if(!name){showToast('Enter what was left over','error');document.getElementById('ln-name')?.focus();return;}
+  const{error}=await sb.from('leftovers').insert({plan_id:currentPlan?.id||null,name_en:name,amount:amount||null,unit,storage,used:false,created_at:new Date().toISOString()});
+  document.getElementById('leftover-nudge-overlay')?.remove();
+  if(error){showToast('Error: '+error.message,'error');return;}
+  showToast(escapeHtml(name)+' added to leftovers ✓');
+  loadLeftovers();
+}
 function openManualLeftoverModal(){
   const storageOpts=Object.entries(STORAGE_LABELS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
