@@ -2821,7 +2821,10 @@ function renderPantrySection(){
   return`<div class="card" style="margin-bottom:20px">
     <div class="card-header">
       <div class="card-title">Pantry stock</div>
-      <span class="tag tag-gray">${items.length} item${items.length!==1?'s':''}</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="scan-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('pantry')">📷 Scan barcode</button>
+        <span class="tag tag-gray pantry-count-tag">${items.length} item${items.length!==1?'s':''}</span>
+      </div>
     </div>
     <div id="pantry-items-list">${rows}</div>
     <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
@@ -4170,6 +4173,7 @@ async function onBarcodeDetected(barcode){
     const data=await res.json();
     if(data.status===0||!data.product){
       if(statusEl)statusEl.textContent='Product not found in database. Fill in details manually.';
+      if(scannerContext==='pantry'){renderPantryScanConfirm(barcode,'Unknown product');return;}
       renderScannerForm(barcode,{});
       return;
     }
@@ -4178,6 +4182,7 @@ async function onBarcodeDetected(barcode){
     const nameEs=p.product_name_es||p.product_name||'';
     const category=guessCategoryFromOFF(p.categories_tags||[]);
     if(statusEl)statusEl.textContent='Product found! Check the details below.';
+    if(scannerContext==='pantry'){renderPantryScanConfirm(barcode,nameEn||nameEs||'Unknown product');return;}
     renderScannerForm(barcode,{nameEn,nameEs,category});
   }catch(e){
     if(statusEl)statusEl.textContent='Lookup failed — fill in details manually.';
@@ -4302,6 +4307,48 @@ async function saveScanResult(barcode){
   if(document.getElementById('products-grid')){
     await loadAndRenderProducts();
   }
+}
+function renderPantryScanConfirm(barcode,productName){
+  const resultEl=document.getElementById('scanner-result');
+  if(!resultEl)return;
+  const unitOptions=['g','kg','ml','l','tsp','tbsp','cup','pcs','slices','cans','bags','bottles','jars'].map(u=>`<option value="${u}">${u}</option>`).join('');
+  resultEl.innerHTML=`
+    <div class="scanner-result-card">
+      <div style="font-size:0.72rem;font-weight:600;color:var(--green);margin-bottom:6px">&#10003; Product found</div>
+      <div style="font-size:0.95rem;font-weight:500;margin-bottom:14px">${escapeHtml(productName)}</div>
+      <div style="font-size:0.78rem;font-weight:500;color:var(--mid);margin-bottom:6px">Name (edit if needed)</div>
+      <input class="karen-add-input" id="pantry-scan-name" value="${escapeHtml(productName)}" style="margin-bottom:10px">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input class="karen-add-input" id="pantry-scan-qty" placeholder="Qty (optional)" type="number" min="0" style="width:110px;flex:none">
+        <select class="karen-add-input" id="pantry-scan-unit" style="width:100px;flex:none"><option value="">unit</option>${unitOptions}</select>
+        <select class="karen-add-input" id="pantry-scan-conf">
+          <option value="high">&#10003; We have it</option>
+          <option value="medium">&#9888; Wait! I better check</option>
+          <option value="low">&#8595; Running low</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn-ghost" onclick="closeBarcodeScanner()">Cancel</button>
+        <button class="btn-secondary" style="flex:0 0 auto;font-size:0.8rem" onclick="startScanner();document.getElementById('scanner-result').innerHTML='';document.getElementById('scanner-status').textContent='Scanning…'">&#8617; Rescan</button>
+        <button class="btn-primary" style="flex:1" onclick="savePantryScanResult()">Add to pantry &#10003;</button>
+      </div>
+    </div>`;
+  setTimeout(()=>{const n=document.getElementById('pantry-scan-name');if(n){n.focus();n.select();}},100);
+}
+async function savePantryScanResult(){
+  const name=(document.getElementById('pantry-scan-name')?.value||'').trim();
+  if(!name){showToast('Enter a name first','error');return;}
+  const qty=parseFloat(document.getElementById('pantry-scan-qty')?.value)||null;
+  const unit=document.getElementById('pantry-scan-unit')?.value||null;
+  const confidence=document.getElementById('pantry-scan-conf')?.value||'high';
+  const hid=userProfile?.household_id;if(!hid){showToast('No household found','error');return;}
+  const{data:match}=await sb.from('ingredients').select('id').ilike('name_en',name).limit(1).maybeSingle();
+  const{error}=await sb.from('pantry_stock').insert({household_id:hid,ingredient_id:match?.id||null,ingredient_name:name,quantity:qty,unit:unit||null,confidence,source:'barcode',last_updated:new Date().toISOString()});
+  if(error){showToast('Error: '+error.message,'error');return;}
+  closeBarcodeScanner();
+  await loadPantryStock();
+  rerenderPantryList();
+  showToast(escapeHtml(name)+' added to pantry &#10003;');
 }
 /* ── END BARCODE SCANNER ───────────────────────── */
 
