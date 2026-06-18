@@ -2823,6 +2823,7 @@ function renderPantrySection(){
       <div class="card-title">Pantry stock</div>
       <div style="display:flex;gap:8px;align-items:center">
         <button class="scan-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('pantry')">📷 Scan barcode</button>
+        <button class="scan-btn" style="font-size:0.8rem" onclick="openPantryPhotoScan()">🖼️ Scan shelf</button>
         <span class="tag tag-gray pantry-count-tag">${items.length} item${items.length!==1?'s':''}</span>
       </div>
     </div>
@@ -2876,6 +2877,136 @@ async function cyclePantryConfidence(id,current){
   const item=pantryStockCache?.find(i=>i.id===id);if(item)item.confidence=next;
   rerenderPantryList();
   showToast('Confidence updated');
+}
+function openPantryPhotoScan(){
+  const overlay=document.createElement('div');
+  overlay.id='pantry-photo-overlay';
+  overlay.className='scanner-overlay';
+  overlay.innerHTML=`
+    <div class="scanner-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <h3>&#x1F5BC;&#xFE0F; Scan shelf</h3>
+        <button onclick="document.getElementById('pantry-photo-overlay')?.remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid);padding:4px 8px">&#x2715;</button>
+      </div>
+      <p style="font-size:0.85rem;color:var(--mid);margin-bottom:16px">Take a photo of your pantry shelf, fridge, or bench — AI will identify what it can see.</p>
+      <div id="pantry-photo-preview" style="display:none;margin-bottom:12px">
+        <img id="pantry-photo-img" style="width:100%;border-radius:8px;max-height:200px;object-fit:cover">
+      </div>
+      <input type="file" id="pantry-photo-input" accept="image/*" capture="environment" style="display:none" onchange="processPantryPhoto(this)">
+      <div id="pantry-photo-status" style="text-align:center;padding:12px 0">
+        <button class="btn-primary" style="width:100%" onclick="document.getElementById('pantry-photo-input').click()">&#x1F4F7; Take photo</button>
+      </div>
+      <div id="pantry-photo-results"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function processPantryPhoto(input){
+  const file=input.files?.[0];
+  if(!file)return;
+  // Show preview
+  const preview=document.getElementById('pantry-photo-preview');
+  const img=document.getElementById('pantry-photo-img');
+  if(preview&&img){img.src=URL.createObjectURL(file);preview.style.display='block';}
+  const statusEl=document.getElementById('pantry-photo-status');
+  if(statusEl)statusEl.innerHTML='<div style="font-size:0.85rem;color:var(--mid);padding:8px 0">&#x1F50D; Analysing photo...</div>';
+  // Convert to base64
+  const base64=await new Promise((res,rej)=>{
+    const reader=new FileReader();
+    reader.onload=()=>res(reader.result.split(',')[1]);
+    reader.onerror=()=>rej(new Error('Could not read file'));
+    reader.readAsDataURL(file);
+  });
+  const mediaType=['image/jpeg','image/png','image/webp','image/gif'].includes(file.type)?file.type:'image/jpeg';
+  try{
+    const response=await proxyFetch({
+      model:'claude-sonnet-4-6',
+      max_tokens:1500,
+      messages:[{
+        role:'user',
+        content:[
+          {type:'image',source:{type:'base64',media_type:mediaType,data:base64}},
+          {type:'text',text:`Look at this photo of a household pantry, fridge shelf, or kitchen bench. Identify all food ingredients and grocery items you can see.
+Return ONLY a JSON array, no other text, no markdown:
+[{"name":"English ingredient name","quantity":null,"unit":null}]
+Rules:
+- name: clear English ingredient name (e.g. "Olive oil", "Tinned tomatoes", "Plain flour", "Eggs")
+- quantity: number if you can read it from the label (e.g. 500), otherwise null
+- unit: unit if visible (g, kg, ml, l, pcs), otherwise null
+- Include everything you can identify — tins, bottles, packets, fresh produce
+- Be conservative — only list items you can clearly see
+- Do not include non-food items
+- Maximum 20 items`}
+        ]
+      }]
+    });
+    const data=await response.json();
+    const text=data.content?.find(b=>b.type==='text')?.text||'';
+    const clean=text.replace(/\`\`\`json|\`\`\`/g,'').trim();
+    const items=JSON.parse(clean);
+    if(!Array.isArray(items)||items.length===0){
+      if(statusEl)statusEl.innerHTML='<div style="font-size:0.85rem;color:var(--clay);padding:8px 0">&#x26A0;&#xFE0F; Could not identify any items. Try a clearer photo with better lighting.</div>';
+      return;
+    }
+    renderPantryPhotoChecklist(items);
+    if(statusEl)statusEl.innerHTML='';
+  }catch(e){
+    if(statusEl)statusEl.innerHTML=`<div style="font-size:0.85rem;color:var(--clay);padding:8px 0">&#x26A0;&#xFE0F; Error: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderPantryPhotoChecklist(items){
+  const resultsEl=document.getElementById('pantry-photo-results');
+  if(!resultsEl)return;
+  const unitOptions=['','g','kg','ml','l','tsp','tbsp','cup','pcs','slices','cans','bags','bottles','jars'].map(u=>`<option value="${u}">${u||'unit'}</option>`).join('');
+  const rows=items.map((item,i)=>`
+    <div class="pantry-row" style="align-items:flex-start;flex-direction:column;gap:6px;padding:10px 0">
+      <div style="display:flex;align-items:center;gap:10px;width:100%">
+        <input type="checkbox" id="photo-check-${i}" checked style="width:18px;height:18px;accent-color:var(--clay);flex-shrink:0">
+        <input class="karen-add-input" id="photo-name-${i}" value="${escapeHtml(item.name)}" style="flex:1;font-size:0.88rem;padding:6px 10px">
+      </div>
+      <div style="display:flex;gap:6px;padding-left:28px">
+        <input class="karen-add-input" id="photo-qty-${i}" type="number" min="0" placeholder="Qty" value="${item.quantity||''}" style="width:80px;flex:none;font-size:0.82rem;padding:5px 8px">
+        <select class="karen-add-input" id="photo-unit-${i}" style="width:90px;flex:none;font-size:0.82rem;padding:5px 8px">${unitOptions.replace(`value="${item.unit||''}"`,`value="${item.unit||''}" selected`)}</select>
+        <select class="karen-add-input" id="photo-conf-${i}" style="flex:1;font-size:0.82rem;padding:5px 8px">
+          <option value="high">&#10003; We have it</option>
+          <option value="medium">&#9888; Wait! I better check</option>
+          <option value="low">&#8595; Running low</option>
+        </select>
+      </div>
+    </div>`).join('');
+  resultsEl.innerHTML=`
+    <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+      <div style="font-size:0.78rem;font-weight:500;color:var(--mid);margin-bottom:4px">FOUND ${items.length} ITEM${items.length!==1?'S':''} &#8212; tick what to add</div>
+      <div style="max-height:320px;overflow-y:auto">${rows}</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn-ghost" onclick="document.getElementById('pantry-photo-overlay')?.remove()">Cancel</button>
+        <button class="btn-primary" style="flex:1" onclick="savePantryPhotoResults(${items.length})">Add selected &#10003;</button>
+      </div>
+    </div>`;
+}
+
+async function savePantryPhotoResults(count){
+  const hid=userProfile?.household_id;if(!hid){showToast('No household found','error');return;}
+  const toInsert=[];
+  for(let i=0;i<count;i++){
+    const checked=document.getElementById(`photo-check-${i}`)?.checked;
+    if(!checked)continue;
+    const name=(document.getElementById(`photo-name-${i}`)?.value||'').trim();
+    if(!name)continue;
+    const qty=parseFloat(document.getElementById(`photo-qty-${i}`)?.value)||null;
+    const unit=document.getElementById(`photo-unit-${i}`)?.value||null;
+    const confidence=document.getElementById(`photo-conf-${i}`)?.value||'high';
+    const{data:match}=await sb.from('ingredients').select('id').ilike('name_en',name).limit(1).maybeSingle();
+    toInsert.push({household_id:hid,ingredient_id:match?.id||null,ingredient_name:name,quantity:qty,unit:unit||null,confidence,source:'photo',last_updated:new Date().toISOString()});
+  }
+  if(toInsert.length===0){showToast('No items selected','error');return;}
+  const{error}=await sb.from('pantry_stock').insert(toInsert);
+  if(error){showToast('Error: '+error.message,'error');return;}
+  document.getElementById('pantry-photo-overlay')?.remove();
+  await loadPantryStock();
+  rerenderPantryList();
+  showToast(`${toInsert.length} item${toInsert.length!==1?'s':''} added to pantry ✓`);
 }
 function rerenderPantryList(){
   const items=pantryStockCache||[];
