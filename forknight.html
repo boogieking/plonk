@@ -2811,12 +2811,12 @@ function renderPantryView(){
 function renderPantrySection(){
   const items=pantryStockCache||[];
   const confidenceBadge=(c)=>{
-    if(c==='high')return'<span style="background:rgba(74,124,89,0.15);color:#2d5a3d;border:1px solid rgba(74,124,89,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#10003; High</span>';
-    if(c==='medium')return'<span style="background:rgba(180,140,40,0.15);color:#7a5c10;border:1px solid rgba(180,140,40,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#126; Medium</span>';
-    return'<span style="background:rgba(200,103,74,0.12);color:var(--clay);border:1px solid rgba(200,103,74,0.25);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">? Low</span>';
+    if(c==='high')return'<span style="background:rgba(74,124,89,0.15);color:#2d5a3d;border:1px solid rgba(74,124,89,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#10003; We have it</span>';
+    if(c==='medium')return'<span style="background:rgba(180,140,40,0.15);color:#7a5c10;border:1px solid rgba(180,140,40,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#9888;&#65039; Wait! I better check</span>';
+    return'<span style="background:rgba(200,103,74,0.12);color:var(--clay);border:1px solid rgba(200,103,74,0.25);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#8595; Running low</span>';
   };
   const rows=items.length===0?'<div class="empty"><span class="empty-icon">&#x1F9C0;</span>No pantry items yet &mdash; add something below</div>':
-    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}"><div style="flex:1"><div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div><div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.quantity?item.quantity+' '+(item.unit||''):'Amount unknown'} &middot; ${confidenceBadge(item.confidence)}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">&#8635; Confidence</button><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">&#x2715;</button></div></div>`).join('');
+    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}"><div style="flex:1"><div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div><div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.quantity?item.quantity+' '+(item.unit||''):'Amount unknown'} &middot; ${confidenceBadge(item.confidence)}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">Change</button><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">&#x2715;</button></div></div>`).join('');
   const unitOptions=['g','kg','ml','l','tsp','tbsp','cup','pcs','slices','cans','bags','bottles','jars'].map(u=>`<option value="${u}">${u}</option>`).join('');
   return`<div class="card" style="margin-bottom:20px">
     <div class="card-header">
@@ -2833,9 +2833,9 @@ function renderPantrySection(){
           <input class="karen-add-input" id="pantry-qty-input" placeholder="Qty (optional)" type="number" min="0" style="width:120px;flex:none">
           <select class="karen-add-input" id="pantry-unit-input" style="width:100px;flex:none"><option value="">unit</option>${unitOptions}</select>
           <select class="karen-add-input" id="pantry-conf-input" style="flex:none">
-            <option value="high">&#10003; High confidence</option>
-            <option value="medium">&#126; Medium confidence</option>
-            <option value="low">? Low confidence</option>
+            <option value="high">&#10003; We have it</option>
+            <option value="medium">&#9888; Wait! I better check</option>
+            <option value="low">&#8595; Running low</option>
           </select>
           <button class="btn-primary" style="padding:8px 18px;font-size:0.85rem" onclick="addPantryItem()">Add</button>
         </div>
@@ -2877,12 +2877,12 @@ async function cyclePantryConfidence(id,current){
 function rerenderPantryList(){
   const items=pantryStockCache||[];
   const confidenceBadge=(c)=>{
-    if(c==='high')return'<span style="background:rgba(74,124,89,0.15);color:#2d5a3d;border:1px solid rgba(74,124,89,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#10003; High</span>';
-    if(c==='medium')return'<span style="background:rgba(180,140,40,0.15);color:#7a5c10;border:1px solid rgba(180,140,40,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#126; Medium</span>';
-    return'<span style="background:rgba(200,103,74,0.12);color:var(--clay);border:1px solid rgba(200,103,74,0.25);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">? Low</span>';
+    if(c==='high')return'<span style="background:rgba(74,124,89,0.15);color:#2d5a3d;border:1px solid rgba(74,124,89,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#10003; We have it</span>';
+    if(c==='medium')return'<span style="background:rgba(180,140,40,0.15);color:#7a5c10;border:1px solid rgba(180,140,40,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#9888;&#65039; Wait! I better check</span>';
+    return'<span style="background:rgba(200,103,74,0.12);color:var(--clay);border:1px solid rgba(200,103,74,0.25);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#8595; Running low</span>';
   };
   const rows=items.length===0?'<div class="empty"><span class="empty-icon">&#x1F9C0;</span>No pantry items yet &mdash; add something below</div>':
-    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}"><div style="flex:1"><div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div><div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.quantity?item.quantity+' '+(item.unit||''):'Amount unknown'} &middot; ${confidenceBadge(item.confidence)}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">&#8635; Confidence</button><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">&#x2715;</button></div></div>`).join('');
+    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}"><div style="flex:1"><div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div><div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.quantity?item.quantity+' '+(item.unit||''):'Amount unknown'} &middot; ${confidenceBadge(item.confidence)}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">Change</button><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">&#x2715;</button></div></div>`).join('');
   document.querySelectorAll('#pantry-items-list').forEach(el=>{el.innerHTML=rows;});
   const countTags=document.querySelectorAll('.pantry-count-tag');countTags.forEach(el=>{el.textContent=items.length+' item'+(items.length!==1?'s':'');});
 }
