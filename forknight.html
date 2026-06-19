@@ -4654,7 +4654,7 @@ async function openMergeDuplicatesModal(){
         <h3>🔀 Merge duplicates</h3>
         <button onclick="document.getElementById('merge-overlay')?.remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid);padding:4px 8px">✕</button>
       </div>
-      <p style="font-size:0.82rem;color:var(--mid);margin-bottom:14px">${groups.length} duplicate group${groups.length!==1?'s':''} found. Select which row to keep for each group — the others will be deleted.</p>
+      <p style="font-size:0.82rem;color:var(--mid);margin-bottom:14px">${groups.length} duplicate group${groups.length!==1?'s':''} found. Pick the best row in each group — fields like barcode, URL, and price will be merged from the others before they're deleted.</p>
       <div id="merge-groups">
         ${groups.map((group,gi)=>`
           <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid rgba(200,180,160,0.2)">
@@ -4681,26 +4681,54 @@ async function openMergeDuplicatesModal(){
 async function executeMerge(groupIds){
   const btn=document.querySelector('#merge-overlay .btn-primary');
   if(btn){btn.disabled=true;btn.textContent='Merging…';}
+  // Fetch full product data for all IDs involved
+  const allIds=groupIds.flat();
+  const{data:allProds}=await sb.from('household_products').select('*').in('id',allIds);
+  const prodMap=Object.fromEntries((allProds||[]).map(p=>[p.id,p]));
   let merged=0,errors=0;
+  // Fields we want to merge (prefer non-null, prefer kept row, fall back to others)
+  const mergeFields=['name_es','name_en','barcode','store_url','lacomer_url','category',
+    'ingredient_id','is_preferred_lacomer','is_preferred_citymarket','notes',
+    'last_price_mxn','is_pantry_item'];
   for(let gi=0;gi<groupIds.length;gi++){
     const ids=groupIds[gi];
     const radio=document.querySelector(`input[name="merge-group-${gi}"]:checked`);
     const keepId=radio?.value;
     if(!keepId)continue;
-    const deleteIds=ids.filter(id=>id!==keepId);
-    // Move price_history to the kept row before deleting
-    for(const delId of deleteIds){
-      try{
-        await sb.from('price_history').update({product_id:keepId}).eq('product_id',delId);
-        await sb.from('household_products').delete().eq('id',delId);
-        merged++;
-      }catch(e){errors++;console.warn('Merge error:',e.message);}
+    const keepRow=prodMap[keepId];
+    const otherRows=ids.filter(id=>id!==keepId).map(id=>prodMap[id]).filter(Boolean);
+    // Build merged update: start with kept row values, fill in blanks from others
+    const update={};
+    for(const field of mergeFields){
+      const keptVal=keepRow?.[field];
+      if(keptVal!==null&&keptVal!==undefined&&keptVal!==''){continue;}// kept row has it
+      for(const other of otherRows){
+        const v=other[field];
+        if(v!==null&&v!==undefined&&v!==''){update[field]=v;break;}
+      }
     }
+    // Also take the most recent last_price_mxn if kept row has none
+    if(!keepRow?.last_price_mxn){
+      const bestPrice=otherRows.map(r=>r.last_price_mxn).filter(Boolean).sort((a,b)=>b-a)[0];
+      if(bestPrice)update.last_price_mxn=bestPrice;
+    }
+    try{
+      // Apply merged fields to kept row
+      if(Object.keys(update).length>0){
+        await sb.from('household_products').update(update).eq('id',keepId);
+      }
+      // Move price_history from duplicates to kept row, then delete duplicates
+      for(const other of otherRows){
+        await sb.from('price_history').update({product_id:keepId}).eq('product_id',other.id);
+        await sb.from('household_products').delete().eq('id',other.id);
+        merged++;
+      }
+    }catch(e){errors++;console.warn('Merge error:',e.message);}
   }
   document.getElementById('merge-overlay')?.remove();
   productsCache=null;
   await loadAndRenderProducts();
-  showToast(`Merged — ${merged} duplicate${merged!==1?'s':''} removed${errors?`, ${errors} errors`:''} ✓`);
+  showToast(`Merged — ${merged} duplicate${merged!==1?'s':''} resolved${errors?`, ${errors} errors`:''} ✓`);
 }
 /* ── END MERGE DUPLICATES ──────────────────────── */
 
