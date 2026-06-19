@@ -2928,8 +2928,7 @@ function renderPantrySection(){
     return'<span style="background:rgba(200,103,74,0.12);color:var(--clay);border:1px solid rgba(200,103,74,0.25);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#8595; Running low</span>';
   };
   const rows=items.length===0?'<div class="empty"><span class="empty-icon">&#x1F9C0;</span>No pantry items yet &mdash; add something below</div>':
-    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}"><div style="flex:1"><div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div><div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.quantity?(item.quantity+(item.unit?' '+item.unit:'')+' &middot; '):''} ${confidenceBadge(item.confidence)}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">Change</button><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">&#x2715;</button></div></div>`).join('');
-  const unitOptions=['g','kg','ml','l','tsp','tbsp','cup','pcs','slices','cans','bags','bottles','jars'].map(u=>`<option value="${u}">${u}</option>`).join('');
+    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}"><div style="flex:1"><div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div><div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.notes?escapeHtml(item.notes)+' &middot; ':''} ${confidenceBadge(item.confidence)}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">Change</button><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">&#x2715;</button></div></div>`).join('');
   return`<div class="card" style="margin-bottom:20px">
     <div class="card-header" style="flex-wrap:nowrap;gap:8px">
       <div class="card-title" style="white-space:nowrap">Pantry stock</div>
@@ -2946,8 +2945,7 @@ function renderPantrySection(){
         <div style="display:flex;gap:8px;align-items:center">
           <input class="karen-add-input" id="pantry-name-input" placeholder="e.g. flour, tinned tomatoes, olive oil..." list="pantry-ingredient-suggestions" oninput="pantryAutocomplete(this.value)" style="flex:1;min-width:0">
           <datalist id="pantry-ingredient-suggestions"></datalist>
-          <input class="karen-add-input" id="pantry-qty-input" placeholder="Qty" type="number" min="0" style="width:70px;flex:none">
-          <select class="karen-add-input" id="pantry-unit-input" style="width:80px;flex:none"><option value="">unit</option>${unitOptions}</select>
+          <input class="karen-add-input" id="pantry-notes-input" placeholder="How much left? e.g. half a jar, 300g..." style="flex:1;min-width:0">
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <select class="karen-add-input" id="pantry-conf-input" style="flex:1">
@@ -2965,14 +2963,13 @@ async function addPantryItem(){
   const nameEl=document.getElementById('pantry-name-input');
   const name=nameEl?.value?.trim();
   if(!name){showToast('Enter an ingredient name','error');return;}
-  const qty=parseFloat(document.getElementById('pantry-qty-input')?.value)||null;
-  const unit=document.getElementById('pantry-unit-input')?.value||null;
+  const notes=document.getElementById('pantry-notes-input')?.value?.trim()||null;
   const confidence=document.getElementById('pantry-conf-input')?.value||'high';
   const hid=userProfile?.household_id;if(!hid)return;
   const{data:match}=await sb.from('ingredients').select('id').ilike('name_en',name).limit(1).maybeSingle();
-  const{error}=await sb.from('pantry_stock').insert({household_id:hid,ingredient_id:match?.id||null,ingredient_name:name,quantity:qty,unit:unit||null,confidence,source:'manual',last_updated:new Date().toISOString()});
+  const{error}=await sb.from('pantry_stock').insert({household_id:hid,ingredient_id:match?.id||null,ingredient_name:name,quantity:null,unit:null,notes,confidence,source:'manual',last_updated:new Date().toISOString()});
   if(error){showToast('Error: '+error.message,'error');return;}
-  nameEl.value='';document.getElementById('pantry-qty-input').value='';document.getElementById('pantry-unit-input').value='';document.getElementById('pantry-conf-input').value='high';
+  nameEl.value='';const ni=document.getElementById('pantry-notes-input');if(ni)ni.value='';document.getElementById('pantry-conf-input').value='high';
   await loadPantryStock();
   rerenderPantryList();
   showToast(escapeHtml(name)+' added to pantry');
@@ -3130,7 +3127,7 @@ function rerenderPantryList(){
     return'<span style="background:rgba(200,103,74,0.12);color:var(--clay);border:1px solid rgba(200,103,74,0.25);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#8595; Running low</span>';
   };
   const rows=items.length===0?'<div class="empty"><span class="empty-icon">&#x1F9C0;</span>No pantry items yet &mdash; add something below</div>':
-    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}"><div style="flex:1"><div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div><div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.quantity?(item.quantity+(item.unit?' '+item.unit:'')+' &middot; '):''} ${confidenceBadge(item.confidence)}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">Change</button><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">&#x2715;</button></div></div>`).join('');
+    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}"><div style="flex:1"><div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div><div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.notes?escapeHtml(item.notes)+' &middot; ':''} ${confidenceBadge(item.confidence)}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">Change</button><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">&#x2715;</button></div></div>`).join('');
   document.querySelectorAll('#pantry-items-list').forEach(el=>{el.innerHTML=rows;});
   const countTags=document.querySelectorAll('.pantry-count-tag');countTags.forEach(el=>{el.textContent=items.length+' item'+(items.length!==1?'s':'');});
 }
