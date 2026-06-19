@@ -2911,9 +2911,10 @@ function renderDayBeforeReminder(){
   const rows=tomorrowMeals.map(m=>{const r=m.recipes;const eatLabel=m.target_eat_time?` · eat at ${m.target_eat_time}`:'';return`<div class="day-before-meal-row"><div class="day-before-meal-name">${r.name_en}${eatLabel}</div><div class="day-before-meal-prep">⏰ ${r.advance_prep_description||'Advance preparation required'}</div></div>`;}).join('');
   return`<div class="day-before-alert"><div class="day-before-alert-header"><div class="day-before-alert-icon">🔔</div><div><div class="day-before-alert-title">Prep needed today</div><div class="day-before-alert-subtitle">You have ${tomorrowMeals.length===1?'a meal':'meals'} scheduled for tomorrow that need advance preparation</div></div></div>${rows}</div>`;
 }
-function renderPantryView(){
+async function renderPantryView(){
   const main=document.getElementById('main-content')||document.getElementById('dashboard-content');
   if(!main)return;
+  await loadPantryStock();
   main.innerHTML=`<div class="fade-in" style="max-width:700px;margin:0 auto;padding:20px 16px">
     <div class="page-header"><h1>Pantry</h1><p>Track what you have at home</p></div>
     <div id="pantry-view-content">${renderPantrySection()}</div>
