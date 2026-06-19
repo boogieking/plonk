@@ -4169,7 +4169,7 @@ async function showPriceHistory(productId,productName){
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
   el.innerHTML=`<div class="modal" style="max-width:380px"><div class="modal-header"><div class="modal-title">📈 ${productName}</div><button class="modal-close" onclick="closeModal()">✕</button></div><div style="padding:16px"><div class="empty">Loading...</div></div></div>`;
   document.body.appendChild(el);
-  const{data,error}=await sb.from('price_history').select('price_mxn,recorded_at').eq('product_id',productId).order('recorded_at',{ascending:true});
+  const{data,error}=await sb.from('price_history').select('price_mxn,recorded_at,is_promo').eq('product_id',productId).order('recorded_at',{ascending:true});
   const body=el.querySelector('.modal > div:last-child');
   if(error||!data?.length){body.innerHTML=`<div style="padding:16px"><div class="empty">No price history yet — prices are recorded each time you finish shopping.</div></div>`;return;}
   // Build trend display
@@ -4178,9 +4178,10 @@ async function showPriceHistory(productId,productName){
     const prev=data[i-1];
     const change=prev?r.price_mxn-prev.price_mxn:null;
     const arrow=change===null?'':(change>0?`<span style="color:#c44">▲ $${change.toFixed(2)}</span>`:(change<0?`<span style="color:var(--green)">▼ $${Math.abs(change).toFixed(2)}</span>`:`<span style="color:var(--mid)">—</span>`));
+    const promoTag=r.is_promo?`<span style="font-size:0.68rem;background:#fff3cd;color:#856404;border-radius:4px;padding:1px 4px;font-weight:600;margin-left:4px">🏷️</span>`:'';
     return`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
       <span style="font-size:0.8rem;color:var(--mid)">${fmt(r.recorded_at)}</span>
-      <span style="font-size:0.88rem;font-weight:600">$${r.price_mxn.toFixed(2)} MXN</span>
+      <span style="font-size:0.88rem;font-weight:600">$${r.price_mxn.toFixed(2)} MXN${promoTag}</span>
       <span style="font-size:0.78rem;min-width:60px;text-align:right">${arrow}</span>
     </div>`;
   }).join('');
@@ -4197,7 +4198,7 @@ async function renderPriceTrendsView(){
   grid.innerHTML=`<div class="empty"><div class="spin" style="width:20px;height:20px;border-width:2px;margin:0 auto 8px"></div>Loading price data…</div>`;
   // Fetch all products with price history (at least 2 entries)
   const{data:history,error}=await sb.from('price_history')
-    .select('product_id,price_mxn,recorded_at')
+    .select('product_id,price_mxn,recorded_at,is_promo')
     .order('recorded_at',{ascending:true});
   if(error||!history?.length){grid.innerHTML=`<div class="empty"><span class="empty-icon">📈</span>No price history yet — prices build up as you shop and scan receipts.</div>`;return;}
   // Group by product
@@ -4222,7 +4223,8 @@ async function renderPriceTrendsView(){
     const change=last-first;
     const pct=first>0?((change/first)*100):0;
     const prod=prodMap[id]||{name_en:id,name_es:'',category:'Other'};
-    return{id,prod,prices,recent,first,last,change,pct};
+    const lastIsPromo=rows[rows.length-1].is_promo||false;
+    return{id,prod,prices,recent,first,last,change,pct,lastIsPromo};
   }).sort((a,b)=>Math.abs(b.pct)-Math.abs(a.pct));
   // Summary stats
   const rising=trends.filter(t=>t.change>0).length;
@@ -4251,7 +4253,7 @@ async function renderPriceTrendsView(){
     }).join('');
     return`<div class="trend-row" onclick="showPriceHistory(this.dataset.tid,this.dataset.name)" data-tid="${t.id}" data-name="${esc(t.prod.name_en||t.prod.name_es)}">
       <div style="flex:1">
-        <div class="trend-name">${t.prod.name_en||t.prod.name_es}</div>
+        <div class="trend-name">${t.prod.name_en||t.prod.name_es}${t.lastIsPromo?' <span style="font-size:0.7rem;background:#fff3cd;color:#856404;border-radius:4px;padding:1px 5px;font-weight:600">🏷️ Promo</span>':''}</div>
         ${t.prod.name_es&&t.prod.name_en!==t.prod.name_es?`<div class="trend-name-es">${t.prod.name_es}</div>`:''}
       </div>
       <div class="sparkline">${bars}</div>
