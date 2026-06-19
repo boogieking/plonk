@@ -2927,32 +2927,34 @@ function renderPantrySection(){
     return'<span style="background:rgba(200,103,74,0.12);color:var(--clay);border:1px solid rgba(200,103,74,0.25);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#8595; Running low</span>';
   };
   const rows=items.length===0?'<div class="empty"><span class="empty-icon">&#x1F9C0;</span>No pantry items yet &mdash; add something below</div>':
-    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}"><div style="flex:1"><div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div><div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.quantity?item.quantity+' '+(item.unit||''):'Amount unknown'} &middot; ${confidenceBadge(item.confidence)}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">Change</button><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">&#x2715;</button></div></div>`).join('');
+    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}"><div style="flex:1"><div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div><div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.quantity?(item.quantity+(item.unit?' '+item.unit:'')+' &middot; '):''} ${confidenceBadge(item.confidence)}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">Change</button><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">&#x2715;</button></div></div>`).join('');
   const unitOptions=['g','kg','ml','l','tsp','tbsp','cup','pcs','slices','cans','bags','bottles','jars'].map(u=>`<option value="${u}">${u}</option>`).join('');
   return`<div class="card" style="margin-bottom:20px">
-    <div class="card-header">
-      <div class="card-title">Pantry stock</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="scan-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('pantry')">📷 Scan barcode</button>
-        <button class="scan-btn" style="font-size:0.8rem" onclick="openPantryPhotoScan()">🖼️ Scan shelf</button>
-        <span class="tag tag-gray pantry-count-tag">${items.length} item${items.length!==1?'s':''}</span>
+    <div class="card-header" style="flex-wrap:nowrap;gap:8px">
+      <div class="card-title" style="white-space:nowrap">Pantry stock</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+        <button class="scan-btn" style="font-size:0.78rem;white-space:nowrap;padding:5px 10px" onclick="openBarcodeScanner('pantry')">📷 Barcode</button>
+        <button class="scan-btn" style="font-size:0.78rem;white-space:nowrap;padding:5px 10px" onclick="openPantryPhotoScan()">🖼️ Scan shelf</button>
+        <span class="tag tag-gray pantry-count-tag" style="white-space:nowrap">${items.length} item${items.length!==1?'s':''}</span>
       </div>
     </div>
     <div id="pantry-items-list">${rows}</div>
     <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
       <div style="font-size:0.78rem;font-weight:500;color:var(--mid);margin-bottom:8px">ADD ITEM</div>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <input class="karen-add-input" id="pantry-name-input" placeholder="e.g. flour, tinned tomatoes, olive oil..." list="pantry-ingredient-suggestions" oninput="pantryAutocomplete(this.value)">
-        <datalist id="pantry-ingredient-suggestions"></datalist>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input class="karen-add-input" id="pantry-qty-input" placeholder="Qty (optional)" type="number" min="0" style="width:120px;flex:none">
-          <select class="karen-add-input" id="pantry-unit-input" style="width:100px;flex:none"><option value="">unit</option>${unitOptions}</select>
-          <select class="karen-add-input" id="pantry-conf-input" style="flex:none">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="karen-add-input" id="pantry-name-input" placeholder="e.g. flour, tinned tomatoes, olive oil..." list="pantry-ingredient-suggestions" oninput="pantryAutocomplete(this.value)" style="flex:1;min-width:0">
+          <datalist id="pantry-ingredient-suggestions"></datalist>
+          <input class="karen-add-input" id="pantry-qty-input" placeholder="Qty" type="number" min="0" style="width:70px;flex:none">
+          <select class="karen-add-input" id="pantry-unit-input" style="width:80px;flex:none"><option value="">unit</option>${unitOptions}</select>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select class="karen-add-input" id="pantry-conf-input" style="flex:1">
             <option value="high">&#10003; We have it</option>
             <option value="medium">&#9888; Wait! I better check</option>
             <option value="low">&#8595; Running low</option>
           </select>
-          <button class="btn-primary" style="padding:8px 18px;font-size:0.85rem" onclick="addPantryItem()">Add</button>
+          <button class="btn-primary" style="padding:8px 18px;font-size:0.85rem;flex:none" onclick="addPantryItem()">Add</button>
         </div>
       </div>
     </div>
@@ -3127,7 +3129,7 @@ function rerenderPantryList(){
     return'<span style="background:rgba(200,103,74,0.12);color:var(--clay);border:1px solid rgba(200,103,74,0.25);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#8595; Running low</span>';
   };
   const rows=items.length===0?'<div class="empty"><span class="empty-icon">&#x1F9C0;</span>No pantry items yet &mdash; add something below</div>':
-    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}"><div style="flex:1"><div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div><div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.quantity?item.quantity+' '+(item.unit||''):'Amount unknown'} &middot; ${confidenceBadge(item.confidence)}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">Change</button><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">&#x2715;</button></div></div>`).join('');
+    items.map(item=>`<div class="pantry-row" id="pantry-row-${item.id}"><div style="flex:1"><div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.ingredient_name)}</div><div style="font-size:0.78rem;color:var(--mid);margin-top:2px">${item.quantity?(item.quantity+(item.unit?' '+item.unit:'')+' &middot; '):''} ${confidenceBadge(item.confidence)}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px" onclick="cyclePantryConfidence('${item.id}','${item.confidence}')">Change</button><button class="scan-btn" style="font-size:0.75rem;padding:4px 8px;color:var(--clay)" onclick="deletePantryItem('${item.id}')">&#x2715;</button></div></div>`).join('');
   document.querySelectorAll('#pantry-items-list').forEach(el=>{el.innerHTML=rows;});
   const countTags=document.querySelectorAll('.pantry-count-tag');countTags.forEach(el=>{el.textContent=items.length+' item'+(items.length!==1?'s':'');});
 }
