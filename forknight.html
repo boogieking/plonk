@@ -133,6 +133,10 @@
     #loading{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;background:var(--cream);}
     .spin{width:36px;height:36px;border:3px solid var(--light);border-top-color:var(--clay);border-radius:50%;animation:spin 0.8s linear infinite;}
     @keyframes spin{to{transform:rotate(360deg)}}
+    /* ── GLOBAL LOADER BAR ── */
+    #global-loader{position:fixed;top:0;left:0;width:100%;height:3px;z-index:99999;pointer-events:none;opacity:0;transition:opacity 0.2s;}
+    #global-loader-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--sage,#4A7C59),var(--clay,#C8674A));border-radius:0 2px 2px 0;transition:width 0.4s ease;box-shadow:0 0 8px rgba(74,124,89,0.5);}
+    @keyframes loaderPulse{0%,100%{opacity:1}50%{opacity:0.6}}
     #app{display:none}
     #app.ready{display:block}
     .modal-overlay{position:fixed;inset:0;z-index:200;background:rgba(26,22,18,0.5);display:flex;align-items:center;justify-content:center;padding:20px;}
@@ -572,6 +576,7 @@
   </style>
 </head>
 <body>
+<div id="global-loader"><div id="global-loader-bar"></div></div>
 <div id="loading"><div class="spin"></div></div>
 <div id="app">
   <nav>
@@ -780,11 +785,13 @@ async function saveHouseholdSize(n){householdSizeCache=n;await sb.from('app_sett
 function getFrozenPortions(recipeId){return(frozenInventoryCache||[]).filter(f=>f.recipe_id===recipeId).reduce((sum,f)=>sum+f.portions,0);}
 async function hasSufficientFrozen(recipeId){const portions=getFrozenPortions(recipeId);const size=await loadHouseholdSize();return portions>=size;}
 async function renderDashboard(){
+  showLoader();
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
   await loadKarenAdditions();await loadPendingIdeaRatings();await loadShopPresets();await loadFrozenInventory();await loadHouseholdSize();
   if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);applySectionOrder('admin',['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers']);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();}
   else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);applySectionOrder('planner',['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping']);if(currentUserCan('show_inventory'))await loadInventory();}
   else{content.innerHTML=renderKaren(recipes,userProfile.name);applySectionOrder('reviewer',['kar-meals','kar-requests','kar-ratings','kar-shopping']);renderKarenAdditionsList();loadKarenShoppingPreview();}
+  hideLoader();
 }
 function renderCameron(recipes,name){
   const hasPlan=currentPlan!==null;
@@ -1051,6 +1058,29 @@ async function selectMealsForWeek(allRecipes,homeMealsNeeded){
   return picked;
 }
 function showToast(msg,type='success'){const t=document.createElement('div');t.style.cssText=`position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:${type==='error'?'#c44':'#4A7C59'};color:white;padding:11px 22px;border-radius:999px;font-size:0.88rem;font-family:'DM Sans',sans-serif;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,0.18);z-index:9999;animation:fadeIn 0.3s ease;white-space:nowrap;`;t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
+let _loaderCount=0,_loaderTimer=null;
+function showLoader(){
+  _loaderCount++;
+  const el=document.getElementById('global-loader');
+  const bar=document.getElementById('global-loader-bar');
+  if(!el||!bar)return;
+  el.style.opacity='1';
+  bar.style.transition='width 0.4s ease';
+  bar.style.width='30%';
+  clearTimeout(_loaderTimer);
+  _loaderTimer=setTimeout(()=>{if(_loaderCount>0)bar.style.width='70%';},400);
+}
+function hideLoader(){
+  _loaderCount=Math.max(0,_loaderCount-1);
+  if(_loaderCount>0)return;
+  const el=document.getElementById('global-loader');
+  const bar=document.getElementById('global-loader-bar');
+  if(!el||!bar)return;
+  clearTimeout(_loaderTimer);
+  bar.style.transition='width 0.2s ease';
+  bar.style.width='100%';
+  setTimeout(()=>{el.style.opacity='0';setTimeout(()=>{bar.style.transition='none';bar.style.width='0%';},200);},250);
+}
 async function doReshuffle(btn){if(!currentUserCan('reshuffle_plan')){showToast('Permission denied','error');return;}
   if(!currentPlan||currentPlan.reshuffle_used)return;
   btn.disabled=true;btn.textContent='🔀 Reshuffling...';
@@ -1952,6 +1982,7 @@ async function buildPreShopEstimate(mealItems){
   }catch(e){console.warn('Pre-shop estimate failed:',e);return '';}
 }
 async function generateShoppingList(){
+  showLoader();
   clearShoppingState();
   const btn=document.getElementById('generate-btn');const content=document.getElementById('shopping-list-content');
 
@@ -2016,7 +2047,8 @@ async function generateShoppingList(){
     const ssBtn=document.getElementById('start-shopping-btn');if(ssBtn)ssBtn.style.display='';
     saveShoppingState(mealItems,ckItems,alwaysBuyItems,[...userPickedDueSoon]);
    const notifications=currentPlan.notifications||{};if(!notifications.shoplist_sent){await sb.from('weekly_plans').update({notifications:{...notifications,shoplist_sent:true}}).eq('id',currentPlan.id);currentPlan.notifications={...notifications,shoplist_sent:true};await sendEmail('plan_finalised');}
-  }catch(err){content.innerHTML=`<div class="empty" style="color:#c44">Error: ${escapeHtml(err.message)}</div>`;btn.textContent='Generate list';btn.disabled=false;}
+    hideLoader();
+  }catch(err){content.innerHTML=`<div class="empty" style="color:#c44">Error: ${escapeHtml(err.message)}</div>`;btn.textContent='Generate list';btn.disabled=false;hideLoader();}
 }
 /* ── TROLLEY MODE ─────────────────────────────── */
 async function fetchExchangeRate(){if(usdRate)return usdRate;try{const r=await fetch('https://open.er-api.com/v6/latest/MXN');const d=await r.json();if(d&&d.rates&&typeof d.rates.USD==='number'&&d.rates.USD>0&&d.rates.USD<1){usdRate=d.rates.USD;return usdRate;}}catch(e){console.warn('Exchange rate fetch failed:',e.message);}return null;}
@@ -4078,9 +4110,11 @@ function setProductSubViewProducts(store){productsSubView='products';productFilt
 function setProductsSubView(view){productsSubView=view;renderProductsView();}
 
 async function loadAndRenderProducts(){
+  showLoader();
   const{data,error}=await sb.from('household_products').select('*, ingredients(name_en)').order('name_es');
-  if(error){document.getElementById('products-grid').innerHTML=`<div class="empty" style="color:#c44">Could not load products: ${error.message}</div>`;return;}
+  if(error){document.getElementById('products-grid').innerHTML=`<div class="empty" style="color:#c44">Could not load products: ${error.message}</div>`;hideLoader();return;}
   productsCache=data||[];renderFilteredProducts();
+  hideLoader();
 }
 
 function renderFilteredProducts(){
@@ -4679,6 +4713,7 @@ async function openMergeDuplicatesModal(){
 }
 
 async function executeMerge(groupIds){
+  showLoader();
   const btn=document.querySelector('#merge-overlay .btn-primary');
   if(btn){btn.disabled=true;btn.textContent='Merging…';}
   // Fetch full product data for all IDs involved
@@ -4728,6 +4763,7 @@ async function executeMerge(groupIds){
   document.getElementById('merge-overlay')?.remove();
   productsCache=null;
   await loadAndRenderProducts();
+  hideLoader();
   showToast(`Merged — ${merged} duplicate${merged!==1?'s':''} resolved${errors?`, ${errors} errors`:''} ✓`);
 }
 /* ── END MERGE DUPLICATES ──────────────────────── */
@@ -4805,6 +4841,7 @@ async function processReceiptImage(input){
   const file=input.files?.[0];
   if(!file)return;
   if(file.size>5*1024*1024){showToast('Image too large — please use a photo under 5MB','error');return;}
+  showLoader();
   const resultEl=document.getElementById('receipt-result');
   if(resultEl)resultEl.innerHTML='<div class="receipt-processing">📖 Reading receipt… this takes a few seconds</div>';
 
@@ -4853,7 +4890,9 @@ Rules for promotions:
     const rItems=Array.isArray(parsed)?parsed:(parsed.items||[]);
     const rPromos=Array.isArray(parsed)?[]:(parsed.promotions||[]);
     await renderReceiptResults(rItems,rPromos);
+    hideLoader();
   }catch(e){
+    hideLoader();
     if(resultEl)resultEl.innerHTML=`<div class="receipt-processing" style="color:#c44">Could not read receipt: ${e.message}<br><br>Try a clearer photo with good lighting.</div>`;
   }
 }
