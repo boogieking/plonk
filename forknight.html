@@ -948,10 +948,13 @@ async function restoreShoppingAndTrolleyState(){
       if(ssBtn)ssBtn.style.display='none';
       document.querySelectorAll('.link-btn-group').forEach(el=>el.style.display='none');
       renderTrolleyUI();
-      // Re-tick items and restore prices
-      for(const[itemId,item]of Object.entries(trolleyItems)){
+      // Re-tick items and restore prices — wrapped in setTimeout to ensure DOM is fully painted
+      const trolleySnapshot=JSON.parse(JSON.stringify(trolleyItems));
+      await new Promise(resolve=>setTimeout(resolve,120));
+      let missedItems=[];
+      for(const[itemId,item]of Object.entries(trolleySnapshot)){
         const row=document.getElementById(`shop-row-${itemId}`);
-        if(!row)continue;
+        if(!row){missedItems.push(itemId);continue;}
         if(item.notFound){
           row.classList.add('not-found-row');
           const btn=row.querySelector('.not-found-btn');
@@ -965,6 +968,7 @@ async function restoreShoppingAndTrolleyState(){
           addInTrolleyRow(itemId,item.name,item.price);
         }
       }
+      if(missedItems.length>0)console.warn('Trolley restore: could not find rows for item IDs:',missedItems);
       updateTrolleyBanner();updateCatSubtotals();
       if(adhocItems.length>0)renderAdhocSection();
       showToast('Welcome back — your trolley has been restored 🛒');
@@ -2283,11 +2287,27 @@ function updateTrolleyBanner(){
   }
   banner.innerHTML=`<div style="flex:1;min-width:0"><div class="trolley-total-label">Running total · ${count} item${count!==1?'s':''} in trolley</div><div class="trolley-total-mxn">$${totalMXN.toFixed(2)} <span style="font-size:0.9rem;font-weight:400;opacity:0.7">MXN</span></div>${usdStr}${catsHtml}${budgetHtml}</div><button class="trolley-finish-btn" onclick="finishTrolleyMode()">✓ Finish Shopping</button>`;
 }
+let _budgetConfirmTimer=null;
 function setTrolleyBudget(val){
   trolleyBudget=parseFloat(val)||0;
   localStorage.setItem('forknight_trolley_budget',trolleyBudget);
   saveTrolleyState();
   updateTrolleyBanner();
+  // Visual confirmation — briefly flash the input green after user stops typing
+  clearTimeout(_budgetConfirmTimer);
+  _budgetConfirmTimer=setTimeout(()=>{
+    const inp=document.getElementById('trolley-budget-input');
+    if(!inp||!trolleyBudget)return;
+    inp.style.borderColor='var(--sage)';
+    inp.style.background='rgba(74,124,89,0.08)';
+    const lbl=inp.closest('.budget-input-wrap')?.querySelector('label');
+    const orig=lbl?.textContent;
+    if(lbl)lbl.textContent='✓ Budget set';
+    setTimeout(()=>{
+      inp.style.borderColor='';inp.style.background='';
+      if(lbl&&orig)lbl.textContent=orig;
+    },1500);
+  },600);
 }
 async function checkCheaperAlternative(ingId,itemName,newTotal){
   if(!trolleyBudget||newTotal<trolleyBudget*0.9)return;
@@ -4771,7 +4791,7 @@ async function processReceiptImage(input){
   try{
     const response=await proxyFetch({
         model:'claude-sonnet-4-6',
-        max_tokens:2000,
+        max_tokens:4000,
         messages:[{
           role:'user',
           content:[
