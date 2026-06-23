@@ -1991,7 +1991,8 @@ async function generateShoppingList(){
    const{data:planMeals}=await sb.from('weekly_plan_meals').select('recipe_id, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en,is_freezable)').eq('plan_id',currentPlan.id);
     const planRecipeIds=[...new Set((planMeals||[]).map(m=>m.recipe_id))];
     const recipeNameMap={};for(const m of (planMeals||[])){if(m.recipes)recipeNameMap[m.recipe_id]=m.recipes.name_en;}
-    // Check frozen inventory — skip ingredients for meals with sufficient frozen portions
+    // Load pantry stock for 3-tier split, and frozen inventory
+    await loadPantryStock();
     await loadFrozenInventory();const householdSize=await loadHouseholdSize();
     const frozenSkipRecipeIds=new Set();
     const frozenMealNotes={};
