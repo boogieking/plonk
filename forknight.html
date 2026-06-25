@@ -830,8 +830,8 @@ function renderCameron(recipes,name){
       <div class="card stat-tile"><div class="stat-num">${hasPlan?mealCount:'—'}</div><div class="stat-label">Meals this plan</div></div>
     </div>
     <div class="collapse-controls">
-      <button class="collapse-btn" onclick="collapseAll(['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers'])">Collapse all</button>
-      <button class="collapse-btn" onclick="expandAll(['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers'])">Expand all</button>
+      <button class="collapse-btn" onclick="collapseAll(['cam-requests','cam-ratings','cam-meals','cam-dinners','cam-inventory','cam-shopping','cam-leftovers'])">Collapse all</button>
+      <button class="collapse-btn" onclick="expandAll(['cam-requests','cam-ratings','cam-meals','cam-dinners','cam-inventory','cam-shopping','cam-leftovers'])">Expand all</button>
     </div>
     ${sectionHeader('cam-requests','Pending requests')}
     <div class="card" style="margin-bottom:20px" id="requests-container"><div class="empty"><span class="empty-icon">📋</span>Loading requests...</div></div>
@@ -852,7 +852,8 @@ function renderCameron(recipes,name){
       ${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowAdmin(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>No meals suggested yet — set eating-out days above</div>`}
       ${reshuffleLogHtml}
     </div>
-    ${currentPlan?.status==='approved'?`<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Dinners this week</div><div style="display:flex;gap:8px;flex-wrap:wrap">${currentDinners.length>0?`<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all</button>`:''}<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="openAddDinnerModal()">+ Add dinner</button></div></div><div id="dinner-list-cam">${renderDinnerListAdmin()}</div></div>`:''}
+    ${currentPlan?.status==='approved'?sectionHeader('cam-dinners','Dinners this week',false)+`<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Tonight's options</div><div style="display:flex;gap:8px;flex-wrap:wrap">${currentDinners.length>0?`<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all</button>`:''}<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="openAddDinnerModal()">+ Add dinner</button></div></div><div id="dinner-list-cam">${renderDinnerListAdmin()}</div></div>`+sectionEnd():''}
+
     ${sectionEnd()}
     ${currentUserCan('show_inventory')?sectionHeader('cam-inventory','Inventory check', false)+`
     <div class="card" style="margin-bottom:20px">
@@ -1627,7 +1628,7 @@ function renderSienna(recipes,name){
       ${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowSienna(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>${hasPlan?'No meals in plan yet':'No plan yet this week'}</div>`}
     </div>
     ${sectionEnd()}
-   ${userProfile.role==='planner'&&currentPlan?.status==='approved'&&currentUserCan('manage_dinners')&&currentUserCan('show_dinners')?sectionHeader('sie-dinners','Dinners this week')+`<div class="card" style="margin-bottom:20px" id="dinner-section"><div class="card-header"><div class="card-title">Tonight\'s options</div><button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all dinners</button></div><div id="dinner-list">${renderDinnerList()}</div></div>`+sectionEnd():''}
+   ${userProfile.role==='planner'&&currentPlan?.status==='approved'&&currentUserCan('manage_dinners')&&currentUserCan('show_dinners')?sectionHeader('sie-dinners','Dinners this week',false)+`<div class="card" style="margin-bottom:20px" id="dinner-section"><div class="card-header"><div class="card-title">Tonight\'s options</div><button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all dinners</button></div><div id="dinner-list">${renderDinnerList()}</div></div>`+sectionEnd():''}
     ${currentUserCan('show_requests')?sectionHeader('sie-requests','Requests')+`
     <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Requests</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">${currentUserCan('submit_swap')?`<button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button>`:''}<button class="btn-secondary" onclick="openModal('hibernate')">😴 Request hibernation</button>${currentUserCan('suggest_meals')?`<button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button>`:''}</div></div>
     `+sectionEnd():''}
