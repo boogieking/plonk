@@ -789,7 +789,7 @@ async function renderDashboard(){
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
   await loadKarenAdditions();await loadPendingIdeaRatings();await loadShopPresets();await loadFrozenInventory();await loadHouseholdSize();
   if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);applySectionOrder('admin',['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers']);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();}
-  else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);applySectionOrder('planner',['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping']);if(currentUserCan('show_inventory'))await loadInventory();restoreShoppingAndTrolleyState();}
+  else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);applySectionOrder('planner',['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping']);if(currentUserCan('show_inventory'))await loadInventory();}
   else{content.innerHTML=renderKaren(recipes,userProfile.name);applySectionOrder('reviewer',['kar-meals','kar-requests','kar-ratings','kar-shopping']);renderKarenAdditionsList();loadKarenShoppingPreview();}
   hideLoader();
 }
@@ -957,7 +957,7 @@ async function restoreShoppingAndTrolleyState(){
       renderTrolleyUI();
       // Re-tick items and restore prices — wrapped in setTimeout to ensure DOM is fully painted
       const trolleySnapshot=JSON.parse(JSON.stringify(trolleyItems));
-      await new Promise(resolve=>setTimeout(resolve,300));
+      await new Promise(resolve=>setTimeout(resolve,120));
       let missedItems=[];
       for(const[itemId,item]of Object.entries(trolleySnapshot)){
         const row=document.getElementById(`shop-row-${itemId}`);
@@ -1461,10 +1461,18 @@ async function showDepletionNudge(recipeId,mealName,chainLeftover=false){
   // Find pantry items that match recipe ingredients
   const ingNames=new Set(ings.map(i=>(i.name_en||'').toLowerCase()));
   const ingIds=new Set(ings.map(i=>i.id));
-  const matches=pantryStockCache.filter(p=>
+  const rawMatches=pantryStockCache.filter(p=>
     (p.ingredient_id&&ingIds.has(p.ingredient_id))||
     ingNames.has((p.ingredient_name||'').toLowerCase())
   );
+  // Deduplicate by pantry row id, then by ingredient name (catches both FK+name double-matches and duplicate pantry entries)
+  const seenDepIds=new Set();const seenDepNames=new Set();
+  const matches=rawMatches.filter(p=>{
+    if(seenDepIds.has(p.id))return false;seenDepIds.add(p.id);
+    const n=(p.ingredient_name||'').toLowerCase();
+    if(seenDepNames.has(n))return false;seenDepNames.add(n);
+    return true;
+  });
   if(matches.length===0)return;
   const overlay=document.createElement('div');
   overlay.id='depletion-nudge-overlay';
