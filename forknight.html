@@ -2144,9 +2144,7 @@ async function finishTrolleyMode(){
   }
   const snapshot={...trolleyItems};
   const snapTotal=Object.values(snapshot).filter(i=>!i.notFound).reduce((s,i)=>s+(i.price||0),0);
-  const budgetReceiptHtml=await getBudgetSummaryForReceipt(snapTotal);
-  await saveShoppingTrip(snapTotal);
-  showReceiptModal(snapshot,snapTotal,savedCount,currentUserCan('show_prep_guide'),budgetReceiptHtml);
+  showReceiptModal(snapshot,snapTotal,savedCount,currentUserCan('show_prep_guide'));
   // Update last_bought_at for any recurring items that were in the trolley
   const recurringRows=document.querySelectorAll('.recurring-item');
   if(recurringRows.length>0){
@@ -5257,6 +5255,15 @@ async function saveReceiptItems(){
 
   // Calculate leftovers
   const leftovers=await calculateLeftovers(savedForLeftovers);
+
+  // Save receipt total to budget tracker (receipt scan is source of truth for spend)
+  const receiptTotal=receiptItems.reduce((s,item)=>s+(item.price_mxn||0),0);
+  if(receiptTotal>0){
+    await fetchExchangeRate();
+    await saveShoppingTrip(receiptTotal);
+    const budgetCard=document.getElementById('budget-card-body');
+    if(budgetCard)renderBudgetCard().then(html=>{budgetCard.innerHTML=html;});
+  }
 
   if(leftovers.length>0){
     // Show leftover review step instead of closing immediately
