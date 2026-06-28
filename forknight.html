@@ -411,6 +411,30 @@
     .trolley-add-fab:hover{background:var(--clay-dark);transform:scale(1.08);}
     .trolley-calc-fab{position:fixed;bottom:80px;right:76px;z-index:210;width:48px;height:48px;border-radius:50%;background:var(--dark);color:white;border:none;font-size:1.1rem;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;transition:background 0.18s,transform 0.15s;}
     .trolley-calc-fab:hover{transform:scale(1.08);}
+    .link-style-btn{background:none;border:none;cursor:pointer;color:var(--clay);font-family:'DM Sans',sans-serif;font-size:inherit;text-decoration:underline;padding:0;}
+    .budget-card-body{display:flex;flex-direction:column;gap:14px;}
+    .budget-period{display:flex;flex-direction:column;gap:6px;}
+    .budget-period-label{font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);}
+    .budget-bar-wrap{height:8px;background:var(--light);border-radius:999px;overflow:hidden;}
+    .budget-bar-fill{height:100%;border-radius:999px;background:var(--clay);transition:width 0.4s ease;}
+    .budget-bar-fill.over{background:#c44;}
+    .budget-bar-fill.warn{background:var(--amber);}
+    .budget-amounts{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;}
+    .budget-spent{font-size:0.95rem;font-weight:500;color:var(--dark);}
+    .budget-total{font-size:0.82rem;color:var(--mid);}
+    .budget-remaining{font-size:0.78rem;color:var(--green);font-weight:500;}
+    .budget-remaining.over{color:#c44;}
+    .budget-usd{font-size:0.72rem;color:var(--mid);margin-top:2px;}
+    .budget-divider{height:1px;background:var(--border);margin:4px 0;}
+    .budget-not-set{font-size:0.85rem;color:var(--mid);font-style:italic;padding:2px 0;}
+    .budget-modal{background:var(--surface);border-radius:var(--radius);padding:24px;max-width:320px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,0.15);}
+    .budget-modal-title{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:700;margin-bottom:16px;color:var(--dark);}
+    .budget-field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+    .budget-field label{font-size:0.78rem;font-weight:500;color:var(--mid);text-transform:uppercase;letter-spacing:0.05em;}
+    .budget-field-row{display:flex;align-items:center;gap:8px;}
+    .budget-field-row input{flex:1;border:1.5px solid var(--border);border-radius:9px;padding:8px 12px;font-family:'DM Sans',sans-serif;font-size:0.9rem;background:rgba(255,255,255,0.8);color:var(--dark);outline:none;}
+    .budget-field-row input:focus{border-color:var(--clay);}
+    .budget-field-row span{font-size:0.82rem;color:var(--mid);white-space:nowrap;}
     .adhoc-item-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(200,180,160,0.15);gap:10px;}
     .adhoc-item-row:last-child{border-bottom:none;}
     .adhoc-item-name{font-size:0.85rem;flex:1;color:var(--dark);}
@@ -788,7 +812,7 @@ async function renderDashboard(){
   showLoader();
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
   await loadKarenAdditions();await loadPendingIdeaRatings();await loadShopPresets();await loadFrozenInventory();await loadHouseholdSize();
-  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);applySectionOrder('admin',['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-shopping','cam-leftovers']);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();}
+  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);applySectionOrder('admin',['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-budget','cam-shopping','cam-leftovers']);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();renderBudgetCard().then(html=>{const el=document.getElementById('budget-card-body');if(el)el.innerHTML=html;});}
   else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);applySectionOrder('planner',['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping']);if(currentUserCan('show_inventory'))await loadInventory();restoreShoppingAndTrolleyState();}
   else{content.innerHTML=renderKaren(recipes,userProfile.name);applySectionOrder('reviewer',['kar-meals','kar-requests','kar-ratings','kar-shopping']);renderKarenAdditionsList();loadKarenShoppingPreview();}
   hideLoader();
@@ -830,8 +854,8 @@ function renderCameron(recipes,name){
       <div class="card stat-tile"><div class="stat-num">${hasPlan?mealCount:'—'}</div><div class="stat-label">Meals this plan</div></div>
     </div>
     <div class="collapse-controls">
-      <button class="collapse-btn" onclick="collapseAll(['cam-requests','cam-ratings','cam-meals','cam-dinners','cam-inventory','cam-shopping','cam-leftovers'])">Collapse all</button>
-      <button class="collapse-btn" onclick="expandAll(['cam-requests','cam-ratings','cam-meals','cam-dinners','cam-inventory','cam-shopping','cam-leftovers'])">Expand all</button>
+      <button class="collapse-btn" onclick="collapseAll(['cam-requests','cam-ratings','cam-meals','cam-dinners','cam-inventory','cam-budget','cam-shopping','cam-leftovers'])">Collapse all</button>
+      <button class="collapse-btn" onclick="expandAll(['cam-requests','cam-ratings','cam-meals','cam-dinners','cam-inventory','cam-budget','cam-shopping','cam-leftovers'])">Expand all</button>
     </div>
     ${sectionHeader('cam-requests','Pending requests')}
     <div class="card" style="margin-bottom:20px" id="requests-container"><div class="empty"><span class="empty-icon">📋</span>Loading requests...</div></div>
@@ -860,6 +884,12 @@ function renderCameron(recipes,name){
       ${currentPlan?.status==='approved'?`<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`:`<div class="empty" style="padding:20px 0"><span class="empty-icon">🛒</span>Once the plan is approved, inventory check unlocks here</div>`}
     </div>
     `+sectionEnd():''}
+    ${sectionHeader('cam-budget','Budget',true)}
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><div class="card-title">Grocery budget</div></div>
+      <div class="budget-card-body" id="budget-card-body"><div class="empty" style="padding:8px 0;font-size:0.85rem">Loading...</div></div>
+    </div>
+    ${sectionEnd()}
     ${sectionHeader('cam-shopping','Shopping list')}
     <div class="card" id="cameron-shopping-card">
       <div class="card-header" style="flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div class="card-title">La Comer</div><div style="display:flex;gap:6px"><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button><button class="scan-btn" style="font-size:0.8rem" onclick="openReceiptScanner()">📄 Receipt</button><button class="scan-btn" style="font-size:0.8rem" onclick="openPresetManager()">🗺️ Routes</button>${currentUserCan('show_prep_guide')&&currentPlan?"<button class=\"scan-btn\" style=\"font-size:0.8rem\" onclick=\"openPrepGuide()\">📋 Prep guide</button>":''}</div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%"><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
@@ -907,6 +937,7 @@ function mealRowAdmin(m){
 }
 let inventoryItems=[],inventoryState={};
 let trolleyMode=false,trolleyItems={},usdRate=null,trolleyBudget=0;
+let budgetSettingsCache=null,shoppingTripsCache=null;
 
 /* ── SHOPPING STATE PERSISTENCE ─────────────── */
 function shoppingStateKey(){return currentPlan?`forknight_shopping_${currentPlan.id}`:null;}
@@ -2113,7 +2144,9 @@ async function finishTrolleyMode(){
   }
   const snapshot={...trolleyItems};
   const snapTotal=Object.values(snapshot).filter(i=>!i.notFound).reduce((s,i)=>s+(i.price||0),0);
-  showReceiptModal(snapshot,snapTotal,savedCount,currentUserCan('show_prep_guide'));
+  const budgetReceiptHtml=await getBudgetSummaryForReceipt(snapTotal);
+  await saveShoppingTrip(snapTotal);
+  showReceiptModal(snapshot,snapTotal,savedCount,currentUserCan('show_prep_guide'),budgetReceiptHtml);
   // Update last_bought_at for any recurring items that were in the trolley
   const recurringRows=document.querySelectorAll('.recurring-item');
   if(recurringRows.length>0){
@@ -2139,7 +2172,140 @@ async function finishTrolleyMode(){
   document.querySelectorAll('.not-found-btn').forEach(el=>el.remove());
   document.querySelectorAll('.link-btn-group').forEach(el=>el.style.display='');
 }
-function showReceiptModal(items,totalMXN,savedCount,showPrepGuide=false){window._showPrepGuideAfterReceipt=showPrepGuide;
+
+/* ── BUDGET TRACKER ─────────────────────────── */
+function getWeekStartDate(){
+  const now=new Date();const day=now.getDay();const diff=day===0?-6:1-day;
+  const monday=new Date(now);monday.setDate(now.getDate()+diff);
+  return monday.toISOString().split('T')[0];
+}
+function getMonthStartDate(){
+  const now=new Date();
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+}
+async function loadBudgetSettings(){
+  if(budgetSettingsCache)return budgetSettingsCache;
+  const{data,error}=await sb.from('app_settings').select('key,value').in('key',['weekly_budget_mxn','monthly_budget_mxn']);
+  if(error||!data){budgetSettingsCache={weekly:null,monthly:null};return budgetSettingsCache;}
+  const wRow=data.find(r=>r.key==='weekly_budget_mxn');
+  const mRow=data.find(r=>r.key==='monthly_budget_mxn');
+  budgetSettingsCache={weekly:wRow?parseFloat(wRow.value)||null:null,monthly:mRow?parseFloat(mRow.value)||null:null};
+  return budgetSettingsCache;
+}
+async function saveBudgetSettings(weeklyMxn,monthlyMxn){
+  budgetSettingsCache=null;
+  const rows=[{key:'weekly_budget_mxn',value:String(weeklyMxn||'')},{key:'monthly_budget_mxn',value:String(monthlyMxn||'')}];
+  for(const row of rows){
+    const{data:ex}=await sb.from('app_settings').select('id').eq('key',row.key).maybeSingle();
+    if(ex){await sb.from('app_settings').update({value:row.value}).eq('key',row.key);}
+    else{await sb.from('app_settings').insert({key:row.key,value:row.value});}
+  }
+}
+async function loadShoppingTrips(){
+  if(shoppingTripsCache)return shoppingTripsCache;
+  const monthStart=getMonthStartDate();
+  const{data,error}=await sb.from('shopping_trips').select('trip_date,total_mxn').gte('trip_date',monthStart).order('trip_date',{ascending:false});
+  shoppingTripsCache=(!error&&data)?data:[];
+  return shoppingTripsCache;
+}
+async function saveShoppingTrip(totalMXN){
+  shoppingTripsCache=null;
+  const today=new Date().toISOString().split('T')[0];
+  const totalUSD=usdRate&&totalMXN>0?parseFloat((totalMXN*usdRate).toFixed(2)):null;
+  const{error}=await sb.from('shopping_trips').insert({trip_date:today,total_mxn:parseFloat(totalMXN.toFixed(2)),total_usd:totalUSD,plan_id:currentPlan?.id||null,recorded_by:userProfile?.id||null});
+  if(error)console.warn('Failed to save shopping trip:',error.message);
+}
+async function renderBudgetCard(){
+  await fetchExchangeRate();
+  const settings=await loadBudgetSettings();
+  const trips=await loadShoppingTrips();
+  const weekStart=getWeekStartDate();
+  const weeklySpent=trips.filter(t=>t.trip_date>=weekStart).reduce((s,t)=>s+(t.total_mxn||0),0);
+  const monthlySpent=trips.reduce((s,t)=>s+(t.total_mxn||0),0);
+  const now=new Date();
+  const weekLabel=`This week (from Mon ${getWeekStartDate().slice(5).replace('-','/')})`;
+  const monthLabel=`${now.toLocaleString('en',{month:'long'})} ${now.getFullYear()}`;
+  function barSection(label,spent,budget){
+    if(!budget){
+      return`<div class="budget-period"><div class="budget-period-label">${label}</div>`+
+        `<div class="budget-not-set">No budget set — <button class="link-style-btn" onclick="openBudgetModal()">add one</button></div>`+
+        `<div class="budget-usd">Spent: $${spent.toFixed(2)} MXN${usdRate&&spent>0?` · ≈ USD $${(spent*usdRate).toFixed(2)}`:''}</div></div>`;
+    }
+    const pct=Math.min((spent/budget)*100,100);
+    const over=spent>budget;const warn=!over&&pct>=80;
+    const remaining=budget-spent;
+    const fillClass=over?'over':warn?'warn':'';
+    return`<div class="budget-period"><div class="budget-period-label">${label}</div>`+
+      `<div class="budget-bar-wrap"><div class="budget-bar-fill ${fillClass}" style="width:${pct.toFixed(1)}%"></div></div>`+
+      `<div class="budget-amounts"><div><span class="budget-spent">$${spent.toFixed(0)} MXN</span><span class="budget-total"> / $${budget.toFixed(0)}</span></div>`+
+      `<span class="budget-remaining${over?' over':''}">${over?`+$${Math.abs(remaining).toFixed(0)} over budget`:`$${remaining.toFixed(0)} left`}</span></div>`+
+      `${usdRate?`<div class="budget-usd">≈ USD $${(spent*usdRate).toFixed(2)} spent · $${(budget*usdRate).toFixed(2)} budget`+(over?'':`· $${(remaining*usdRate).toFixed(2)} remaining`)+`</div>`:''}`+
+      `</div>`;
+  }
+  return`<div class="budget-card-body">`+
+    barSection(weekLabel,weeklySpent,settings.weekly)+
+    `<div class="budget-divider"></div>`+
+    barSection(monthLabel,monthlySpent,settings.monthly)+
+    `<div style="margin-top:8px"><button class="btn-secondary" style="font-size:0.78rem;padding:5px 12px" onclick="openBudgetModal()">✏️ Set budgets</button></div>`+
+    `</div>`;
+}
+async function openBudgetModal(){
+  const settings=await loadBudgetSettings();
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="budget-modal">
+    <div class="budget-modal-title">Grocery budgets</div>
+    <div class="budget-field">
+      <label>Weekly budget</label>
+      <div class="budget-field-row">
+        <input type="number" id="bud-weekly" min="0" step="100" placeholder="e.g. 2000" value="${settings.weekly||''}">
+        <span>MXN / week</span>
+      </div>
+    </div>
+    <div class="budget-field">
+      <label>Monthly budget</label>
+      <div class="budget-field-row">
+        <input type="number" id="bud-monthly" min="0" step="100" placeholder="e.g. 8000" value="${settings.monthly||''}">
+        <span>MXN / month</span>
+      </div>
+    </div>
+    <p style="font-size:0.75rem;color:var(--mid);margin-bottom:16px">Week resets Monday · Month resets the 1st</p>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="submitBudgetSettings()">Save</button>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+}
+async function submitBudgetSettings(){
+  const weekly=parseFloat(document.getElementById('bud-weekly')?.value)||null;
+  const monthly=parseFloat(document.getElementById('bud-monthly')?.value)||null;
+  await saveBudgetSettings(weekly,monthly);
+  closeModal();showToast('Budget saved ✓');
+  const card=document.getElementById('budget-card-body');
+  if(card){card.innerHTML='<div class="empty" style="padding:8px 0;font-size:0.85rem">Updating...</div>';renderBudgetCard().then(html=>{card.innerHTML=html;});}
+}
+async function getBudgetSummaryForReceipt(tripTotal){
+  const settings=await loadBudgetSettings();
+  if(!settings.weekly&&!settings.monthly)return'';
+  const trips=await loadShoppingTrips();
+  const weekStart=getWeekStartDate();
+  const weeklySpent=trips.filter(t=>t.trip_date>=weekStart).reduce((s,t)=>s+(t.total_mxn||0),0)+tripTotal;
+  const monthlySpent=trips.reduce((s,t)=>s+(t.total_mxn||0),0)+tripTotal;
+  let html=`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">`;
+  html+=`<div style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Budget impact</div>`;
+  if(settings.weekly){
+    const over=weeklySpent>settings.weekly;
+    html+=`<div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:5px"><span>This week</span><span style="font-weight:500;color:${over?'#c44':'var(--green)'}">$${weeklySpent.toFixed(0)} / $${settings.weekly.toFixed(0)} MXN${over?' — over budget':''}</span></div>`;
+  }
+  if(settings.monthly){
+    const over=monthlySpent>settings.monthly;
+    html+=`<div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:5px"><span>This month</span><span style="font-weight:500;color:${over?'#c44':'var(--green)'}">$${monthlySpent.toFixed(0)} / $${settings.monthly.toFixed(0)} MXN${over?' — over budget':''}</span></div>`;
+  }
+  html+=`</div>`;
+  return html;
+}
+
+function showReceiptModal(items,totalMXN,savedCount,showPrepGuide=false,budgetHtml=''){window._showPrepGuideAfterReceipt=showPrepGuide;
   const now=new Date();
   const dateStr=now.toLocaleDateString('en-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   // Separate found vs not-found
@@ -2183,6 +2349,7 @@ function showReceiptModal(items,totalMXN,savedCount,showPrepGuide=false){window.
       <div style="text-align:right"><div class="receipt-grand-mxn">$${totalMXN.toFixed(2)} MXN</div>${usdLine}</div>
     </div>
     ${savedNote}
+    ${budgetHtml}
     <div class="modal-btns" style="margin-top:18px">
       <button class="btn-secondary" onclick="closeModal();setTimeout(openReceiptScanner,150)">📄 Scan receipt</button>
       <button class="btn-primary" onclick="closeModal();if(window._showPrepGuideAfterReceipt){window._showPrepGuideAfterReceipt=false;setTimeout(openPrepGuide,300);}">Done</button>
