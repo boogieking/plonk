@@ -845,6 +845,7 @@ function renderCameron(recipes,name){
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         ${hasPlan&&currentPlan.status==='suggested'?`<button class="btn-primary" id="approve-plan-btn" onclick="approvePlanAsAdmin(this)">✓ Approve plan</button>`:''}
         ${hasPlan&&currentPlan.status==='approved'?`<button class="btn-primary" disabled style="opacity:0.6">✓ Approved</button>`:''}
+        ${hasPlan&&currentUserCan('show_prep_guide')?`<button class="btn-secondary" onclick="openPrepGuide()">📋 Prep guide</button>`:''}
         <button class="btn-secondary" onclick="openEatingOutModal()">${hasPlan?'Start new plan':'Set eating-out days'}</button>
       </div>
     </div>
