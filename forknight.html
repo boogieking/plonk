@@ -304,6 +304,16 @@
     .recurring-header{display:flex;align-items:center;justify-content:space-between;font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:#3a7a3a;margin-bottom:10px;}
     .recurring-item{opacity:0.85;}
     .recurring-item:hover{opacity:1;}
+    .shop-rm-btn{background:none;border:none;color:var(--mid);font-size:0.85rem;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1;flex-shrink:0;opacity:0.55;transition:opacity 0.15s}
+    .shop-rm-btn:hover{color:var(--clay);opacity:1}
+    .removed-section{margin-top:20px;border-top:1px solid var(--border);padding-top:14px;}
+    .removed-header{display:flex;align-items:center;justify-content:space-between;font-size:0.8rem;font-weight:600;color:var(--mid);margin-bottom:8px}
+    .removed-list{display:none}
+    .removed-list.open{display:block}
+    .removed-item-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(200,180,160,0.15);font-size:0.88rem;gap:10px}
+    .removed-item-row:last-child{border-bottom:none}
+    .restore-btn{font-size:0.72rem;color:var(--green);background:none;border:1px solid rgba(74,124,89,0.4);border-radius:10px;padding:3px 9px;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:background 0.15s}
+    .restore-btn:hover{background:rgba(74,124,89,0.08)}
     .trend-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.12s;}
     .trend-row:last-child{border-bottom:none;}
     .trend-row:hover{background:var(--cream);border-radius:8px;padding-left:8px;padding-right:8px;}
@@ -938,6 +948,7 @@ function mealRowAdmin(m){
 }
 let inventoryItems=[],inventoryState={};
 let trolleyMode=false,trolleyItems={},usdRate=null,trolleyBudget=0;
+let _shopItemLabels={},removedShoppingItems=[];
 let budgetSettingsCache=null,shoppingTripsCache=null;
 
 /* ── SHOPPING STATE PERSISTENCE ─────────────── */
@@ -945,7 +956,7 @@ function shoppingStateKey(){return currentPlan?`forknight_shopping_${currentPlan
 function trolleyStateKey(){return currentPlan?`forknight_trolley_${currentPlan.id}`:null;}
 function saveShoppingState(mealItems){
   const key=shoppingStateKey();if(!key)return;
-  try{localStorage.setItem(key,JSON.stringify({mealItems,savedAt:Date.now()}));}catch(e){console.warn('Shopping state save failed:',e);}
+  try{localStorage.setItem(key,JSON.stringify({mealItems,removedShoppingItems,savedAt:Date.now()}));}catch(e){console.warn('Shopping state save failed:',e);}
 }
 function loadShoppingState(){
   const key=shoppingStateKey();if(!key)return null;
@@ -972,6 +983,8 @@ async function restoreShoppingAndTrolleyState(){
     const ssBtn=document.getElementById('start-shopping-btn');
     if(content){
       content.innerHTML=renderShoppingListHTML(shopState.mealItems,[],true,karenAdditions);
+      removedShoppingItems=shopState.removedShoppingItems||[];
+      _applyRemovedState();
       if(btn){btn.textContent='Regenerate list';btn.disabled=false;}
       if(ssBtn)ssBtn.style.display='';
     }
@@ -1773,6 +1786,7 @@ async function loadKarenShoppingPreview(){
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load list: ${err.message}</div>`;}
 }
 function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyItems=[],dueSoonItems=[]){
+  _shopItemLabels={};
   const UNITS=['g','kg','ml','L','units','pcs','tbsp','tsp'];
   // ── Pantry tier split ──────────────────────────────────────────────────
   const pantryNames=new Map();
@@ -1802,14 +1816,15 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
     for(const cat of orderedCats){
       h+=`<div class="shop-category-label">${cat}</div>`;
       for(const ing of groups[cat]){
-        if(ing._type==='karen'){h+=`<div class="shop-row"><div class="shop-names"><div class="shop-name-en">${escapeHtml(ing.name_en)}</div><div class="shop-name-es" style="color:var(--blue);font-size:0.7rem">Karen's addition</div></div><span style="font-size:0.72rem;color:var(--mid)">—</span></div>`;}
+        if(ing._type==='karen'){const kaRowId=`shop-row-karen-${ing.id}`;_shopItemLabels[kaRowId]=ing.name_en;h+=`<div class="shop-row" id="${kaRowId}"><div class="shop-names"><div class="shop-name-en">${escapeHtml(ing.name_en)}</div><div class="shop-name-es" style="color:var(--blue);font-size:0.7rem">Karen's addition</div></div>${isAdminV?`<button class="shop-rm-btn" onclick="removeShoppingItem('${kaRowId}')" title="Remove">✕</button>`:''}</div>`;}
         else{
           let linkHtml='';
           if(ing._products&&ing._products.length>0){const pref=ing._preferredProduct||ing._products[0];const alts=ing._products.filter(p=>p!==pref&&p.store_url);const prefBadge=pref.is_preferred_lacomer?'★ ':'';linkHtml=`<div class="shop-link-wrap"><a class="shop-link" href="${safeUrl(pref.store_url)}" target="_blank">🛒 ${prefBadge}${pref.name_es||pref.name_en||'La Comer'}</a>${alts.length>0?`<div class="shop-alts">${alts.map(a=>`<a class="shop-alt-link" href="${safeUrl(a.store_url)}" target="_blank">${a.name_es||a.name_en||'La Comer'}</a>`).join('')}</div>`:''}</div>`;}
           else if(ing.lacomer_url){linkHtml=`<div class="shop-link-wrap"><a class="shop-link" href="${safeUrl(ing.lacomer_url)}" target="_blank">🛒 La Comer</a></div>`;}
           const addLinkBtns=!ing.lacomer_url&&(!ing._products||ing._products.length===0)&&isAdminV?`<div class="link-btn-group"><button class="find-link-btn" onclick="findOnLaComer(this.dataset.iid,this.dataset.name,this)" data-iid="${ing.id}" data-name="${esc(ing.name_es||ing.name_en)}">🔍 Find</button><button class="add-link-btn" onclick="showAddLinkForm('${ing.id}',this)">+ Paste</button></div>`:'';
           const mealTag=ing._mealNames&&ing._mealNames.length>0?`<div style="font-size:0.7rem;color:var(--mid);margin-top:1px">For: ${ing._mealNames.map(escapeHtml).join(', ')}</div>`:'';
-          h+=`<div class="shop-row" id="shop-row-${ing.id}"><div class="shop-names"><div class="shop-name-en">${escapeHtml(ing.name_en)}${ing._qtyStr?`<span class="shop-qty"> · ${escapeHtml(ing._qtyStr)}</span>`:''}</div><div class="shop-name-es">${escapeHtml(ing.name_es||'')}</div>${mealTag}</div>${linkHtml}${addLinkBtns}</div>`;
+          const ingRowId=`shop-row-${ing.id}`;_shopItemLabels[ingRowId]=ing.name_en+(ing._qtyStr?' · '+ing._qtyStr:'');
+          h+=`<div class="shop-row" id="${ingRowId}"><div class="shop-names"><div class="shop-name-en">${escapeHtml(ing.name_en)}${ing._qtyStr?`<span class="shop-qty"> · ${escapeHtml(ing._qtyStr)}</span>`:''}</div><div class="shop-name-es">${escapeHtml(ing.name_es||'')}</div>${mealTag}</div>${linkHtml}${addLinkBtns}${isAdminV?`<button class="shop-rm-btn" onclick="removeShoppingItem('${ingRowId}')" title="Remove">✕</button>`:''}</div>`;
         }
       }
     }
@@ -1857,7 +1872,8 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
       const badge=isDueSoon?`<span style="font-size:0.7rem;color:var(--clay)">due this week</span>`:`<span style="font-size:0.7rem;color:#3a7a3a">always buy</span>`;
       const qty=p.standing_qty?`<span class="shop-qty"> · ${p.standing_qty}</span>`:'';
       const link=p.store_url?`<a class="shop-link" href="${safeUrl(p.store_url)}" target="_blank">🛒 La Comer</a>`:'';
-      html+=`<div class="shop-row recurring-item" id="shop-row-rec-${p.id}"><div class="shop-names"><div class="shop-name-en">${escapeHtml(p.name_en||p.name_es||'')}${qty}</div><div class="shop-name-es">${escapeHtml(p.name_es||'')} ${badge}</div></div>${link}<button class="adhoc-item-remove" onclick="removeRecurringFromList('${p.id}',this)" title="Remove from this week">✕</button></div>`;
+      const recRowId=`shop-row-rec-${p.id}`;_shopItemLabels[recRowId]=p.name_en||p.name_es||'';
+      html+=`<div class="shop-row recurring-item" id="${recRowId}"><div class="shop-names"><div class="shop-name-en">${escapeHtml(p.name_en||p.name_es||'')}${qty}</div><div class="shop-name-es">${escapeHtml(p.name_es||'')} ${badge}</div></div>${link}<button class="shop-rm-btn" onclick="removeShoppingItem('${recRowId}')" title="Remove from this week">✕</button></div>`;
     }
     html+=`</div></div>`;
   }
@@ -1921,6 +1937,77 @@ function removeRecurringFromList(productId,btn){
   // If recurring list is now empty, remove the section
   const list=document.querySelector('.recurring-list');
   if(list&&list.children.length===0)document.querySelector('.recurring-section')?.remove();
+}
+/* ── REMOVE / RESTORE ─────────────────────── */
+function removeShoppingItem(rowId){
+  const displayName=_shopItemLabels[rowId]||rowId;
+  removedShoppingItems.push({rowId,displayName,type:'list',adhocData:null});
+  const row=document.getElementById(rowId);
+  if(row)row.style.display='none';
+  _hideEmptyCategories();
+  renderRemovedSection();
+  _saveCurrentShoppingState();
+}
+function restoreRemovedItem(idx){
+  const item=removedShoppingItems[idx];if(!item)return;
+  if(item.type==='adhoc'&&item.adhocData){
+    const d=item.adhocData;
+    adhocItems.push(d);
+    trolleyItems[d.id]={name:d.name,price:d.price,cat:'Ad-hoc',isAdhoc:true};
+    renderAdhocSection();updateTrolleyBanner();updateCatSubtotals();saveTrolleyState();
+  }else{
+    const row=document.getElementById(item.rowId);
+    if(row){row.style.display='';_unhideCategoryFor(row);}
+  }
+  removedShoppingItems.splice(idx,1);
+  renderRemovedSection();
+  _saveCurrentShoppingState();
+}
+function _applyRemovedState(){
+  for(const item of removedShoppingItems){
+    if(item.type==='adhoc')continue;
+    const row=document.getElementById(item.rowId);
+    if(row)row.style.display='none';
+  }
+  _hideEmptyCategories();
+  if(removedShoppingItems.length>0)renderRemovedSection();
+}
+function _hideEmptyCategories(){
+  const content=document.getElementById('shopping-list-content');if(!content)return;
+  const labels=[...content.querySelectorAll('.shop-category-label')];
+  for(const lbl of labels){
+    let sib=lbl.nextElementSibling,hasVisible=false;
+    while(sib&&!sib.classList.contains('shop-category-label')&&!sib.classList.contains('pantry-tier-details')&&!sib.classList.contains('removed-section')&&!sib.classList.contains('recurring-section')){
+      if(sib.classList.contains('shop-row')&&sib.style.display!=='none'){hasVisible=true;break;}
+      sib=sib.nextElementSibling;
+    }
+    lbl.style.display=hasVisible?'':'none';
+  }
+}
+function _unhideCategoryFor(row){
+  let prev=row.previousElementSibling;
+  while(prev){
+    if(prev.classList.contains('shop-category-label')){prev.style.display='';break;}
+    prev=prev.previousElementSibling;
+  }
+}
+function renderRemovedSection(){
+  const content=document.getElementById('shopping-list-content');if(!content)return;
+  let sec=document.getElementById('removed-section');
+  if(removedShoppingItems.length===0){if(sec)sec.remove();return;}
+  const wasOpen=sec?.querySelector('.removed-list')?.classList.contains('open');
+  if(!sec){sec=document.createElement('div');sec.id='removed-section';sec.className='removed-section';content.appendChild(sec);}
+  sec.innerHTML=`<div class="removed-header"><span>Removed · ${removedShoppingItems.length} item${removedShoppingItems.length!==1?'s':''}</span><button class="btn-ghost" style="font-size:0.72rem;padding:3px 8px" onclick="toggleRemovedSection()">${wasOpen?'▲ Hide':'▼ Show'}</button></div><div class="removed-list${wasOpen?' open':''}">${removedShoppingItems.map((item,i)=>`<div class="removed-item-row"><span style="flex:1;color:var(--mid)">${escapeHtml(item.displayName)}</span><button class="restore-btn" onclick="restoreRemovedItem(${i})">↩ Restore</button></div>`).join('')}</div>`;
+}
+function toggleRemovedSection(){
+  const list=document.querySelector('#removed-section .removed-list');if(!list)return;
+  list.classList.toggle('open');
+  const btn=document.querySelector('#removed-section .btn-ghost');
+  if(btn)btn.textContent=list.classList.contains('open')?'▲ Hide':'▼ Show';
+}
+function _saveCurrentShoppingState(){
+  const key=shoppingStateKey();if(!key)return;
+  try{const raw=localStorage.getItem(key);if(!raw)return;const state=JSON.parse(raw);state.removedShoppingItems=removedShoppingItems;state.savedAt=Date.now();localStorage.setItem(key,JSON.stringify(state));}catch(e){console.warn('Shopping state save failed:',e);}
 }
 async function buildPreShopEstimate(mealItems){
   // Returns HTML string for the pre-shop estimate banner with category breakdown
@@ -2023,7 +2110,7 @@ async function buildPreShopEstimate(mealItems){
 }
 async function generateShoppingList(){
   showLoader();
-  clearShoppingState();
+  clearShoppingState();removedShoppingItems=[];
   const btn=document.getElementById('generate-btn');const content=document.getElementById('shopping-list-content');
 
   btn.disabled=true;btn.textContent='Loading...';content.innerHTML=`<div class="empty"><div class="spin" style="width:24px;height:24px;border-width:2px;margin:0 auto 8px"></div>Building your list...</div>`;
@@ -2864,11 +2951,17 @@ function renderAdhocSection(){
   if(countEl)countEl.textContent='('+Object.keys(trolleyItems).length+')';
 }
 function removeAdhocItem(id){
+  const item=adhocItems.find(i=>i.id===id);
   adhocItems=adhocItems.filter(i=>i.id!==id);
   delete trolleyItems[id];
   renderAdhocSection();
   updateTrolleyBanner();updateCatSubtotals();
   saveTrolleyState();
+  if(item){
+    removedShoppingItems.push({rowId:null,displayName:item.name+(item.price>0?` · $${item.price.toFixed(2)} MXN`:''),type:'adhoc',adhocData:{...item}});
+    renderRemovedSection();
+    _saveCurrentShoppingState();
+  }
 }
 /* ── UNSAVED ITEMS PROMPT ─────────────────────── */
 function checkUnsavedAdhocItems(){
