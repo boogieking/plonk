@@ -1719,9 +1719,8 @@ async function submitPlan(btn){
 async function loadSiennaShoppingPreview(){
   const el=document.getElementById('sienna-shopping-preview');if(!el)return;
   if(!currentPlan?.inventory||Object.keys(currentPlan.inventory).length===0){el.innerHTML=`<div class="empty"><span class="empty-icon">📋</span>Complete inventory check to see preview</div>`;return;}
- const{data:planMeals2}=await sb.from('weekly_plan_meals').select('recipe_id, guest_count').eq('plan_id',currentPlan.id);
+ const{data:planMeals2}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id);
 const planRecipeIds2=(planMeals2||[]).map(m=>m.recipe_id);
-const guestMultipliers2=guestMultiplierMap(planMeals2);
 const{data:planIngs2}=await sb.from('ingredients').select('id').in('recipe_id',planRecipeIds2);
 const validIds2=new Set((planIngs2||[]).map(i=>String(i.id)));
 const needIds=Object.entries(currentPlan.inventory).filter(([id,s])=>s==='need'&&validIds2.has(id)).map(([id])=>id);
@@ -1732,8 +1731,7 @@ const needIds=Object.entries(currentPlan.inventory).filter(([id,s])=>s==='need'&
     const{data:planIngsWithRec}=await sb.from('ingredients').select('id,recipe_id').in('recipe_id',planRecipeIds2);
     const ingToRecipes2={};for(const i of (planIngsWithRec||[])){if(!ingToRecipes2[i.id])ingToRecipes2[i.id]=[];ingToRecipes2[i.id].push(i.recipe_id);}
     const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit,has_ready_alt,ready_name_en,ready_name_es,ready_quantity,ready_unit,ready_lacomer_url,ready_lacomer_category,ready_prep_delta_minutes').in('id',needIds);if(error)throw error;
-    const scaledIngredients=applyGuestScaling(ingredients,ingToRecipes2,guestMultipliers2);
-    const deduped={};for(const ing of scaledIngredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipes2[ing.id]||[]).map(rid=>recipeNameMap2[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
+    const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipes2[ing.id]||[]).map(rid=>recipeNameMap2[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
     const linked=await applyProductLinks(Object.values(deduped));const items=linked.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load preview: ${err.message}</div>`;}
 }
@@ -1772,9 +1770,8 @@ function mealRowKaren(m){
 async function loadKarenShoppingPreview(){
   const el=document.getElementById('karen-shopping-preview');if(!el)return;
   if(!currentPlan?.inventory||Object.keys(currentPlan.inventory).length===0){el.innerHTML=`<div class="empty"><span class="empty-icon">📋</span>Shopping list not generated yet</div>`;return;}
-  const{data:planMeals2}=await sb.from('weekly_plan_meals').select('recipe_id, guest_count').eq('plan_id',currentPlan.id);
+  const{data:planMeals2}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id);
   const planRecipeIds2=(planMeals2||[]).map(m=>m.recipe_id);
-  const guestMultipliersK=guestMultiplierMap(planMeals2);
   const{data:planIngs2}=await sb.from('ingredients').select('id').in('recipe_id',planRecipeIds2);
   const validIds2=new Set((planIngs2||[]).map(i=>String(i.id)));
   const needIds=Object.entries(currentPlan.inventory).filter(([id,s])=>s==='need'&&validIds2.has(id)).map(([id])=>id);
@@ -1785,8 +1782,7 @@ async function loadKarenShoppingPreview(){
     const{data:planIngsK}=await sb.from('ingredients').select('id,recipe_id').in('recipe_id',planRecipeIds2);
     const ingToRecipesK={};for(const i of (planIngsK||[])){if(!ingToRecipesK[i.id])ingToRecipesK[i.id]=[];ingToRecipesK[i.id].push(i.recipe_id);}
     const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit,has_ready_alt,ready_name_en,ready_name_es,ready_quantity,ready_unit,ready_lacomer_url,ready_lacomer_category,ready_prep_delta_minutes').in('id',needIds);if(error)throw error;
-    const scaledIngredients=applyGuestScaling(ingredients,ingToRecipesK,guestMultipliersK);
-    const deduped={};for(const ing of scaledIngredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipesK[ing.id]||[]).map(rid=>recipeNameMapK[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
+    const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipesK[ing.id]||[]).map(rid=>recipeNameMapK[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
     const linked=await applyProductLinks(Object.values(deduped));const items=linked.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load list: ${err.message}</div>`;}
 }
@@ -2115,31 +2111,6 @@ async function buildPreShopEstimate(mealItems){
     </div>`;
   }catch(e){console.warn('Pre-shop estimate failed:',e);return '';}
 }
-/* ── GUEST HEADCOUNT SCALING ──────────────────────
-   Recipe ingredient quantities are stored for the 3-person household baseline.
-   Each weekly_plan_meals row can override guest_count for that specific assignment;
-   scaling is applied only here, at list-build time — the recipe/ingredient rows are never touched. */
-function guestMultiplierMap(planMealRows){
-  const map={};
-  for(const m of (planMealRows||[])){
-    if(m.recipe_id&&!(m.recipe_id in map))map[m.recipe_id]=(m.guest_count==null?3:m.guest_count)/3;
-  }
-  return map;
-}
-function scaleQtyForGuests(qty,multiplier){
-  if(qty==null||qty===''||multiplier===1)return qty;
-  const n=parseFloat(qty);
-  if(isNaN(n))return qty;
-  return Math.round(n*multiplier*100)/100;
-}
-function applyGuestScaling(ingredients,ingToRecipes,guestMap){
-  return (ingredients||[]).map(ing=>{
-    const rid=(ingToRecipes[ing.id]||[])[0];
-    const multiplier=rid&&guestMap[rid]!=null?guestMap[rid]:1;
-    if(multiplier===1)return ing;
-    return{...ing,quantity:scaleQtyForGuests(ing.quantity,multiplier),ready_quantity:scaleQtyForGuests(ing.ready_quantity,multiplier)};
-  });
-}
 async function generateShoppingList(){
   showLoader();
   clearShoppingState();removedShoppingItems=[];
@@ -2147,10 +2118,9 @@ async function generateShoppingList(){
 
   btn.disabled=true;btn.textContent='Loading...';content.innerHTML=`<div class="empty"><div class="spin" style="width:24px;height:24px;border-width:2px;margin:0 auto 8px"></div>Building your list...</div>`;
   try{const inventory=currentPlan?.inventory||{};
-   const{data:planMeals}=await sb.from('weekly_plan_meals').select('recipe_id, guest_count, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en,is_freezable)').eq('plan_id',currentPlan.id);
+   const{data:planMeals}=await sb.from('weekly_plan_meals').select('recipe_id, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en,is_freezable)').eq('plan_id',currentPlan.id);
     const planRecipeIds=[...new Set((planMeals||[]).map(m=>m.recipe_id))];
     const recipeNameMap={};for(const m of (planMeals||[])){if(m.recipes)recipeNameMap[m.recipe_id]=m.recipes.name_en;}
-    const guestMultipliers=guestMultiplierMap(planMeals);
     // Load pantry stock for 3-tier split, and frozen inventory
     await loadPantryStock();
     await loadFrozenInventory();const householdSize=await loadHouseholdSize();
@@ -2177,8 +2147,7 @@ async function generateShoppingList(){
     if(frozenNotes.length>0){frozenNoticeHtml=`<div style="background:rgba(46,95,138,0.08);border:1px solid rgba(46,95,138,0.2);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:0.82rem;color:#2E5F8A">🧊 <strong>Frozen meals — main ingredients skipped:</strong><ul style="margin:6px 0 0 16px;padding:0">${frozenNotes.map(n=>`<li>${n}</li>`).join('')}</ul></div>`;}
     if(needIds.length===0){content.innerHTML=`<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;btn.textContent='Generate list';btn.disabled=false;return;}
     const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit,has_ready_alt,ready_name_en,ready_name_es,ready_quantity,ready_unit,ready_lacomer_url,ready_lacomer_category,ready_prep_delta_minutes').in('id',needIds);if(error)throw error;
-    const scaledIngredients=applyGuestScaling(ingredients,ingToRecipes,guestMultipliers);
-    const deduped={};for(const ing of scaledIngredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipes[ing.id]||[]).map(rid=>recipeNameMap[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
+    const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipes[ing.id]||[]).map(rid=>recipeNameMap[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
     // Apply scratch/ready-made resolution — override name/url/category per toggle state
     const planOverrides=currentPlan?.scratch_ready_overrides||{};
     const resolvedDeduped=Object.values(deduped).map(ing=>{const resolved=resolveIngredient(ing,{});return{...ing,name_en:resolved._displayName_en,name_es:resolved._displayName_es,lacomer_url:resolved._displayUrl,lacomer_category:resolved._displayCategory,quantity:resolved._displayQty,unit:resolved._displayUnit};});
@@ -2318,9 +2287,8 @@ async function saveBudgetSettings(weeklyMxn,monthlyMxn){
   budgetSettingsCache=null;
   const rows=[{key:'weekly_budget_mxn',value:String(weeklyMxn||'')},{key:'monthly_budget_mxn',value:String(monthlyMxn||'')}];
   for(const row of rows){
-    const{data:ex}=await sb.from('app_settings').select('id').eq('key',row.key).maybeSingle();
-    if(ex){await sb.from('app_settings').update({value:row.value}).eq('key',row.key);}
-    else{await sb.from('app_settings').insert({key:row.key,value:row.value});}
+    const{error}=await sb.from('app_settings').upsert(row,{onConflict:'key'});
+    if(error){throw new Error(`Failed to save ${row.key}: ${error.message}`);}
   }
 }
 async function loadShoppingTrips(){
@@ -2401,7 +2369,12 @@ async function openBudgetModal(){
 async function submitBudgetSettings(){
   const weekly=parseFloat(document.getElementById('bud-weekly')?.value)||null;
   const monthly=parseFloat(document.getElementById('bud-monthly')?.value)||null;
-  await saveBudgetSettings(weekly,monthly);
+  try{
+    await saveBudgetSettings(weekly,monthly);
+  }catch(e){
+    showToast(e.message||'Failed to save budget','error');
+    return;
+  }
   closeModal();showToast('Budget saved ✓');
   const card=document.getElementById('budget-card-body');
   if(card){card.innerHTML='<div class="empty" style="padding:8px 0;font-size:0.85rem">Updating...</div>';renderBudgetCard().then(html=>{card.innerHTML=html;});}
@@ -3197,7 +3170,7 @@ function openScheduleModal(recipeId){
   const meal=currentMeals.find(m=>m.recipe_id===recipeId);const recipe=meal?.recipes;if(!meal||!recipe)return;
   const totalPrepCook=(recipe.prep_time_minutes||0)+(recipe.cook_time_minutes||0);
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-  el.innerHTML=`<div class="modal" style="max-width:400px"><h3>Schedule ${escapeHtml(recipe.name_en)}</h3><p>Set which day and what time you want to eat. The app will tell you when to start prep.</p><div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Day</label><select id="sched-day" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— Pick a day —</option>${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div><div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Target eat time</label><input type="time" id="sched-time" value="13:00" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none"></div><div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Guest headcount</label><input type="number" id="sched-guests" min="1" step="1" value="${meal.guest_count||3}" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none"><div style="font-size:0.72rem;color:var(--mid);margin-top:4px">Shopping list quantities scale from the household baseline of 3</div></div><div id="sched-calc" style="font-size:0.83rem;color:var(--mid);padding:10px 12px;background:var(--cream);border-radius:8px;margin-bottom:4px">Total prep + cook: <strong>${totalPrepCook} min</strong>. Set a time above to see when to start.</div><div id="sched-warn" style="display:none;margin-top:8px;padding:10px 12px;background:rgba(200,50,50,0.07);border-left:3px solid #c44;border-radius:0 8px 8px 0;font-size:0.82rem;color:#c03030"></div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="confirmSchedule('${meal.id}','${recipeId}',${totalPrepCook})">Save schedule</button></div></div>`;
+  el.innerHTML=`<div class="modal" style="max-width:400px"><h3>Schedule ${escapeHtml(recipe.name_en)}</h3><p>Set which day and what time you want to eat. The app will tell you when to start prep.</p><div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Day</label><select id="sched-day" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— Pick a day —</option>${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div><div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Target eat time</label><input type="time" id="sched-time" value="13:00" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none"></div><div id="sched-calc" style="font-size:0.83rem;color:var(--mid);padding:10px 12px;background:var(--cream);border-radius:8px;margin-bottom:4px">Total prep + cook: <strong>${totalPrepCook} min</strong>. Set a time above to see when to start.</div><div id="sched-warn" style="display:none;margin-top:8px;padding:10px 12px;background:rgba(200,50,50,0.07);border-left:3px solid #c44;border-radius:0 8px 8px 0;font-size:0.82rem;color:#c03030"></div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="confirmSchedule('${meal.id}','${recipeId}',${totalPrepCook})">Save schedule</button></div></div>`;
   document.body.appendChild(el);
   document.getElementById('sched-time').addEventListener('input',()=>updateSchedCalc(totalPrepCook));
   document.getElementById('sched-day').addEventListener('change',()=>updateSchedCalc(totalPrepCook));
@@ -3219,12 +3192,11 @@ function dateToDayName(dateStr){if(!dateStr)return'';return new Date(dateStr.sub
 async function confirmSchedule(planMealId,recipeId,totalMinutes){
   const dayName=document.getElementById('sched-day').value;const eatTime=document.getElementById('sched-time').value;
   if(!dayName){showToast('Please pick a day','error');return;}if(!eatTime){showToast('Please set an eat time','error');return;}
-  const guestCount=Math.max(1,parseInt(document.getElementById('sched-guests').value,10)||1);
   const assignedDate=dayNameToDate(dayName);if(!assignedDate){showToast('Could not calculate date for that day','error');return;}
   const[h,m]=eatTime.split(':').map(Number);const eatMins=h*60+m;const startMins=eatMins-totalMinutes;
   const prepStartTime=startMins<0?`${String(Math.floor((1440+startMins)/60)).padStart(2,'0')}:${String((1440+startMins)%60).padStart(2,'0')} (day before)`:`${String(Math.floor(startMins/60)).padStart(2,'0')}:${String(startMins%60).padStart(2,'0')}`;
-  const{error}=await sb.from('weekly_plan_meals').update({assigned_day:assignedDate,target_eat_time:eatTime,prep_start_time:prepStartTime,guest_count:guestCount}).eq('id',planMealId);if(error){showToast('Error saving: '+error.message,'error');return;}
-  const pm=currentMeals.find(m=>m.id===planMealId||m.recipe_id===recipeId);if(pm){pm.assigned_day=assignedDate;pm.target_eat_time=eatTime;pm.prep_start_time=prepStartTime;pm.guest_count=guestCount;}
+  const{error}=await sb.from('weekly_plan_meals').update({assigned_day:assignedDate,target_eat_time:eatTime,prep_start_time:prepStartTime}).eq('id',planMealId);if(error){showToast('Error saving: '+error.message,'error');return;}
+  const pm=currentMeals.find(m=>m.id===planMealId||m.recipe_id===recipeId);if(pm){pm.assigned_day=assignedDate;pm.target_eat_time=eatTime;pm.prep_start_time=prepStartTime;}
   closeModal();showToast(`Scheduled for ${dayName} · Start prep by ${prepStartTime} ✓`);await renderDashboard();
 }
 function renderFrozenNudge(){
