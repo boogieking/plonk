@@ -760,8 +760,8 @@ async function setDefaultPreset(id){
 async function loadKarenAdditions(){if(!currentPlan){karenAdditions=[];return;}const{data,error}=await sb.from('karen_additions').select('*').eq('plan_id',currentPlan.id).order('added_at',{ascending:true});karenAdditions=(!error&&data)?data:[];}
 async function addKarenItem(){if(!currentUserCan('add_shopping_items')){showToast('Adding items is not enabled for your account','error');return;}const input=document.getElementById('karen-add-input');if(!input)return;let name=input.value.trim();// Strip any URLs that may have been pasted accidentally
 name=name.replace(/https?:\/\/\S+/g,'').trim();// Strip leftover punctuation from URL stripping
-name=name.replace(/\s+/g,' ').trim();if(!name){showToast('Type an item first','error');return;}if(!currentPlan){showToast('No active plan','error');return;}if(karenAdditions.some(a=>a.name_en.toLowerCase()===name.toLowerCase())){showToast('That item is already on your additions list','error');return;}const{data:planMealIds}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id);const recipeIds=(planMealIds||[]).map(m=>m.recipe_id);let mealIngNames=new Set();if(recipeIds.length>0){const{data:ings}=await sb.from('ingredients').select('name_en').in('recipe_id',recipeIds);mealIngNames=new Set((ings||[]).map(i=>i.name_en.toLowerCase()));}if(mealIngNames.has(name.toLowerCase())){showToast(`"${name}" is already in this week's meal ingredients ✓`);return;}const cat=guessKarenCategory(name);const{data,error}=await sb.from('karen_additions').insert({plan_id:currentPlan.id,name_en:name,lacomer_category:cat,added_by:userProfile.id,added_at:new Date().toISOString()}).select().single();if(error){showToast('Error adding item: '+error.message,'error');return;}karenAdditions.push(data);input.value='';renderKarenAdditionsList();showToast(`"${name}" added to shopping list ✓`);}
-async function removeKarenItem(id){const{error}=await sb.from('karen_additions').delete().eq('id',id);if(error){showToast('Error removing item','error');return;}karenAdditions=karenAdditions.filter(a=>a.id!==id);renderKarenAdditionsList();}
+name=name.replace(/\s+/g,' ').trim();if(!name){showToast('Type an item first','error');return;}if(!currentPlan){showToast('No active plan','error');return;}if(karenAdditions.some(a=>a.name_en.toLowerCase()===name.toLowerCase())){showToast('That item is already on your additions list','error');return;}const{data:planMealIds}=await sb.from('weekly_plan_meals').select('recipe_id').eq('plan_id',currentPlan.id);const recipeIds=(planMealIds||[]).map(m=>m.recipe_id);let mealIngNames=new Set();if(recipeIds.length>0){const{data:ings}=await sb.from('ingredients').select('name_en').in('recipe_id',recipeIds);mealIngNames=new Set((ings||[]).map(i=>i.name_en.toLowerCase()));}if(mealIngNames.has(name.toLowerCase())){showToast(`"${name}" is already in this week's meal ingredients ✓`);return;}const cat=guessKarenCategory(name);const{data,error}=await sb.from('karen_additions').insert({plan_id:currentPlan.id,name_en:name,lacomer_category:cat,added_by:userProfile.id,added_at:new Date().toISOString()}).select().single();if(error){showToast('Error adding item: '+error.message,'error');return;}karenAdditions.push(data);input.value='';renderKarenAdditionsList();refreshShoppingListForExtras();showToast(`"${name}" added to shopping list ✓`);}
+async function removeKarenItem(id){const{error}=await sb.from('karen_additions').delete().eq('id',id);if(error){showToast('Error removing item','error');return;}karenAdditions=karenAdditions.filter(a=>a.id!==id);renderKarenAdditionsList();refreshShoppingListForExtras();}
 function renderKarenAdditionsList(){const el=document.getElementById('karen-additions-list');if(!el)return;if(karenAdditions.length===0){el.innerHTML=`<div style="font-size:0.82rem;color:var(--mid)">No items added yet</div>`;return;}el.innerHTML=karenAdditions.map(a=>`<div class="karen-addition-item"><span>${escapeHtml(a.name_en)} <em style="font-size:0.72rem;color:var(--mid)">· ${escapeHtml(a.lacomer_category)}</em></span><button class="karen-rm-btn" onclick="removeKarenItem('${a.id}')" title="Remove">✕</button></div>`).join('');}
 const roleColor={admin:'#C8674A',planner:'#4A7C59',reviewer:'#2E5F8A'};
 const roleLabel={admin:'Admin',planner:'Planner',reviewer:'Reviewer'};
@@ -1000,32 +1000,54 @@ async function restoreShoppingAndTrolleyState(){
       const budgetInput=document.getElementById('trolley-budget-input');
       if(budgetInput)budgetInput.value=trolleyBudget||'';
       saveTrolleyState();
-      updateTrolleyBanner();
-      // Re-tick items and restore prices — wrapped in setTimeout to ensure DOM is fully painted
-      const trolleySnapshot=JSON.parse(JSON.stringify(trolleyItems));
-      await new Promise(resolve=>setTimeout(resolve,300));
-      let missedItems=[];
-      for(const[itemId,item]of Object.entries(trolleySnapshot)){
-        const row=document.getElementById(`shop-row-${itemId}`);
-        if(!row){missedItems.push(itemId);continue;}
-        if(item.notFound){
-          row.classList.add('not-found-row');
-          const btn=row.querySelector('.not-found-btn');
-          if(btn){btn.textContent='↩ Undo';btn.classList.add('not-found-active');}
-        }else{
-          const chk=row.querySelector('.trolley-check');
-          if(chk)chk.checked=true;
-          row.classList.add('in-trolley');
-          const priceInput=row.querySelector('.trolley-price-input');
-          if(priceInput&&item.price>0)priceInput.value=item.price;
-          addInTrolleyRow(itemId,item.name,item.price,item.soldByWeight);
-        }
-      }
-      if(missedItems.length>0)console.warn('Trolley restore: could not find rows for item IDs:',missedItems);
-      updateTrolleyBanner();updateCatSubtotals();
-      if(adhocItems.length>0)renderAdhocSection();
+      await restoreTrolleyVisualState();
       showToast('Welcome back — your trolley has been restored 🛒');
     }
+  }
+}
+async function restoreTrolleyVisualState(){
+  updateTrolleyBanner();
+  // Re-tick items and restore prices — wrapped in setTimeout to ensure DOM is fully painted
+  const trolleySnapshot=JSON.parse(JSON.stringify(trolleyItems));
+  await new Promise(resolve=>setTimeout(resolve,300));
+  let missedItems=[];
+  for(const[itemId,item]of Object.entries(trolleySnapshot)){
+    const row=document.getElementById(`shop-row-${itemId}`);
+    if(!row){missedItems.push(itemId);continue;}
+    if(item.notFound){
+      row.classList.add('not-found-row');
+      const btn=row.querySelector('.not-found-btn');
+      if(btn){btn.textContent='↩ Undo';btn.classList.add('not-found-active');}
+    }else{
+      const chk=row.querySelector('.trolley-check');
+      if(chk)chk.checked=true;
+      row.classList.add('in-trolley');
+      const priceInput=row.querySelector('.trolley-price-input');
+      if(priceInput&&item.price>0)priceInput.value=item.price;
+      addInTrolleyRow(itemId,item.name,item.price,item.soldByWeight);
+    }
+  }
+  if(missedItems.length>0)console.warn('Trolley restore: could not find rows for item IDs:',missedItems);
+  updateTrolleyBanner();updateCatSubtotals();
+  if(adhocItems.length>0)renderAdhocSection();
+}
+// Re-renders the grouped shopping/trolley list in place after karenAdditions changes (add/remove via "Add Extra Item")
+async function refreshShoppingListForExtras(){
+  const content=document.getElementById('shopping-list-content');
+  if(!content)return;
+  const shopState=loadShoppingState();
+  if(!shopState||!shopState.mealItems||shopState.mealItems.length===0)return;// no list generated yet — nothing to refresh
+  const preshopEl=document.getElementById('preshop-estimate-wrap');
+  const preshopHtml=preshopEl?preshopEl.outerHTML:'';
+  const wasTrolley=trolleyMode;
+  content.innerHTML=renderShoppingListHTML(shopState.mealItems,[],true,karenAdditions);
+  if(preshopHtml){const tmp=document.createElement('div');tmp.innerHTML=preshopHtml;content.insertBefore(tmp.firstChild,content.firstChild);}
+  removedShoppingItems=shopState.removedShoppingItems||[];
+  _applyRemovedState();
+  if(wasTrolley){
+    injectTrolleyBudgetInput(content);
+    renderTrolleyUI();
+    await restoreTrolleyVisualState();
   }
 }
 /* ── END SHOPPING STATE PERSISTENCE ─────────── */
@@ -2192,24 +2214,25 @@ async function generateShoppingList(){
 }
 /* ── TROLLEY MODE ─────────────────────────────── */
 async function fetchExchangeRate(){if(usdRate)return usdRate;try{const r=await fetch('https://open.er-api.com/v6/latest/MXN');const d=await r.json();if(d&&d.rates&&typeof d.rates.USD==='number'&&d.rates.USD>0&&d.rates.USD<1){usdRate=d.rates.USD;return usdRate;}}catch(e){console.warn('Exchange rate fetch failed:',e.message);}return null;}
+function injectTrolleyBudgetInput(content){
+  if(!content||document.getElementById('budget-input-wrap'))return;
+  const wrap=document.createElement('div');wrap.id='budget-input-wrap';
+  wrap.innerHTML=`<div class="budget-input-wrap"><label>🎯 Budget</label><input class="budget-input" id="trolley-budget-input" type="number" min="0" step="50" placeholder="e.g. 2000" value="${trolleyBudget||''}" oninput="trolleyBudgetInput(this.value)" onkeydown="if(event.key==='Enter')confirmTrolleyBudget()"><span style="font-size:0.82rem;color:var(--mid)">MXN</span><button class="budget-set-btn" onclick="confirmTrolleyBudget()">Set Budget</button></div>`;
+  content.insertBefore(wrap,content.firstChild);
+}
 async function startTrolleyMode(restoring){
   trolleyMode=true;
   if(!restoring)trolleyItems={};
-  // Restore saved budget or default 0
-  const savedBudget=localStorage.getItem('forknight_trolley_budget');
-  trolleyBudget=savedBudget?parseFloat(savedBudget):0;
+  // Trolley budget is the same shared weekly grocery budget shown on the dashboard Budget card
+  const budgetSettings=await loadBudgetSettings();
+  trolleyBudget=budgetSettings.weekly||0;
   await fetchExchangeRate();
   const genBtn=document.getElementById('generate-btn');const ssBtn=document.getElementById('start-shopping-btn');
   if(genBtn)genBtn.style.display='none';if(ssBtn)ssBtn.style.display='none';
   document.querySelectorAll('.link-btn-group').forEach(el=>el.style.display='none');
   // Inject budget input + pre-estimate above shopping list
   const content=document.getElementById('shopping-list-content');
-  if(content&&!document.getElementById('budget-input-wrap')){
-    // Pre-estimate banner already injected by generateShoppingList — no need to re-query
-    const wrap=document.createElement('div');wrap.id='budget-input-wrap';
-    wrap.innerHTML=`<div class="budget-input-wrap"><label>🎯 Budget</label><input class="budget-input" id="trolley-budget-input" type="number" min="0" step="50" placeholder="e.g. 2000" value="${trolleyBudget||''}" oninput="trolleyBudgetInput(this.value)" onkeydown="if(event.key==='Enter')confirmTrolleyBudget()"><span style="font-size:0.82rem;color:var(--mid)">MXN</span><button class="budget-set-btn" onclick="confirmTrolleyBudget()">Set Budget</button></div>`;
-    content.insertBefore(wrap,content.firstChild);
-  }
+  injectTrolleyBudgetInput(content);
   renderTrolleyUI();
   if(!restoring){saveTrolleyState();showToast('Shopping mode on — tick items as you add them 🛒');}
 }
@@ -2387,6 +2410,14 @@ async function submitBudgetSettings(){
   closeModal();showToast('Budget saved ✓');
   const card=document.getElementById('budget-card-body');
   if(card){card.innerHTML='<div class="empty" style="padding:8px 0;font-size:0.85rem">Updating...</div>';renderBudgetCard().then(html=>{card.innerHTML=html;});}
+  // Keep the trolley budget input (same underlying weekly budget) in sync if a shopping trip is in progress
+  if(trolleyMode){
+    trolleyBudget=weekly||0;
+    const trolleyInput=document.getElementById('trolley-budget-input');
+    if(trolleyInput)trolleyInput.value=trolleyBudget||'';
+    saveTrolleyState();
+    updateTrolleyBanner();
+  }
 }
 async function getBudgetSummaryForReceipt(tripTotal){
   const settings=await loadBudgetSettings();
@@ -2605,10 +2636,14 @@ function trolleyBudgetInput(val){
   trolleyBudget=parseFloat(val)||0;
   updateTrolleyBanner();
 }
-function confirmTrolleyBudget(){
+async function confirmTrolleyBudget(){
   const inp=document.getElementById('trolley-budget-input');
   trolleyBudget=parseFloat(inp?.value)||0;
-  localStorage.setItem('forknight_trolley_budget',trolleyBudget);
+  // Trolley budget IS the shared weekly grocery budget — write through so the dashboard Budget card stays in sync
+  const settings=await loadBudgetSettings();
+  try{await saveBudgetSettings(trolleyBudget||null,settings.monthly);}catch(e){showToast('Failed to save budget','error');}
+  const card=document.getElementById('budget-card-body');
+  if(card)renderBudgetCard().then(html=>{card.innerHTML=html;});
   saveTrolleyState();
   updateTrolleyBanner();
   // Visual confirmation — flash the input green after an explicit save
