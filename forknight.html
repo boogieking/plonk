@@ -5185,7 +5185,7 @@ async function processReceiptImage(input){
   try{
     const response=await proxyFetch({
         model:'claude-sonnet-4-6',
-        max_tokens:4000,
+        max_tokens:8000,
         messages:[{
           role:'user',
           content:[
@@ -5214,7 +5214,16 @@ Rules for promotions:
     const data=await response.json();
     const text=data.content?.find(b=>b.type==='text')?.text||'';
     const clean=text.replace(/```json|```/g,'').trim();
-    const parsed=JSON.parse(clean);
+    let parsed;
+    try{
+      parsed=JSON.parse(clean);
+    }catch(parseErr){
+      const looksTruncated=!/[}\]]$/.test(clean);
+      if(looksTruncated){
+        throw new Error('TRUNCATED');
+      }
+      throw parseErr;
+    }
     // New shape: {items:[],promotions:[]} — old shape: bare array (backward compat)
     const rItems=Array.isArray(parsed)?parsed:(parsed.items||[]);
     const rPromos=Array.isArray(parsed)?[]:(parsed.promotions||[]);
@@ -5222,7 +5231,10 @@ Rules for promotions:
     hideLoader();
   }catch(e){
     hideLoader();
-    if(resultEl)resultEl.innerHTML=`<div class="receipt-processing" style="color:#c44">Could not read receipt: ${e.message}<br><br>Try a clearer photo with good lighting.</div>`;
+    const message=e.message==='TRUNCATED'
+      ? 'This receipt has a lot of items and the response got cut off. Try splitting it into two photos (e.g. top half and bottom half) and scanning each separately.'
+      : `Could not read receipt: ${e.message}<br><br>Try a clearer photo with good lighting.`;
+    if(resultEl)resultEl.innerHTML=`<div class="receipt-processing" style="color:#c44">${message}</div>`;
   }
 }
 
