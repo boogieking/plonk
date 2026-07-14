@@ -824,8 +824,8 @@ async function renderDashboard(){
   showLoader();
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
   await loadKarenAdditions();await loadPendingIdeaRatings();await loadShopPresets();await loadFrozenInventory();await loadHouseholdSize();
-  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);applySectionOrder('admin',['cam-requests','cam-ratings','cam-meals','cam-inventory','cam-budget','cam-shopping','cam-leftovers']);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();renderBudgetCard().then(html=>{const el=document.getElementById('budget-card-body');if(el)el.innerHTML=html;});}
-  else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);applySectionOrder('planner',['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping']);if(currentUserCan('show_inventory'))await loadInventory();restoreShoppingAndTrolleyState();}
+  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);applySectionOrder('admin',['cam-requests','cam-ratings','prep-reminders','cam-meals','cam-inventory','cam-budget','cam-shopping','cam-leftovers']);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();renderBudgetCard().then(html=>{const el=document.getElementById('budget-card-body');if(el)el.innerHTML=html;});}
+  else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);applySectionOrder('planner',['sie-meals','sie-dinners','sie-requests','sie-ratings','prep-reminders','sie-inventory','sie-shopping']);if(currentUserCan('show_inventory'))await loadInventory();restoreShoppingAndTrolleyState();}
   else{content.innerHTML=renderKaren(recipes,userProfile.name);applySectionOrder('reviewer',['kar-meals','kar-requests','kar-ratings','kar-shopping']);renderKarenAdditionsList();loadKarenShoppingPreview();}
   hideLoader();
 }
@@ -867,15 +867,15 @@ function renderCameron(recipes,name){
       <div class="card stat-tile"><div class="stat-num">${hasPlan?mealCount:'—'}</div><div class="stat-label">Meals this plan</div></div>
     </div>
     <div class="collapse-controls">
-      <button class="collapse-btn" onclick="collapseAll(['cam-requests','cam-ratings','cam-meals','cam-dinners','cam-inventory','cam-budget','cam-shopping','cam-leftovers'])">Collapse all</button>
-      <button class="collapse-btn" onclick="expandAll(['cam-requests','cam-ratings','cam-meals','cam-dinners','cam-inventory','cam-budget','cam-shopping','cam-leftovers'])">Expand all</button>
+      <button class="collapse-btn" onclick="collapseAll(['cam-requests','cam-ratings','prep-reminders','cam-meals','cam-dinners','cam-inventory','cam-budget','cam-shopping','cam-leftovers'])">Collapse all</button>
+      <button class="collapse-btn" onclick="expandAll(['cam-requests','cam-ratings','prep-reminders','cam-meals','cam-dinners','cam-inventory','cam-budget','cam-shopping','cam-leftovers'])">Expand all</button>
     </div>
     ${sectionHeader('cam-requests','Pending requests')}
     <div class="card" style="margin-bottom:20px" id="requests-container"><div class="empty"><span class="empty-icon">📋</span>Loading requests...</div></div>
     ${sectionEnd()}
     ${pendingIdeaRatings.length>0?sectionHeader('cam-ratings','Idea ratings needed')+renderPendingIdeaRatingCards()+sectionEnd():''}
-    ${sectionHeader('cam-meals',"This plan's meal pool")}
     ${currentUserCan('show_prep_reminders')?renderPrepReminders():''}
+    ${sectionHeader('cam-meals',"This plan's meal pool")}
     ${renderFrozenNudge()}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header">
@@ -1701,11 +1701,11 @@ function renderSienna(recipes,name){
       ${hasPlan?`<div style="display:flex;gap:10px;flex-wrap:wrap">${currentUserCan('reshuffle_plan')?`<button class="btn-secondary" ${reshuffleUsed||alreadySubmitted?'disabled':''} onclick="doReshuffle(this)">${reshuffleUsed?'🔀 Reshuffle used':'🔀 Reshuffle'}</button>`:''}<button class="btn-primary" id="submit-plan-btn" ${alreadySubmitted?'disabled style="opacity:0.6"':''} onclick="submitPlan(this)">${submitLabel}</button></div>`:''}
     </div>
     <div class="collapse-controls">
-      <button class="collapse-btn" onclick="collapseAll(['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping'])">Collapse all</button>
-      <button class="collapse-btn" onclick="expandAll(['sie-meals','sie-dinners','sie-requests','sie-ratings','sie-inventory','sie-shopping'])">Expand all</button>
+      <button class="collapse-btn" onclick="collapseAll(['sie-meals','sie-dinners','sie-requests','sie-ratings','prep-reminders','sie-inventory','sie-shopping'])">Collapse all</button>
+      <button class="collapse-btn" onclick="expandAll(['sie-meals','sie-dinners','sie-requests','sie-ratings','prep-reminders','sie-inventory','sie-shopping'])">Expand all</button>
     </div>
-    ${sectionHeader('sie-meals',"This week's meals")}
     ${currentUserCan('show_prep_reminders')?renderPrepReminders():''}
+    ${sectionHeader('sie-meals',"This week's meals")}
     ${renderFrozenNudge()}
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">Meal pool</div>${hasPlan?`<span class="tag tag-green">${mealCount} meals</span>`:''}</div>
@@ -3516,7 +3516,7 @@ function renderPrepReminders(){
   if(!currentPlan||currentPlan.status!=='approved')return'';if(userProfile.role==='reviewer')return'';
   const advancePrepMeals=currentMeals.filter(m=>m.recipes?.advance_prep_required&&!m.cooked);if(advancePrepMeals.length===0)return'';
   const rows=advancePrepMeals.map(m=>{const r=m.recipes;const dayLabel=m.assigned_day?` · scheduled ${dateToDayName(m.assigned_day)}`:'';return`<div class="prep-reminder-row"><div class="prep-reminder-icon">⏰</div><div><div class="prep-reminder-meal">${r.name_en}${dayLabel}</div><div class="prep-reminder-desc">${r.advance_prep_description||'Advance preparation required'}</div></div></div>`;}).join('');
-  return sectionHeader('prep-reminders','Prep reminders')+`<div class="prep-reminders-card"><div style="font-size:0.78rem;font-weight:500;color:var(--clay);margin-bottom:12px">🗒️ These meals need advance prep this week</div>${rows}</div>`;
+  return sectionHeader('prep-reminders','Prep reminders')+`<div class="prep-reminders-card"><div style="font-size:0.78rem;font-weight:500;color:var(--clay);margin-bottom:12px">🗒️ These meals need advance prep this week</div>${rows}</div>`+sectionEnd();
 }
 function openSideSwapModal(recipeId,currentSideEn){
   const isKaren=userProfile.role==='reviewer';const isSienna=userProfile.role==='planner';if(!isKaren&&!isSienna)return;
