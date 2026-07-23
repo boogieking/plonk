@@ -824,7 +824,7 @@ async function renderDashboard(){
   showLoader();
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
   await loadKarenAdditions();await loadPendingIdeaRatings();await loadShopPresets();await loadFrozenInventory();await loadHouseholdSize();
-  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);applySectionOrder('admin',['cam-requests','cam-ratings','prep-reminders','cam-meals','cam-inventory','cam-budget','cam-shopping','cam-leftovers']);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();renderBudgetCard().then(html=>{const el=document.getElementById('budget-card-body');if(el)el.innerHTML=html;});}
+  if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);applySectionOrder('admin',['cam-requests','cam-ratings','prep-reminders','cam-meals','cam-inventory','cam-shopping','cam-leftovers']);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();}
   else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);applySectionOrder('planner',['sie-meals','sie-dinners','sie-requests','sie-ratings','prep-reminders','sie-inventory','sie-shopping']);if(currentUserCan('show_inventory'))await loadInventory();restoreShoppingAndTrolleyState();}
   else{content.innerHTML=renderKaren(recipes,userProfile.name);applySectionOrder('reviewer',['kar-meals','kar-requests','kar-ratings','kar-shopping']);renderKarenAdditionsList();loadKarenShoppingPreview();}
   hideLoader();
@@ -867,8 +867,8 @@ function renderCameron(recipes,name){
       <div class="card stat-tile"><div class="stat-num">${hasPlan?mealCount:'—'}</div><div class="stat-label">Meals this plan</div></div>
     </div>
     <div class="collapse-controls">
-      <button class="collapse-btn" onclick="collapseAll(['cam-requests','cam-ratings','prep-reminders','cam-meals','cam-dinners','cam-inventory','cam-budget','cam-shopping','cam-leftovers'])">Collapse all</button>
-      <button class="collapse-btn" onclick="expandAll(['cam-requests','cam-ratings','prep-reminders','cam-meals','cam-dinners','cam-inventory','cam-budget','cam-shopping','cam-leftovers'])">Expand all</button>
+      <button class="collapse-btn" onclick="collapseAll(['cam-requests','cam-ratings','prep-reminders','cam-meals','cam-dinners','cam-inventory','cam-shopping','cam-leftovers'])">Collapse all</button>
+      <button class="collapse-btn" onclick="expandAll(['cam-requests','cam-ratings','prep-reminders','cam-meals','cam-dinners','cam-inventory','cam-shopping','cam-leftovers'])">Expand all</button>
     </div>
     ${sectionHeader('cam-requests','Pending requests')}
     <div class="card" style="margin-bottom:20px" id="requests-container"><div class="empty"><span class="empty-icon">📋</span>Loading requests...</div></div>
@@ -897,12 +897,6 @@ function renderCameron(recipes,name){
       ${currentPlan?.status==='approved'?`<div id="inv-list"><div class="empty">Loading ingredients...</div></div>`:`<div class="empty" style="padding:20px 0"><span class="empty-icon">🛒</span>Once the plan is approved, inventory check unlocks here</div>`}
     </div>
     `+sectionEnd():''}
-    ${sectionHeader('cam-budget','Budget',true)}
-    <div class="card" style="margin-bottom:20px">
-      <div class="card-header"><div class="card-title">Grocery budget</div></div>
-      <div class="budget-card-body" id="budget-card-body"><div class="empty" style="padding:8px 0;font-size:0.85rem">Loading...</div></div>
-    </div>
-    ${sectionEnd()}
     ${sectionHeader('cam-shopping','Shopping list')}
     <div class="card" id="cameron-shopping-card">
       <div class="card-header" style="flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div class="card-title">La Comer</div><div style="display:flex;gap:6px"><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button><button class="scan-btn" style="font-size:0.8rem" onclick="openReceiptScanner()">📄 Receipt</button><button class="scan-btn" style="font-size:0.8rem" onclick="openPresetManager()">🗺️ Routes</button>${currentUserCan('show_prep_guide')&&currentPlan?"<button class=\"scan-btn\" style=\"font-size:0.8rem\" onclick=\"openPrepGuide()\">📋 Prep guide</button>":''}</div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%"><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
