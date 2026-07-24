@@ -609,6 +609,15 @@
   .collapse-btn{font-size:0.72rem;font-weight:500;color:var(--mid);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;transition:all 0.15s;}
   .collapse-btn:hover{color:var(--dark);border-color:var(--mid);}
   /* ── END COLLAPSIBLE SECTIONS ───────────────── */
+
+  /* ── HELP TOOLTIPS ──────────────────────────── */
+  .help-icon{display:inline-block;font-size:14px;line-height:1;opacity:0.5;cursor:pointer;border:none;background:none;padding:0;margin-left:4px;color:inherit;vertical-align:middle;-webkit-tap-highlight-color:transparent;}
+  .help-icon:hover,.help-icon:focus,.help-icon:active{opacity:1;}
+  body.help-tooltips-off .help-icon{display:none!important;}
+  .help-tip-popover{position:absolute;z-index:500;background:var(--cream);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 30px rgba(0,0,0,0.18);padding:14px 16px;max-width:280px;font-size:0.82rem;line-height:1.45;color:var(--dark);}
+  .help-tip-close{position:absolute;top:2px;right:4px;background:none;border:none;font-size:0.95rem;cursor:pointer;color:var(--mid);padding:4px 6px;}
+  .help-tip-text{padding-right:16px;}
+  /* ── END HELP TOOLTIPS ──────────────────────── */
   </style>
 </head>
 <body>
@@ -769,6 +778,60 @@ const SIENNA_ID='ca779de4-2052-4bb4-89c6-59b67a5ad788';
 const KAREN_ID='60688390-f010-4e19-b7e9-bfbe2c35b04c';
 const CAMERON_ID='4581c8f1-042d-43a6-ba2d-6ec586dea301';
 const USER_NAME_MAP={'4581c8f1-042d-43a6-ba2d-6ec586dea301':'Cameron','ca779de4-2052-4bb4-89c6-59b67a5ad788':'Sienna','60688390-f010-4e19-b7e9-bfbe2c35b04c':'Karen'};
+
+/* ── HELP TOOLTIPS ──────────────────────────── */
+const HELP_TEXTS={
+  mergeDuplicates:"Groups products with similar names. Select which one to keep, eject any that don't belong with ✕, then tap Merge. The kept product inherits all price history.",
+  trolleyMode:"Tap items as you add them to your trolley. Enter prices as you go. Forknight tracks your running total and saves prices automatically when you finish.",
+  pantry:"Track what you already have at home. Forknight uses this to flag items on your shopping list that you probably don't need to buy.",
+  permissions:"Controls what each family member can see and do in the app. Cameron-only.",
+  shoppingGenerate:"Generates the full shopping list grouped by La Comer store category. Includes bilingual names and product links.",
+  prepReminders:"Shows advance prep needed for this week's meals — e.g. marinate overnight, defrost pastry.",
+  receiptScanner:"Scan a La Comer receipt photo. Forknight reads it with AI and logs prices automatically.",
+};
+let activeHelpTip=null;
+function showHelpTip(event,text){
+  event.stopPropagation();
+  closeHelpTip();
+  const rect=event.currentTarget.getBoundingClientRect();
+  const pop=document.createElement('div');
+  pop.className='help-tip-popover';
+  pop.innerHTML=`<button type="button" class="help-tip-close" onclick="closeHelpTip()">✕</button><div class="help-tip-text">${escapeHtml(text)}</div>`;
+  document.body.appendChild(pop);
+  const popWidth=pop.offsetWidth;
+  let left=window.scrollX+rect.left;
+  const maxLeft=window.scrollX+document.documentElement.clientWidth-popWidth-12;
+  if(left>maxLeft)left=Math.max(window.scrollX+12,maxLeft);
+  pop.style.left=left+'px';
+  pop.style.top=(window.scrollY+rect.bottom+8)+'px';
+  activeHelpTip=pop;
+  setTimeout(()=>document.addEventListener('click',helpTipOutsideClick),0);
+}
+function closeHelpTip(){
+  if(activeHelpTip){activeHelpTip.remove();activeHelpTip=null;}
+  document.removeEventListener('click',helpTipOutsideClick);
+}
+function helpTipOutsideClick(e){
+  if(activeHelpTip&&!activeHelpTip.contains(e.target))closeHelpTip();
+}
+// Returns whether help tooltips are enabled for the current user (defaults ON)
+function checkHelpEnabled(){
+  const uid=userProfile?.id;
+  if(!uid)return true;
+  const stored=userPermissions[uid]?.show_help_tooltips;
+  return stored!==undefined?stored:true;
+}
+function applyHelpTooltipVisibility(){
+  document.body.classList.toggle('help-tooltips-off',!checkHelpEnabled());
+}
+// Called from the Permissions tab when the show_help_tooltips toggle changes
+function onPermHelpToggle(userId,checked){
+  const note=document.getElementById(`perm-note-${userId}-show_help_tooltips`);
+  if(note)note.style.display=checked?'':'none';
+  if(userId===userProfile?.id)applyHelpTooltipVisibility();
+}
+/* ── END HELP TOOLTIPS ─────────────────────── */
+
 const REQUEST_LABELS={swap:'Swap request',hibernate:'Hibernation request',new:'New meal suggestion',side_swap:'Side dish swap',plan_submitted:'Plan submitted',week_finalised:'Week finalised',reshuffle:'Reshuffle request'};
 let currentUser=null,userProfile=null,currentPlan=null,currentMeals=[],currentDinners=[];
 async function proxyFetch(body){const{data:{session}}=await sb.auth.getSession();const token=session?.access_token;if(!token){showToast('Session expired — please sign in again','error');await sb.auth.signOut();window.location.href='index.html';return null;}return fetch('https://claude-proxy.cameronjohnking.workers.dev',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(body)});}
@@ -793,6 +856,7 @@ async function init(){
   userProfile=data;
   renderNav();
   try{ await loadPermissions(); }catch(e){ console.warn('loadPermissions failed:',e.message); }
+  applyHelpTooltipVisibility();
   await loadWeekData();await loadMyRatingsThisWeek();await loadPendingIdeaRatings();
   await checkHibernationWakeUps();
   await renderDashboard();
@@ -899,7 +963,7 @@ function renderCameron(recipes,name){
     `+sectionEnd():''}
     ${sectionHeader('cam-shopping','Shopping list')}
     <div class="card" id="cameron-shopping-card">
-      <div class="card-header" style="flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div class="card-title">La Comer</div><div style="display:flex;gap:6px"><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button><button class="scan-btn" style="font-size:0.8rem" onclick="openReceiptScanner()">📄 Receipt</button><button class="scan-btn" style="font-size:0.8rem" onclick="openPresetManager()">🗺️ Routes</button>${currentUserCan('show_prep_guide')&&currentPlan?"<button class=\"scan-btn\" style=\"font-size:0.8rem\" onclick=\"openPrepGuide()\">📋 Prep guide</button>":''}</div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%"><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button></div></div>
+      <div class="card-header" style="flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div class="card-title">La Comer</div><div style="display:flex;gap:6px"><button class="scan-btn" id="scan-shopping-btn" style="font-size:0.8rem" onclick="openBarcodeScanner('shopping')">📷 Scan</button><button class="scan-btn" style="font-size:0.8rem" onclick="openReceiptScanner()">📄 Receipt</button><button class="scan-btn" style="font-size:0.8rem" onclick="openPresetManager()">🗺️ Routes</button>${currentUserCan('show_prep_guide')&&currentPlan?"<button class=\"scan-btn\" style=\"font-size:0.8rem\" onclick=\"openPrepGuide()\">📋 Prep guide</button>":''}</div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%"><button class="btn-secondary" id="start-shopping-btn" style="font-size:0.8rem;padding:7px 14px;display:none" onclick="startTrolleyMode()">🛒 Start Shopping</button><button type="button" class="help-icon" onclick="showHelpTip(event, HELP_TEXTS.trolleyMode)">ⓘ</button><button class="btn-primary" id="generate-btn" ${hasInventory?'':'disabled'} onclick="generateShoppingList()">${hasInventory?'Generate list':'Complete inventory first'}</button><button type="button" class="help-icon" onclick="showHelpTip(event, HELP_TEXTS.shoppingGenerate)">ⓘ</button></div></div>
       <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
         <div style="font-size:0.78rem;font-weight:500;color:var(--mid);margin-bottom:8px">ADD EXTRA ITEM</div>
         <div class="karen-add-row"><input class="karen-add-input" id="karen-add-input" placeholder="e.g. olive oil, chocolate, shampoo..." onkeydown="if(event.key==='Enter')addKarenItem()"><button class="btn-primary" style="padding:8px 16px;font-size:0.85rem" onclick="addKarenItem()">Add</button></div>
@@ -3285,7 +3349,7 @@ async function renderPantryView(){
   if(!main)return;
   await loadPantryStock();
   main.innerHTML=`<div class="fade-in" style="max-width:700px;margin:0 auto;padding:20px 16px">
-    <div class="page-header"><h1>Pantry</h1><p>Track what you have at home</p></div>
+    <div class="page-header"><h1>Pantry <button type="button" class="help-icon" onclick="showHelpTip(event, HELP_TEXTS.pantry)">ⓘ</button></h1><p>Track what you have at home</p></div>
     <div id="pantry-view-content">${renderPantrySection()}</div>
   </div>`;
 }
@@ -3510,7 +3574,7 @@ function renderPrepReminders(){
   if(!currentPlan||currentPlan.status!=='approved')return'';if(userProfile.role==='reviewer')return'';
   const advancePrepMeals=currentMeals.filter(m=>m.recipes?.advance_prep_required&&!m.cooked);if(advancePrepMeals.length===0)return'';
   const rows=advancePrepMeals.map(m=>{const r=m.recipes;const dayLabel=m.assigned_day?` · scheduled ${dateToDayName(m.assigned_day)}`:'';return`<div class="prep-reminder-row"><div class="prep-reminder-icon">⏰</div><div><div class="prep-reminder-meal">${r.name_en}${dayLabel}</div><div class="prep-reminder-desc">${r.advance_prep_description||'Advance preparation required'}</div></div></div>`;}).join('');
-  return sectionHeader('prep-reminders','Prep reminders')+`<div class="prep-reminders-card"><div style="font-size:0.78rem;font-weight:500;color:var(--clay);margin-bottom:12px">🗒️ These meals need advance prep this week</div>${rows}</div>`+sectionEnd();
+  return sectionHeader('prep-reminders','Prep reminders <button type="button" class="help-icon" onclick="showHelpTip(event, HELP_TEXTS.prepReminders)">ⓘ</button>')+`<div class="prep-reminders-card"><div style="font-size:0.78rem;font-weight:500;color:var(--clay);margin-bottom:12px">🗒️ These meals need advance prep this week</div>${rows}</div>`+sectionEnd();
 }
 function openSideSwapModal(recipeId,currentSideEn){
   const isKaren=userProfile.role==='reviewer';const isSienna=userProfile.role==='planner';if(!isKaren&&!isSienna)return;
@@ -4972,6 +5036,7 @@ async function savePantryScanResult(){
 /* ── END BARCODE SCANNER ───────────────────────── */
 
 /* ── MERGE DUPLICATES ──────────────────────────── */
+let mergeGroupsState=[];
 async function openMergeDuplicatesModal(){
   // Find likely duplicates: same name (fuzzy) or same barcode with multiple rows
   const prods=productsCache||(await sb.from('household_products').select('*').order('name_es').then(r=>r.data||[]));
@@ -5002,45 +5067,91 @@ async function openMergeDuplicatesModal(){
     return;
   }
 
+  mergeGroupsState=groups.map((g,gi)=>({gid:gi,items:g,keepId:g[0].id}));
+
   const overlay=document.createElement('div');
   overlay.id='merge-overlay';
   overlay.className='receipt-overlay';
   overlay.innerHTML=`
     <div class="receipt-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-        <h3>🔀 Merge duplicates</h3>
+        <h3>🔀 Merge duplicates <button type="button" class="help-icon" onclick="showHelpTip(event, HELP_TEXTS.mergeDuplicates)">ⓘ</button></h3>
         <button onclick="document.getElementById('merge-overlay')?.remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid);padding:4px 8px">✕</button>
       </div>
-      <p style="font-size:0.82rem;color:var(--mid);margin-bottom:14px">${groups.length} duplicate group${groups.length!==1?'s':''} found. Pick the best row in each group — fields like barcode, URL, and price will be merged from the others before they're deleted.</p>
-      <div id="merge-groups">
-        ${groups.map((group,gi)=>`
-          <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid rgba(200,180,160,0.2)">
-            <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Group ${gi+1}</div>
-            ${group.map((p,pi)=>`
-              <label style="display:flex;align-items:flex-start;gap:10px;padding:8px;border-radius:8px;cursor:pointer;margin-bottom:4px;background:${pi===0?'rgba(74,124,89,0.07)':'transparent'}">
-                <input type="radio" name="merge-group-${gi}" value="${p.id}" ${pi===0?'checked':''} style="margin-top:3px;flex-shrink:0">
-                <div style="flex:1;min-width:0">
-                  <div style="font-size:0.88rem;font-weight:500">${p.name_en||p.name_es}</div>
-                  <div style="font-size:0.75rem;color:var(--mid)">${p.name_es}${p.barcode?` · ${p.barcode}`:''}${p.last_price_mxn?` · $${p.last_price_mxn} MXN`:''}</div>
-                  <div style="font-size:0.7rem;color:var(--mid)">${p.notes||''}</div>
-                </div>
-              </label>`).join('')}
-          </div>`).join('')}
-      </div>
+      <p style="font-size:0.82rem;color:var(--mid);margin-bottom:14px">${groups.length} duplicate group${groups.length!==1?'s':''} found. Pick the best row in each group — fields like barcode, URL, and price will be merged from the others before they're deleted. Use ✕ to eject a product that doesn't belong in a group.</p>
+      <div id="merge-groups"></div>
       <div style="display:flex;gap:10px;margin-top:4px">
         <button class="btn-ghost" onclick="document.getElementById('merge-overlay')?.remove()">Cancel</button>
-        <button class="btn-primary" style="flex:1" onclick="executeMerge(${JSON.stringify(groups.map(g=>g.map(p=>p.id)))})">Merge selected ✓</button>
+        <button class="btn-primary" style="flex:1" onclick="executeMerge()">Merge selected ✓</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  renderMergeGroupsUI();
 }
 
-async function executeMerge(groupIds){
+// Rebuilds the group list from mergeGroupsState — called on init, on keep-radio change, and after an eject
+function renderMergeGroupsUI(){
+  const container=document.getElementById('merge-groups');
+  if(!container)return;
+  if(!mergeGroupsState.length){
+    document.getElementById('merge-overlay')?.remove();
+    return;
+  }
+  container.innerHTML=mergeGroupsState.map(group=>`
+    <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid rgba(200,180,160,0.2)">
+      <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--mid);margin-bottom:8px">Group ${group.gid+1}</div>
+      ${group.items.map(p=>{
+        const isKeep=p.id===group.keepId;
+        return `
+        <div style="display:flex;align-items:flex-start;gap:4px;margin-bottom:4px">
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:8px;border-radius:8px;cursor:pointer;flex:1;min-width:0;background:${isKeep?'rgba(74,124,89,0.07)':'transparent'}">
+            <input type="radio" name="merge-group-${group.gid}" value="${p.id}" ${isKeep?'checked':''} onchange="onMergeKeepChange(${group.gid},'${p.id}')" style="margin-top:3px;flex-shrink:0">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:0.88rem;font-weight:500">${p.name_en||p.name_es}</div>
+              <div style="font-size:0.75rem;color:var(--mid)">${p.name_es}${p.barcode?` · ${p.barcode}`:''}${p.last_price_mxn?` · $${p.last_price_mxn} MXN`:''}</div>
+              <div style="font-size:0.7rem;color:var(--mid)">${p.notes||''}</div>
+            </div>
+          </label>
+          ${!isKeep?`<button type="button" class="eject-btn" title="Remove from this group — the item stays in your product list" onclick="ejectFromGroup(${group.gid},'${p.id}')" style="background:none;border:none;color:var(--mid);opacity:0.5;font-size:0.8rem;cursor:pointer;padding:6px 8px;flex-shrink:0">✕</button>`:''}
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+}
+
+// Radio "keep" selection changed — move the ✕ eject button off the newly kept item
+function onMergeKeepChange(gid,productId){
+  const group=mergeGroupsState.find(g=>g.gid===gid);
+  if(!group)return;
+  group.keepId=productId;
+  renderMergeGroupsUI();
+}
+
+// Client-side only — ejects a wrongly-grouped item from a merge group. No DB change.
+function ejectFromGroup(gid,productId){
+  const group=mergeGroupsState.find(g=>g.gid===gid);
+  if(!group)return;
+  group.items=group.items.filter(p=>p.id!==productId);
+  if(group.items.length<=1){
+    // Nothing left to merge in this group — drop it entirely
+    mergeGroupsState=mergeGroupsState.filter(g=>g.gid!==gid);
+  }else if(group.keepId===productId){
+    group.keepId=group.items[0].id;
+  }
+  if(!mergeGroupsState.length){
+    document.getElementById('merge-overlay')?.remove();
+    showToast('No duplicate groups remain');
+    return;
+  }
+  renderMergeGroupsUI();
+}
+
+async function executeMerge(){
+  if(!mergeGroupsState.length)return;
   showLoader();
   const btn=document.querySelector('#merge-overlay .btn-primary');
   if(btn){btn.disabled=true;btn.textContent='Merging…';}
   // Fetch full product data for all IDs involved
-  const allIds=groupIds.flat();
+  const allIds=mergeGroupsState.flatMap(g=>g.items.map(p=>p.id));
   const{data:allProds}=await sb.from('household_products').select('*').in('id',allIds);
   const prodMap=Object.fromEntries((allProds||[]).map(p=>[p.id,p]));
   let merged=0,errors=0;
@@ -5048,13 +5159,11 @@ async function executeMerge(groupIds){
   const mergeFields=['name_es','name_en','barcode','store_url','lacomer_url','category',
     'ingredient_id','is_preferred_lacomer','is_preferred_citymarket','notes',
     'last_price_mxn','is_pantry_item'];
-  for(let gi=0;gi<groupIds.length;gi++){
-    const ids=groupIds[gi];
-    const radio=document.querySelector(`input[name="merge-group-${gi}"]:checked`);
-    const keepId=radio?.value;
+  for(const group of mergeGroupsState){
+    const keepId=group.keepId;
     if(!keepId)continue;
     const keepRow=prodMap[keepId];
-    const otherRows=ids.filter(id=>id!==keepId).map(id=>prodMap[id]).filter(Boolean);
+    const otherRows=group.items.filter(p=>p.id!==keepId).map(p=>prodMap[p.id]).filter(Boolean);
     // Build merged update: start with kept row values, fill in blanks from others
     const update={};
     for(const field of mergeFields){
@@ -5084,6 +5193,7 @@ async function executeMerge(groupIds){
     }catch(e){errors++;console.warn('Merge error:',e.message);}
   }
   document.getElementById('merge-overlay')?.remove();
+  mergeGroupsState=[];
   productsCache=null;
   await loadAndRenderProducts();
   hideLoader();
@@ -5141,7 +5251,7 @@ function openReceiptScanner(){
   overlay.innerHTML=`
     <div class="receipt-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-        <h3>📄 Scan receipt</h3>
+        <h3>📄 Scan receipt <button type="button" class="help-icon" onclick="showHelpTip(event, HELP_TEXTS.receiptScanner)">ⓘ</button></h3>
         <button onclick="closeReceiptScanner()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid);padding:4px 8px">✕</button>
       </div>
       <p>Take a photo or upload from gallery. AI will read all items and prices.</p>
@@ -5862,12 +5972,13 @@ const PERMISSION_DEFS = [
   { key:'can_toggle_scratch_ready', label:'Scratch vs Ready-Made toggle', sub:'Switch ingredients between from-scratch and ready-made alternatives', group:'actions' },
   { key:'edit_ingredients',         label:'Edit ingredient details',       sub:'Inline editing of ingredient names, quantities, units, category and La Comer URL', group:'actions' },
   { key:'show_component_recipes',  label:'Component recipes',             sub:'Show scratch-made component recipes (pastry, sauces etc) in the recipe library', group:'sections' },
+  { key:'show_help_tooltips',      label:'Help tooltips (ⓘ icons)',       sub:"Shows ⓘ icons throughout the app. Tap them for a plain-English explanation of each feature. Turn off if you no longer need the guidance.", group:'sections' },
 ];
 
 // Default permissions per role (used when no DB row exists yet)
 const PERMISSION_DEFAULTS = {
-  planner:  { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true,  carry_over_meals:false, manage_dinners:true,  view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:true,  show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:true, can_toggle_scratch_ready:true,  show_component_recipes:false, edit_ingredients:false },
-  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:false, show_prep_reminders:true, show_inventory:false, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:false, can_toggle_scratch_ready:false, show_component_recipes:false, edit_ingredients:false },
+  planner:  { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true,  carry_over_meals:false, manage_dinners:true,  view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:true,  show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:true, can_toggle_scratch_ready:true,  show_component_recipes:false, edit_ingredients:false, show_help_tooltips:true },
+  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:false, show_prep_reminders:true, show_inventory:false, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:false, can_toggle_scratch_ready:false, show_component_recipes:false, edit_ingredients:false, show_help_tooltips:true },
 };
 
 // Loaded at init — keyed by user_id
@@ -5875,7 +5986,8 @@ let userPermissions = {};
 
 async function loadPermissions(){
   try{
-    const { data, error } = await sb.from('user_permissions').select('*').in('user_id', [SIENNA_ID, KAREN_ID]);
+    // Cameron included too — he can toggle show_help_tooltips for his own session
+    const { data, error } = await sb.from('user_permissions').select('*').in('user_id', [CAMERON_ID, SIENNA_ID, KAREN_ID]);
     if(error) throw error;
     const rows = data || [];
     userPermissions = {};
@@ -5935,16 +6047,18 @@ function renderPermissionsView(){
   const blocks = users.map(u => {
     const makeRow = p => {
       const granted = hasPermission(u.id, p.key);
+      const isHelpToggle = p.key === 'show_help_tooltips';
+      const noteHtml = isHelpToggle ? `<div class="perm-help-note" id="perm-note-${u.id}-${p.key}" style="grid-column:1/-1;font-size:0.72rem;color:var(--mid);margin-top:-4px;${granted?'':'display:none'}">Tip: turn this off once you're familiar with the app.</div>` : '';
       return `<div class="perm-row">
         <div><div class="perm-label">${p.label}</div><div class="perm-sublabel">${p.sub}</div></div>
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:0.7rem;font-weight:600;letter-spacing:0.05em;color:${granted?'var(--clay)':'var(--mid)'}" id="perm-lbl-${u.id}-${p.key}">${granted?'ON':'OFF'}</span>
           <label class="toggle-wrap" title="${p.label}">
-            <input type="checkbox" ${granted ? 'checked' : ''} onchange="savePermission('${u.id}','${p.key}',this.checked);document.getElementById('perm-lbl-${u.id}-${p.key}').textContent=this.checked?'ON':'OFF';document.getElementById('perm-lbl-${u.id}-${p.key}').style.color=this.checked?'var(--clay)':'var(--mid)'">
+            <input type="checkbox" ${granted ? 'checked' : ''} onchange="savePermission('${u.id}','${p.key}',this.checked);document.getElementById('perm-lbl-${u.id}-${p.key}').textContent=this.checked?'ON':'OFF';document.getElementById('perm-lbl-${u.id}-${p.key}').style.color=this.checked?'var(--clay)':'var(--mid)'${isHelpToggle?`;onPermHelpToggle('${u.id}',this.checked)`:''}">
             <span class="toggle-slider"></span>
           </label>
         </div>
-      </div>`;
+      </div>${noteHtml}`;
     };
     const actionRows  = PERMISSION_DEFS.filter(p=>p.group==='actions').map(makeRow).join('');
     const sectionRows = PERMISSION_DEFS.filter(p=>p.group==='sections').map(makeRow).join('');
@@ -5965,13 +6079,31 @@ function renderPermissionsView(){
     </div>`;
   }).join('');
 
+  const camHelpGranted = userPermissions[CAMERON_ID]?.show_help_tooltips !== false;
+
   content.innerHTML = `<div class="fade-in">
     <div class="page-header">
-      <h1>Permissions</h1>
+      <h1>Permissions <button type="button" class="help-icon" onclick="showHelpTip(event, HELP_TEXTS.permissions)">ⓘ</button></h1>
       <p>Control what Sienna and Karen can see and do. Cameron always has full access.</p>
     </div>
     <div style="background:rgba(200,103,74,0.08);border:1px solid rgba(200,103,74,0.25);border-radius:10px;padding:12px 16px;margin-bottom:24px;font-size:0.83rem;color:var(--clay-dark);">
       ⚡ Changes save instantly. Enforcement is applied next time each user loads the app.
+    </div>
+    <div class="perm-user-block" style="margin-bottom:24px">
+      <div class="perm-user-header"><div><span class="perm-user-name">Your preferences</span></div></div>
+      <div class="perm-grid">
+        <div class="perm-row">
+          <div><div class="perm-label">Help tooltips (ⓘ icons)</div><div class="perm-sublabel">Shows ⓘ icons throughout the app. Tap them for a plain-English explanation of each feature. Turn off if you no longer need the guidance.</div></div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:0.7rem;font-weight:600;letter-spacing:0.05em;color:${camHelpGranted?'var(--clay)':'var(--mid)'}" id="perm-lbl-${CAMERON_ID}-show_help_tooltips">${camHelpGranted?'ON':'OFF'}</span>
+            <label class="toggle-wrap" title="Help tooltips">
+              <input type="checkbox" ${camHelpGranted?'checked':''} onchange="savePermission('${CAMERON_ID}','show_help_tooltips',this.checked);document.getElementById('perm-lbl-${CAMERON_ID}-show_help_tooltips').textContent=this.checked?'ON':'OFF';document.getElementById('perm-lbl-${CAMERON_ID}-show_help_tooltips').style.color=this.checked?'var(--clay)':'var(--mid)';onPermHelpToggle('${CAMERON_ID}',this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="perm-help-note" id="perm-note-${CAMERON_ID}-show_help_tooltips" style="grid-column:1/-1;font-size:0.72rem;color:var(--mid);margin-top:-4px;${camHelpGranted?'':'display:none'}">Tip: turn this off once you're familiar with the app.</div>
+      </div>
     </div>
     <div class="perm-user-block" style="margin-bottom:24px">
       <div class="perm-user-header"><div><span class="perm-user-name">Household Settings</span></div></div>
