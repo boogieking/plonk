@@ -3696,6 +3696,7 @@ async function checkHibernationWakeUps(){
 let currentView='dashboard';
 function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){if(!currentUserCan('view_recipes')&&userProfile?.role!=='admin'){showToast('Recipe library is not enabled for your account','error');switchView('dashboard');return;}renderRecipeListView();}else if(view==='pantry'){renderPantryView();}else if(view==='pantry'){renderPantryView();}else if(view==='products'){renderProductsView();}else if(view==='history'){renderHistoryView();}else if(view==='permissions'){renderPermissionsView();}}
 let recipeFilterTier='all',recipeFilterSearch='',recipeShowHibernated=false,allRecipesCache=null,recipeFilterType='lunch';
+let cookableModeOn=false,cookableDataMap=null,cookableShowMore=false;
 async function renderRecipeListView(){
   const isAdmin=userProfile?.role==='admin';
   const content=document.getElementById('dashboard-content');
@@ -3704,7 +3705,7 @@ async function renderRecipeListView(){
   const total=tabRecipes.length;const withSteps=tabRecipes.filter(r=>r.steps&&r.steps.trim()).length;const pct=total>0?Math.round((withSteps/total)*100):0;
   const progressHtml=`<div class="steps-progress-bar"><span style="font-size:0.9rem">📋</span><div class="steps-progress-track"><div class="steps-progress-fill" style="width:${pct}%"></div></div><span class="steps-progress-count">${withSteps} of ${total}</span><span class="steps-progress-label">recipes have saved steps</span></div>`;
   const addRecipeBtn=userProfile?.role==='admin'?`<button class="btn-primary" style="font-size:0.82rem;padding:7px 14px;white-space:nowrap;margin-left:auto" onclick="openAddRecipeModal()">+ Add Recipe</button>`:'';
-  content.innerHTML=`<div class="fade-in" id="recipe-list-root"><div class="page-header"><h1>Recipes</h1><p>Browse and manage the full meal library</p></div>${progressHtml}<div class="recipes-toolbar"><div style="display:flex;gap:6px;margin-right:10px;background:rgba(200,180,160,0.2);border-radius:9px;padding:3px"><button class="filter-pill${recipeFilterType==='lunch'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('lunch')">🍽 Lunches</button><button class="filter-pill${recipeFilterType==='dinner'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('dinner')">🌙 Dinners</button>${isAdmin?`<button class="filter-pill${recipeFilterType==='component'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('component')">🧩 Components</button>`:''}</div>${recipeFilterType==='component'?'':`<input class="search-input" id="recipe-search" placeholder="Search recipes…" oninput="filterRecipes()" value="${recipeFilterSearch}"><button class="filter-pill ${recipeFilterTier==='all'?'active':''}" onclick="setTierFilter('all')">All</button><button class="filter-pill ${recipeFilterTier==='weekly'?'active':''}" onclick="setTierFilter('weekly')">Weekly</button><button class="filter-pill ${recipeFilterTier==='regular'?'active':''}" onclick="setTierFilter('regular')">Regular</button><button class="filter-pill ${recipeFilterTier==='occasional'?'active':''}" onclick="setTierFilter('occasional')">Occasional</button><button class="filter-pill ${recipeFilterTier==='rare'?'active':''}" onclick="setTierFilter('rare')">Rare</button><button class="filter-pill ${recipeShowHibernated?'active':''}" onclick="toggleHibernated()">💤 Hibernated</button>${addRecipeBtn}</div>`}</div><div id="recipe-grid-container"><div class="empty"><span class="empty-icon">🍳</span>Loading recipes…</div></div></div>`;
+  content.innerHTML=`<div class="fade-in" id="recipe-list-root"><div class="page-header"><h1>Recipes</h1><p>Browse and manage the full meal library</p></div>${progressHtml}<div class="recipes-toolbar"><div style="display:flex;gap:6px;margin-right:10px;background:rgba(200,180,160,0.2);border-radius:9px;padding:3px"><button class="filter-pill${recipeFilterType==='lunch'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('lunch')">🍽 Lunches</button><button class="filter-pill${recipeFilterType==='dinner'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('dinner')">🌙 Dinners</button>${isAdmin?`<button class="filter-pill${recipeFilterType==='component'?' active':''}" style="border-radius:7px;font-weight:500" onclick="setRecipeType('component')">🧩 Components</button>`:''}</div>${recipeFilterType==='component'?'':`<input class="search-input" id="recipe-search" placeholder="Search recipes…" oninput="filterRecipes()" value="${recipeFilterSearch}"><button class="filter-pill ${recipeFilterTier==='all'?'active':''}" onclick="setTierFilter('all')">All</button><button class="filter-pill ${recipeFilterTier==='weekly'?'active':''}" onclick="setTierFilter('weekly')">Weekly</button><button class="filter-pill ${recipeFilterTier==='regular'?'active':''}" onclick="setTierFilter('regular')">Regular</button><button class="filter-pill ${recipeFilterTier==='occasional'?'active':''}" onclick="setTierFilter('occasional')">Occasional</button><button class="filter-pill ${recipeFilterTier==='rare'?'active':''}" onclick="setTierFilter('rare')">Rare</button><button class="filter-pill ${recipeShowHibernated?'active':''}" onclick="toggleHibernated()">💤 Hibernated</button><button class="filter-pill ${cookableModeOn?'active':''}" onclick="toggleCookableMode()">🍳 What can I cook?</button>${addRecipeBtn}</div>`}</div><div id="recipe-grid-container"><div class="empty"><span class="empty-icon">🍳</span>Loading recipes…</div></div></div>`;
   renderFilteredRecipes();
 }
 function renderFilteredRecipes(){
@@ -3719,6 +3720,7 @@ function renderFilteredRecipes(){
   }
   const search=(document.getElementById('recipe-search')?.value||recipeFilterSearch).toLowerCase().trim();recipeFilterSearch=search;
   const isDinnerTab=recipeFilterType==='dinner';
+  if(cookableModeOn&&cookableDataMap){renderCookableList(container,isDinnerTab,search,isAdmin);return;}
   const list=recipeShowHibernated
     ?allRecipesCache.filter(r=>r.hibernated&&(isDinnerTab?r.is_dinner===true:r.is_dinner!==true)&&(!search||r.name_en.toLowerCase().includes(search)||(r.name_es||'').toLowerCase().includes(search)))
     :allRecipesCache.filter(r=>{if(r.hibernated)return false;if(r.is_component)return false;if(isDinnerTab?r.is_dinner!==true:r.is_dinner===true)return false;if(recipeFilterTier!=='all'&&r.frequency_tier!==recipeFilterTier)return false;if(search&&!r.name_en.toLowerCase().includes(search)&&!(r.name_es||'').toLowerCase().includes(search))return false;return true;});
@@ -3729,16 +3731,95 @@ function componentRowHtml(r,isAdmin){
   const time=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);
   return`<div class="recipe-row" onclick="openRecipeDetail('${r.id}')" style="opacity:0.85;border-style:dashed"><div class="recipe-main"><div class="recipe-title">🧩 ${r.name_en}</div>${r.name_es?`<div class="recipe-title-es">${r.name_es}</div>`:''}<div class="recipe-meta-row">${time>0?`<span class="recipe-meta-item">⏱ ${time} min</span>`:''}<span class="tag" style="background:rgba(100,100,200,0.08);color:#555;border:1px solid rgba(100,100,200,0.2)">component</span></div></div></div>`;
 }
-function recipeRowHtml(r,isAdmin){
+function recipeRowHtml(r,isAdmin,cookScore){
   const tier=r.hibernated?'hibernated':(r.frequency_tier||'regular');const stars=r.avg_rating?`⭐ ${parseFloat(r.avg_rating).toFixed(1)}`:'—';const time=(r.prep_time_minutes||0)+(r.cook_time_minutes||0);
   const stepsTag=r.steps&&r.steps.trim()?`<span class="tag tag-green" style="font-size:0.65rem;padding:2px 7px">📋 steps saved</span>`:'';
   const adminActions=isAdmin?`<button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;" onclick="event.stopPropagation();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Tier</button><button class="btn-secondary" style="font-size:0.72rem;padding:5px 10px;" onclick="event.stopPropagation();openHibernateModal(this.dataset.rid,this.dataset.name)" data-rid="${r.id}" data-name="${esc(r.name_en)}"> ${r.hibernated?'Wake':'Sleep'}</button>`:'';
-  return`<div class="recipe-row${r.hibernated?' hibernated-row':''}" onclick="openRecipeDetail('${r.id}')"><div class="recipe-main"><div class="recipe-title">${r.name_en}</div>${r.name_es?`<div class="recipe-title-es">${r.name_es}</div>`:''}<div class="recipe-meta-row">${time>0?`<span class="recipe-meta-item">⏱ ${time} min</span>`:''}${r.advance_prep_required?`<span class="tag tag-amber">prep ahead</span>`:''} ${r.hibernated&&r.hibernate_until?`<span class="recipe-meta-item">🌙 until ${new Date(r.hibernate_until).toLocaleDateString('en-MX',{day:'numeric',month:'short'})}</span>`:''} ${stepsTag}</div></div><div class="recipe-badges"><span class="stars-display">${stars}</span><span class="tier-badge tier-${tier}${r.frequency_override?' tier-locked':''}">${TIER_LABELS[tier]||tier}</span></div>${isAdmin?`<div class="recipe-actions">${adminActions}</div>`:''}</div>`;
+  const cookBadge=cookScore?`<span class="tier-badge" style="${cookScore.missing.length===0?'color:#2E7D32;border-color:rgba(46,125,50,0.35);background:rgba(46,125,50,0.08)':cookScore.missing.length<=2?'color:#8A6D1E;border-color:rgba(138,109,30,0.35);background:rgba(138,109,30,0.08)':'color:#B23B3B;border-color:rgba(178,59,59,0.35);background:rgba(178,59,59,0.08)'}">${cookScore.missing.length===0?'✓ ':''}${cookScore.covered}/${cookScore.total}</span>`:'';
+  const missingLine=cookScore?(cookScore.missing.length===0?`<div style="font-size:0.76rem;color:#2E7D32;margin-top:2px">✓ You have everything</div>`:`<div style="font-size:0.76rem;color:#B23B3B;margin-top:2px">Missing: ${esc(cookScore.missing.join(', '))}</div>`):'';
+  return`<div class="recipe-row${r.hibernated?' hibernated-row':''}" onclick="openRecipeDetail('${r.id}')"><div class="recipe-main"><div class="recipe-title">${r.name_en}</div>${r.name_es?`<div class="recipe-title-es">${r.name_es}</div>`:''}${missingLine}<div class="recipe-meta-row">${time>0?`<span class="recipe-meta-item">⏱ ${time} min</span>`:''}${r.advance_prep_required?`<span class="tag tag-amber">prep ahead</span>`:''} ${r.hibernated&&r.hibernate_until?`<span class="recipe-meta-item">🌙 until ${new Date(r.hibernate_until).toLocaleDateString('en-MX',{day:'numeric',month:'short'})}</span>`:''} ${stepsTag}</div></div><div class="recipe-badges">${cookBadge}<span class="stars-display">${stars}</span><span class="tier-badge tier-${tier}${r.frequency_override?' tier-locked':''}">${TIER_LABELS[tier]||tier}</span></div>${isAdmin?`<div class="recipe-actions">${adminActions}</div>`:''}</div>`;
 }
 function filterRecipes(){renderFilteredRecipes();}
-function setRecipeType(type){recipeFilterType=type;recipeFilterTier='all';recipeShowHibernated=false;recipeFilterSearch='';allRecipesCache=null;renderRecipeListView();}
-function setTierFilter(tier){recipeFilterTier=tier;recipeShowHibernated=false;renderRecipeListView();}
-function toggleHibernated(){recipeShowHibernated=!recipeShowHibernated;recipeFilterTier='all';renderRecipeListView();}
+function setRecipeType(type){recipeFilterType=type;recipeFilterTier='all';recipeShowHibernated=false;recipeFilterSearch='';allRecipesCache=null;cookableModeOn=false;cookableDataMap=null;renderRecipeListView();}
+function setTierFilter(tier){recipeFilterTier=tier;recipeShowHibernated=false;cookableModeOn=false;cookableDataMap=null;renderRecipeListView();}
+function toggleHibernated(){recipeShowHibernated=!recipeShowHibernated;recipeFilterTier='all';cookableModeOn=false;cookableDataMap=null;renderRecipeListView();}
+async function toggleCookableMode(){
+  cookableModeOn=!cookableModeOn;
+  cookableShowMore=false;
+  if(cookableModeOn){
+    const container=document.getElementById('recipe-grid-container');
+    if(container)container.innerHTML=`<div class="empty"><span class="empty-icon">🍳</span>Checking your pantry…</div>`;
+    await loadWhatCanICook();
+  }else{
+    cookableDataMap=null;
+  }
+  renderRecipeListView();
+}
+async function loadWhatCanICook(){
+  const ownedIngredients=new Set();
+  const hid=userProfile?.household_id;
+  if(hid){
+    const{data:pantryRows}=await sb.from('pantry_stock').select('ingredient_name').eq('household_id',hid);
+    (pantryRows||[]).forEach(row=>{if(row.ingredient_name)ownedIngredients.add(row.ingredient_name.toLowerCase().trim());});
+  }
+  const weekStart=getWeekStartDate();
+  const{data:priceRows}=await sb.from('price_history').select('product_id').gte('recorded_at',weekStart);
+  const productIds=[...new Set((priceRows||[]).map(row=>row.product_id).filter(Boolean))];
+  if(productIds.length>0){
+    const{data:products}=await sb.from('household_products').select('id,ingredient_id').in('id',productIds);
+    const ingredientIds=[...new Set((products||[]).map(p=>p.ingredient_id).filter(Boolean))];
+    if(ingredientIds.length>0){
+      const{data:ings}=await sb.from('ingredients').select('id,name_en').in('id',ingredientIds);
+      (ings||[]).forEach(ing=>{if(ing.name_en)ownedIngredients.add(ing.name_en.toLowerCase().trim());});
+    }
+  }
+  if(!allRecipesCache){
+    const{data,error}=await sb.from('recipes').select('*, scratch_ready_defaults, ingredients(id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit,has_ready_alt,ready_name_en,ready_name_es,ready_quantity,ready_unit,ready_lacomer_url,ready_lacomer_category,ready_prep_delta_minutes)').order('name_en');
+    if(!error)allRecipesCache=data;
+  }
+  const plannedRecipeIds=new Set([...currentMeals,...currentDinners].map(m=>m.recipe_id));
+  const map={};
+  (allRecipesCache||[]).forEach(r=>{
+    if(r.hibernated||r.is_component||plannedRecipeIds.has(r.id))return;
+    const ingredients=r.ingredients||[];
+    const total=ingredients.length;
+    const missing=[];
+    let covered=0;
+    ingredients.forEach(ing=>{
+      const name=(ing.name_en||'').toLowerCase().trim();
+      if(name&&ownedIngredients.has(name))covered++;
+      else missing.push(ing.name_en);
+    });
+    map[r.id]={covered,total,missing};
+  });
+  cookableDataMap=map;
+}
+function renderCookableList(container,isDinnerTab,search,isAdmin){
+  const scored=allRecipesCache.filter(r=>{
+    if(r.is_component)return false;
+    if(r.hibernated)return false;
+    if(isDinnerTab?r.is_dinner!==true:r.is_dinner===true)return false;
+    if(!cookableDataMap[r.id])return false;
+    if(search&&!r.name_en.toLowerCase().includes(search)&&!(r.name_es||'').toLowerCase().includes(search))return false;
+    return true;
+  }).map(r=>({r,score:cookableDataMap[r.id]}));
+  scored.sort((a,b)=>{
+    if(a.score.missing.length!==b.score.missing.length)return a.score.missing.length-b.score.missing.length;
+    const aRatio=a.score.total>0?a.score.covered/a.score.total:0;
+    const bRatio=b.score.total>0?b.score.covered/b.score.total:0;
+    return bRatio-aRatio;
+  });
+  if(scored.length===0){container.innerHTML=`<div class="empty"><span class="empty-icon">🍳</span>No recipes match — try adding items to your pantry</div>`;return;}
+  const within=scored.filter(x=>x.score.missing.length<=3);
+  const overflow=scored.filter(x=>x.score.missing.length>3);
+  const shown=cookableShowMore?scored:within;
+  let html=`<div class="recipe-grid">${shown.map(x=>recipeRowHtml(x.r,isAdmin,x.score)).join('')}</div>`;
+  if(!cookableShowMore&&overflow.length>0){
+    html+=`<div style="text-align:center;margin-top:14px"><a href="#" style="color:var(--mid);font-size:0.85rem;text-decoration:underline" onclick="event.preventDefault();showMoreCookable()">Show ${overflow.length} more recipe${overflow.length===1?'':'s'} (missing 4+ ingredients)</a></div>`;
+  }
+  container.innerHTML=html;
+}
+function showMoreCookable(){cookableShowMore=true;renderFilteredRecipes();}
 async function openRecipeDetail(recipeId){
   const r=allRecipesCache?.find(x=>x.id===recipeId);if(!r)return;
   const isAdmin=userProfile?.role==='admin';const tier=r.hibernated?'hibernated':(r.frequency_tier||'regular');
