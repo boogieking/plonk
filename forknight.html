@@ -3800,14 +3800,15 @@ function renderCookableList(container,isDinnerTab,search,isAdmin){
     if(r.hibernated)return false;
     if(isDinnerTab?r.is_dinner!==true:r.is_dinner===true)return false;
     if(!cookableDataMap[r.id])return false;
+    if(cookableDataMap[r.id].covered===0)return false;
     if(search&&!r.name_en.toLowerCase().includes(search)&&!(r.name_es||'').toLowerCase().includes(search))return false;
     return true;
   }).map(r=>({r,score:cookableDataMap[r.id]}));
   scored.sort((a,b)=>{
-    if(a.score.missing.length!==b.score.missing.length)return a.score.missing.length-b.score.missing.length;
     const aRatio=a.score.total>0?a.score.covered/a.score.total:0;
     const bRatio=b.score.total>0?b.score.covered/b.score.total:0;
-    return bRatio-aRatio;
+    if(bRatio!==aRatio)return bRatio-aRatio;
+    return a.score.missing.length-b.score.missing.length;
   });
   if(scored.length===0){container.innerHTML=`<div class="empty"><span class="empty-icon">🍳</span>No recipes match — try adding items to your pantry</div>`;return;}
   const within=scored.filter(x=>x.score.missing.length<=3);
