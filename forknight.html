@@ -838,6 +838,7 @@ async function proxyFetch(body){const{data:{session}}=await sb.auth.getSession()
 
 let frozenInventoryCache=null,householdSizeCache=null;
 let pantryStockCache=null;
+let ingredientAliasMap=null;
 async function init(){
   let{data:{session}}=await sb.auth.getSession();
   if(!session){
@@ -856,6 +857,7 @@ async function init(){
   userProfile=data;
   renderNav();
   try{ await loadPermissions(); }catch(e){ console.warn('loadPermissions failed:',e.message); }
+  try{ await loadIngredientAliases(); }catch(e){ console.warn('loadIngredientAliases failed:',e.message); }
   applyHelpTooltipVisibility();
   await loadWeekData();await loadMyRatingsThisWeek();await loadPendingIdeaRatings();
   await checkHibernationWakeUps();
@@ -880,6 +882,24 @@ async function loadWeekData(){
 async function loadRecipes(){const{data}=await sb.from('recipes').select('*').neq('is_dinner',true).neq('is_component',true).order('name_en');return data||[];}
 async function loadFrozenInventory(){const{data}=await sb.from('frozen_inventory').select('id,recipe_id,portions,frozen_date').gt('portions',0);frozenInventoryCache=data||[];return frozenInventoryCache;}
 async function loadPantryStock(){const hid=userProfile?.household_id;if(!hid)return[];const{data,error}=await sb.from('pantry_stock').select('*').eq('household_id',hid).order('ingredient_name');if(error){console.error('loadPantryStock:',error);return[];}pantryStockCache=data||[];return pantryStockCache;}
+async function loadIngredientAliases(){
+  ingredientAliasMap={};
+  const hid=userProfile?.household_id;if(!hid)return ingredientAliasMap;
+  try{
+    const{data,error}=await sb.from('ingredient_aliases').select('*').eq('household_id',hid);
+    if(error)throw error;
+    for(const row of (data||[])){
+      const key=(row.alias_name||'').toLowerCase().trim();
+      if(key)ingredientAliasMap[key]=(row.canonical_name||'').toLowerCase().trim();
+    }
+  }catch(e){console.warn('loadIngredientAliases:',e.message);}
+  return ingredientAliasMap;
+}
+function normaliseIngredientName(name){
+  const key=(name||'').toLowerCase().trim();
+  if(ingredientAliasMap&&ingredientAliasMap[key])return ingredientAliasMap[key];
+  return key;
+}
 async function loadHouseholdSize(){if(householdSizeCache!==null)return householdSizeCache;const{data}=await sb.from('app_settings').select('value').eq('key','household_size').maybeSingle();householdSizeCache=data?parseInt(data.value)||3:3;return householdSizeCache;}
 async function saveHouseholdSize(n){householdSizeCache=n;await sb.from('app_settings').update({value:String(n)}).eq('key','household_size');}
 function getFrozenPortions(recipeId){return(frozenInventoryCache||[]).filter(f=>f.recipe_id===recipeId).reduce((sum,f)=>sum+f.portions,0);}
@@ -1594,17 +1614,17 @@ async function showDepletionNudge(recipeId,mealName,chainLeftover=false){
   const{data:ings}=await sb.from('ingredients').select('id,name_en,name_es').eq('recipe_id',recipeId);
   if(!ings||ings.length===0)return;
   // Find pantry items that match recipe ingredients
-  const ingNames=new Set(ings.map(i=>(i.name_en||'').toLowerCase()));
+  const ingNames=new Set(ings.map(i=>normaliseIngredientName(i.name_en||'')));
   const ingIds=new Set(ings.map(i=>i.id));
   const rawMatches=pantryStockCache.filter(p=>
     (p.ingredient_id&&ingIds.has(p.ingredient_id))||
-    ingNames.has((p.ingredient_name||'').toLowerCase())
+    ingNames.has(normaliseIngredientName(p.ingredient_name||''))
   );
   // Deduplicate by pantry row id, then by ingredient name (catches both FK+name double-matches and duplicate pantry entries)
   const seenDepIds=new Set();const seenDepNames=new Set();
   const matches=rawMatches.filter(p=>{
     if(seenDepIds.has(p.id))return false;seenDepIds.add(p.id);
-    const n=(p.ingredient_name||'').toLowerCase();
+    const n=normaliseIngredientName(p.ingredient_name||'');
     if(seenDepNames.has(n))return false;seenDepNames.add(n);
     return true;
   });
@@ -1880,10 +1900,10 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
   const UNITS=['g','kg','ml','L','units','pcs','tbsp','tsp'];
   // ── Pantry tier split ──────────────────────────────────────────────────
   const pantryNames=new Map();
-  for(const p of (pantryStockCache||[])){pantryNames.set((p.ingredient_name||'').toLowerCase(),p.confidence);}
+  for(const p of (pantryStockCache||[])){pantryNames.set(normaliseIngredientName(p.ingredient_name||''),p.confidence);}
   const tierNeed=[],tierProbably=[],tierCheck=[];
   for(const ing of mealItems){
-    const conf=ing.ingredient_id?(pantryStockCache||[]).find(p=>p.ingredient_id===ing.ingredient_id)?.confidence:pantryNames.get((ing.name_en||'').toLowerCase());
+    const conf=ing.ingredient_id?(pantryStockCache||[]).find(p=>p.ingredient_id===ing.ingredient_id)?.confidence:pantryNames.get(normaliseIngredientName(ing.name_en||''));
     if(conf==='high')tierProbably.push(ing);
     else if(conf==='medium')tierCheck.push(ing);
     else tierNeed.push(ing);
