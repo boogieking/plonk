@@ -3855,6 +3855,8 @@ async function openRecipeDetail(recipeId){
   const sideSection=r.default_side_en?`<div class="modal-section-label">Default side</div><div style="font-size:0.87rem;color:var(--dark)">${r.default_side_en}${r.default_side_es?` · <em style="color:var(--mid)">${r.default_side_es}</em>`:''}</div>`:'';
   const adminFooterBtns=isAdmin?`<button class="btn-secondary" onclick="closeRecipeDetail();openTierOverrideFromList('${r.id}','${r.frequency_tier}')">Change tier</button><button class="btn-secondary" onclick="closeRecipeDetail();openHibernateModal(this.dataset.rid,this.dataset.name)" data-rid="${r.id}" data-name="${esc(r.name_en)}">😴 ${r.hibernated?'Wake up':'Hibernate'}</button><button class=\"btn-secondary\" id=\"freeze-toggle-btn-${r.id}\" onclick=\"toggleFreezable('${r.id}')\" style=\"${r.is_freezable!==false?'color:#2E5F8A;border-color:rgba(46,95,138,0.4)':''}\">🧊 ${r.is_freezable!==false?'Freezable':'Not freezable'}</button>`:'';
   const hasSavedSteps=r.steps&&r.steps.trim();const stepsBtnLabel=hasSavedSteps?'📋 View steps':'📋 Generate steps';
+  const isLunchRecipe=r.is_dinner!==true&&r.is_component!==true;
+  const dinnerPairingsHtml=isLunchRecipe?`<div id="dinner-pairings-section-${r.id}">${dinnerPairingsSectionHtml(r.id,await loadDinnerPairings(r.id))}</div>`:'';
   document.body.insertAdjacentHTML('beforeend',`
   <div class="modal-overlay" id="recipe-detail-overlay" onclick="if(event.target===this)safeCloseRecipeDetail('${r.id}')">
     <div class="recipe-modal" style="position:relative">
@@ -3867,6 +3869,7 @@ async function openRecipeDetail(recipeId){
       <div class="recipe-modal-body">
         ${prepSection}${sideSection}
         ${ingredients.length>0?`<div class="modal-section-label">Ingredients</div>${ingredientHtml}`:'<div style="font-size:0.85rem;color:var(--mid)">No ingredients loaded yet</div>'}
+        ${dinnerPairingsHtml}
         <div id="steps-container-${r.id}" style="display:none"></div>
       </div>
       <div id="modal-timers-slot-${r.id}" style="display:none;padding:0 28px 10px;flex-shrink:0"></div>
@@ -3879,6 +3882,7 @@ async function openRecipeDetail(recipeId){
       </div>
     </div>
   </div>`);
+  if(isLunchRecipe)document.getElementById('recipe-detail-overlay')?.addEventListener('click',handleDinnerPairingsClick);
 }
 function safeCloseRecipeDetail(recipeId){
   const textarea=document.getElementById(`steps-edit-${recipeId}`);
@@ -3891,6 +3895,138 @@ function safeCloseRecipeDetail(recipeId){
   closeRecipeDetail();
 }
 function closeRecipeDetail(){document.getElementById('recipe-detail-overlay')?.remove();}
+
+// ── Dinner Pairings (recipe detail modal) ───────────────────────────────────
+async function loadDinnerPairings(lunchRecipeId){
+  const{data,error}=await sb.from('dinner_pairings').select('id,dinner_recipe_id').eq('lunch_recipe_id',lunchRecipeId);
+  if(error){showToast('Error loading dinner pairings: '+error.message,'error');return[];}
+  return data||[];
+}
+function dinnerPairingsSectionHtml(lunchRecipeId,pairings){
+  const canEdit=currentUserCan('manage_dinners');
+  const rows=pairings.length===0
+    ?'<div style="font-size:0.85rem;color:var(--mid)">No dinner pairings yet</div>'
+    :pairings.map(p=>{
+        const dr=allRecipesCache?.find(x=>x.id===p.dinner_recipe_id);
+        const name=dr?dr.name_en:'Unknown recipe';
+        const removeBtn=canEdit?`<button class="dp-remove-btn" data-pairing-id="${p.id}" data-lunch-id="${lunchRecipeId}" title="Remove pairing" style="background:none;border:none;color:var(--mid);font-size:0.9rem;cursor:pointer;padding:2px 8px">✕</button>`:'';
+        return`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(200,180,160,0.15);font-size:0.87rem"><span>${escapeHtml(name)}</span>${removeBtn}</div>`;
+      }).join('');
+  const warning=pairings.length<3?`<div style="font-size:0.78rem;color:#b07030;margin-top:8px">⚠️ Only ${pairings.length} dinner pairing${pairings.length!==1?'s':''} — 3 recommended</div>`:'';
+  const editBtns=canEdit?`<div style="display:flex;gap:8px;margin-top:10px"><button class="btn-secondary dp-add-btn" data-lunch-id="${lunchRecipeId}" style="font-size:0.78rem;padding:5px 12px">+ Add pairing</button><button class="btn-secondary dp-suggest-btn" data-lunch-id="${lunchRecipeId}" style="font-size:0.78rem;padding:5px 12px">✨ AI Suggest</button></div>`:'';
+  return`<div class="modal-section-label">Dinner Pairings</div><div id="dp-list-${lunchRecipeId}">${rows}</div>${warning}${editBtns}`;
+}
+async function refreshDinnerPairingsSection(lunchRecipeId){
+  const container=document.getElementById(`dinner-pairings-section-${lunchRecipeId}`);
+  if(!container)return;
+  const pairings=await loadDinnerPairings(lunchRecipeId);
+  container.innerHTML=dinnerPairingsSectionHtml(lunchRecipeId,pairings);
+}
+function handleDinnerPairingsClick(e){
+  const removeBtn=e.target.closest('.dp-remove-btn');
+  if(removeBtn){removeDinnerPairing(removeBtn.dataset.pairingId,removeBtn.dataset.lunchId);return;}
+  const addBtn=e.target.closest('.dp-add-btn');
+  if(addBtn){openDinnerPairingPicker(addBtn.dataset.lunchId);return;}
+  const suggestBtn=e.target.closest('.dp-suggest-btn');
+  if(suggestBtn){aiSuggestDinnerPairings(suggestBtn.dataset.lunchId);return;}
+}
+async function removeDinnerPairing(pairingId,lunchRecipeId){
+  if(!currentUserCan('manage_dinners')){showToast('Permission denied','error');return;}
+  const{error}=await sb.from('dinner_pairings').delete().eq('id',pairingId);
+  if(error){showToast('Error removing pairing: '+error.message,'error');return;}
+  showToast('Dinner pairing removed ✓');
+  await refreshDinnerPairingsSection(lunchRecipeId);
+}
+function unpairedDinnerCandidates(lunchRecipeId,pairedIds){
+  return(allRecipesCache||[]).filter(r=>r.is_dinner===true&&r.is_component!==true&&!pairedIds.has(r.id));
+}
+async function openDinnerPairingPicker(lunchRecipeId){
+  if(!currentUserCan('manage_dinners')){showToast('Permission denied','error');return;}
+  const pairings=await loadDinnerPairings(lunchRecipeId);
+  const pairedIds=new Set(pairings.map(p=>p.dinner_recipe_id));
+  const candidates=unpairedDinnerCandidates(lunchRecipeId,pairedIds).sort((a,b)=>a.name_en.localeCompare(b.name_en));
+  if(candidates.length===0){showToast('No available dinners to pair — all dinners are already paired','error');return;}
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  const options=candidates.map(r=>`<button class="btn-secondary dp-pick-option" data-dinner-id="${r.id}" data-lunch-id="${lunchRecipeId}" style="text-align:left;padding:10px 14px;font-size:0.86rem;width:100%">${escapeHtml(r.name_en)}</button>`).join('');
+  el.innerHTML=`<div class="modal" style="max-width:420px"><h3>Add dinner pairing</h3><p style="font-size:0.85rem;color:var(--mid)">Choose a dinner to pair with this lunch.</p><div style="display:flex;flex-direction:column;gap:8px;margin:16px 0;max-height:50vh;overflow-y:auto">${options}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button></div></div>`;
+  document.body.appendChild(el);
+  el.addEventListener('click',e=>{
+    if(e.target===el){closeModal();return;}
+    const opt=e.target.closest('.dp-pick-option');
+    if(opt)addDinnerPairing(opt.dataset.lunchId,opt.dataset.dinnerId);
+  });
+}
+async function addDinnerPairing(lunchRecipeId,dinnerRecipeId){
+  const{error}=await sb.from('dinner_pairings').insert({lunch_recipe_id:lunchRecipeId,dinner_recipe_id:dinnerRecipeId});
+  closeModal();
+  if(error){showToast('Error adding pairing: '+error.message,'error');return;}
+  showToast('Dinner pairing added ✓');
+  await refreshDinnerPairingsSection(lunchRecipeId);
+}
+async function aiSuggestDinnerPairings(lunchRecipeId){
+  if(!currentUserCan('manage_dinners')){showToast('Permission denied','error');return;}
+  const lunchRecipe=allRecipesCache?.find(x=>x.id===lunchRecipeId);
+  if(!lunchRecipe){showToast('Recipe not found','error');return;}
+  const pairings=await loadDinnerPairings(lunchRecipeId);
+  const pairedIds=new Set(pairings.map(p=>p.dinner_recipe_id));
+  const candidates=unpairedDinnerCandidates(lunchRecipeId,pairedIds);
+  if(candidates.length===0){showToast('No available dinners to suggest from','error');return;}
+  const btn=document.querySelector(`.dp-suggest-btn[data-lunch-id="${lunchRecipeId}"]`);
+  if(btn){btn.disabled=true;btn.textContent='Thinking…';}
+  try{
+    const candidateList=candidates.map(r=>`${r.id}: ${r.name_en}`).join('\n');
+    const prompt=`Here is a lunch recipe: "${lunchRecipe.name_en}".
+Here is a list of candidate dinner recipes, each on its own line as "id: name":
+${candidateList}
+
+Pick up to 3 dinners from the list above that would pair well as dinner options for this lunch (e.g. complementary flavours, variety, shared ingredients). You MUST only choose from the exact ids listed above — never invent a recipe or id that isn't in the list.
+Return ONLY a JSON array of the chosen ids as strings, no other text, no markdown fences. Example: ["id1","id2","id3"]`;
+    const resp=await proxyFetch({model:'claude-sonnet-4-6',max_tokens:300,messages:[{role:'user',content:prompt}]});
+    if(!resp){if(btn){btn.disabled=false;btn.textContent='✨ AI Suggest';}return;}
+    if(!resp.ok){showToast('AI suggestion failed — try again','error');if(btn){btn.disabled=false;btn.textContent='✨ AI Suggest';}return;}
+    const data=await resp.json();
+    const raw=(data.content?.map(c=>c.text||'').join('')||'').trim();
+    const clean=raw.replace(/```json|```/g,'').trim();
+    let ids;
+    try{ids=JSON.parse(clean);}catch(parseErr){ids=[];}
+    if(!Array.isArray(ids))ids=[];
+    const candidateIdSet=new Set(candidates.map(r=>String(r.id)));
+    const validIds=[...new Set(ids.map(String))].filter(id=>candidateIdSet.has(id));
+    if(validIds.length===0){showToast('No suggestions found','error');if(btn){btn.disabled=false;btn.textContent='✨ AI Suggest';}return;}
+    showDinnerSuggestionApproval(lunchRecipeId,validIds);
+  }catch(e){
+    showToast('AI suggestion failed — try again','error');
+    console.error(e);
+  }
+  if(btn){btn.disabled=false;btn.textContent='✨ AI Suggest';}
+}
+function showDinnerSuggestionApproval(lunchRecipeId,suggestedIds){
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  const options=suggestedIds.map(id=>{
+    const r=allRecipesCache?.find(x=>String(x.id)===id);
+    const name=r?r.name_en:'Unknown recipe';
+    return`<label style="display:flex;align-items:center;gap:10px;padding:8px 0;font-size:0.87rem;cursor:pointer"><input type="checkbox" class="dp-suggest-check" data-dinner-id="${id}" checked style="width:16px;height:16px;accent-color:var(--clay)">${escapeHtml(name)}</label>`;
+  }).join('');
+  el.innerHTML=`<div class="modal" style="max-width:420px"><h3>✨ Suggested dinner pairings</h3><p style="font-size:0.85rem;color:var(--mid)">Review and approve the pairings to add.</p><div style="display:flex;flex-direction:column;gap:2px;margin:14px 0">${options}</div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary dp-suggest-approve" data-lunch-id="${lunchRecipeId}">Add selected</button></div></div>`;
+  document.body.appendChild(el);
+  el.addEventListener('click',e=>{
+    if(e.target===el){closeModal();return;}
+    const approveBtn=e.target.closest('.dp-suggest-approve');
+    if(approveBtn){
+      const checked=[...el.querySelectorAll('.dp-suggest-check:checked')].map(c=>c.dataset.dinnerId);
+      if(checked.length===0){showToast('Select at least one to add','error');return;}
+      addDinnerPairingsBulk(approveBtn.dataset.lunchId,checked);
+    }
+  });
+}
+async function addDinnerPairingsBulk(lunchRecipeId,dinnerRecipeIds){
+  const rows=dinnerRecipeIds.map(id=>({lunch_recipe_id:lunchRecipeId,dinner_recipe_id:id}));
+  const{error}=await sb.from('dinner_pairings').insert(rows);
+  closeModal();
+  if(error){showToast('Error adding pairings: '+error.message,'error');return;}
+  showToast(`${dinnerRecipeIds.length} dinner pairing${dinnerRecipeIds.length!==1?'s':''} added ✓`);
+  await refreshDinnerPairingsSection(lunchRecipeId);
+}
 
 // ── Scratch / Ready-Made toggle helpers ─────────────────────────────────────
 // Priority: weekly plan override → recipe default → 'scratch'
