@@ -631,6 +631,7 @@
       <button class="nav-tab active" data-view="dashboard" onclick="switchView('dashboard')">This Week</button>
       <button class="nav-tab" data-view="recipes" onclick="switchView('recipes')">Recipes</button>
       <button class="nav-tab" data-view="pantry" onclick="switchView('pantry')" id="pantry-tab">Pantry</button>
+      <button class="nav-tab" data-view="household" onclick="switchView('household')" id="household-tab">Household</button>
       <button class="nav-tab" data-view="products" onclick="switchView('products')" id="products-tab" style="display:none">Products</button>
       <button class="nav-tab" data-view="history" onclick="switchView('history')" id="history-tab" style="display:none">History</button>
       <button class="nav-tab" data-view="permissions" onclick="switchView('permissions')" id="permissions-tab" style="display:none">Permissions</button>
@@ -3701,7 +3702,7 @@ async function checkHibernationWakeUps(){
   wokenUp.forEach(r=>showToast(`🌅 ${r.name} is back! Restored to ${TIER_LABELS[r.tier]}`,'success'));
 }
 let currentView='dashboard';
-function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){if(!currentUserCan('view_recipes')&&userProfile?.role!=='admin'){showToast('Recipe library is not enabled for your account','error');switchView('dashboard');return;}renderRecipeListView();}else if(view==='pantry'){renderPantryView();}else if(view==='pantry'){renderPantryView();}else if(view==='products'){renderProductsView();}else if(view==='history'){renderHistoryView();}else if(view==='permissions'){renderPermissionsView();}}
+function switchView(view){currentView=view;document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));if(view==='dashboard'){renderDashboard();}else if(view==='recipes'){if(!currentUserCan('view_recipes')&&userProfile?.role!=='admin'){showToast('Recipe library is not enabled for your account','error');switchView('dashboard');return;}renderRecipeListView();}else if(view==='pantry'){renderPantryView();}else if(view==='pantry'){renderPantryView();}else if(view==='household'){renderHouseholdView();}else if(view==='products'){renderProductsView();}else if(view==='history'){renderHistoryView();}else if(view==='permissions'){renderPermissionsView();}}
 let recipeFilterTier='all',recipeFilterSearch='',recipeShowHibernated=false,allRecipesCache=null,recipeFilterType='lunch';
 let cookableModeOn=false,cookableDataMap=null,cookableShowMore=false;
 async function renderRecipeListView(){
@@ -4724,6 +4725,229 @@ function shareRecipe(recipeId){
 // ── PRODUCTS VIEW ────────────────────────────────────────────────
 let productsCache=null,productFilterStore='all',productFilterSearch='',productsSubView='products',trendFilter='all';
 const STORE_OPTIONS=['La Comer','City Market','Other'];
+
+/* ── HOUSEHOLD ITEMS ─────────────────────────── */
+const HOUSEHOLD_ITEM_CATEGORIES=['Household & Cleaning','Paper Products','Health & Beauty','Cookware & Kitchen','Stationery & Office','Hardware & Tools','Automotive','Electrical & Lighting','Other'];
+const HOUSEHOLD_ID_FIXED='a1b2c3d4-e001-4f00-8000-ca5a0000001a';
+let allHouseholdItems=[];
+let householdItemPurchaseCounts={};
+
+async function renderHouseholdView(){
+  const content=document.getElementById('dashboard-content');
+  if(!content)return;
+  content.innerHTML=`<div class="fade-in" id="household-view-content"><div class="empty"><div class="spin" style="width:20px;height:20px;border-width:2px;margin:0 auto 8px"></div>Loading household items…</div></div>`;
+  await loadHouseholdItems();
+  renderHouseholdTab();
+}
+
+async function loadHouseholdItems(){
+  const{data,error}=await sb.from('household_items').select('*').order('lacomer_category').order('item_name_en');
+  if(error){showToast('Error loading household items: '+error.message,'error');allHouseholdItems=[];householdItemPurchaseCounts={};return;}
+  allHouseholdItems=data||[];
+  const{data:purchases,error:pErr}=await sb.from('household_item_purchases').select('item_id');
+  if(pErr){showToast('Error loading purchase history: '+pErr.message,'error');householdItemPurchaseCounts={};return;}
+  const counts={};
+  (purchases||[]).forEach(p=>{counts[p.item_id]=(counts[p.item_id]||0)+1;});
+  householdItemPurchaseCounts=counts;
+}
+
+function householdStockBadge(state){
+  if(state==='have it')return'<span style="background:rgba(74,124,89,0.15);color:#2d5a3d;border:1px solid rgba(74,124,89,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#10003; Have it</span>';
+  if(state==='running low')return'<span style="background:rgba(200,103,74,0.12);color:var(--clay);border:1px solid rgba(200,103,74,0.25);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#8595; Running low</span>';
+  return'<span style="background:rgba(180,140,40,0.15);color:#7a5c10;border:1px solid rgba(180,140,40,0.3);border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:600">&#9888;&#65039; Check first</span>';
+}
+
+function householdCatSectionId(cat){return'hh-cat-'+cat.replace(/[^a-z0-9]+/gi,'-').toLowerCase();}
+
+function renderHouseholdCategorySection(cat,items,canManage){
+  const id=householdCatSectionId(cat);
+  const stored=localStorage.getItem('sec_'+id);
+  const isOpen=stored!==null?stored==='1':true;
+  const cardsHtml=items.map(item=>renderHouseholdItemCard(item,canManage)).join('');
+  return`<div class="sec-header" onclick="toggleSection('${id}')">
+    <span class="sec-title">${escapeHtml(cat)} <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--mid)">(${items.length})</span></span>
+    <span class="sec-chevron${isOpen?'':' collapsed'}" id="chev-${id}">${CHEVRON_SVG}</span>
+  </div>
+  <div class="sec-body${isOpen?'':' collapsed'}" id="sec-${id}">${cardsHtml}</div>`;
+}
+
+function renderHouseholdItemCard(item,canManage){
+  const count=householdItemPurchaseCounts[item.id]||0;
+  const patternBadge=item.tracking_mode==='pattern'?'<span style="font-size:0.7rem;background:rgba(46,95,138,0.1);color:#2E5F8A;border:1px solid rgba(46,95,138,0.25);border-radius:20px;padding:2px 8px;font-weight:500;white-space:nowrap">📊 Pattern</span>':'';
+  let learnedLine='';
+  if(item.tracking_mode==='pattern'){
+    if(item.learned_interval_days!=null&&count>=4){
+      learnedLine=`<div style="font-size:0.76rem;color:var(--mid);margin-top:2px">Usually every ~${item.learned_interval_days} days</div>`;
+    }else if(count>=1&&count<=3){
+      learnedLine=`<div style="font-size:0.76rem;color:var(--mid);margin-top:2px">Learning… (${count}/4 shops)</div>`;
+    }
+  }
+  const stockHtml=canManage?`<span onclick="cycleHouseholdItemStock('${item.id}')" style="cursor:pointer">${householdStockBadge(item.stock_state)}</span>`:householdStockBadge(item.stock_state);
+  const actionsRow=canManage?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+    <button class="scan-btn" style="font-size:0.72rem;padding:4px 10px" onclick="showToast('Coming soon — log a purchase outside the shop')">Bought elsewhere</button>
+    <button class="scan-btn" style="font-size:0.72rem;padding:4px 10px" onclick="showEditHouseholdItemModal('${item.id}')">Edit</button>
+    <button class="scan-btn" style="font-size:0.72rem;padding:4px 10px;color:#c44" onclick="showDeleteHouseholdItemConfirm('${item.id}')">Delete</button>
+  </div>`:'';
+  return`<div class="product-row" id="household-item-${item.id}" style="flex-direction:column;align-items:stretch;gap:6px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div>
+        <div style="font-weight:500;font-size:0.9rem">${escapeHtml(item.item_name_en)}</div>
+        <div style="font-size:0.78rem;color:var(--mid);margin-top:1px">${escapeHtml(item.item_name_es)}</div>
+        ${learnedLine}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+        ${stockHtml}
+        ${patternBadge}
+      </div>
+    </div>
+    ${actionsRow}
+  </div>`;
+}
+
+function renderHouseholdTab(){
+  const container=document.getElementById('household-view-content');
+  if(!container)return;
+  const canManage=currentUserCan('manage_household_items');
+  const grouped={};
+  allHouseholdItems.forEach(item=>{
+    const cat=item.lacomer_category||'Other';
+    if(!grouped[cat])grouped[cat]=[];
+    grouped[cat].push(item);
+  });
+  const catOrder=HOUSEHOLD_ITEM_CATEGORIES.filter(c=>grouped[c]);
+  Object.keys(grouped).forEach(c=>{if(!catOrder.includes(c))catOrder.push(c);});
+  const sectionsHtml=catOrder.length===0?
+    `<div class="empty"><span class="empty-icon">🧻</span>No household items yet${canManage?' — click + Add Item to start':''}</div>`:
+    catOrder.map(cat=>renderHouseholdCategorySection(cat,grouped[cat],canManage)).join('');
+  container.innerHTML=`<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div><h1>Household Items</h1><p>Track non-food household supplies</p></div>
+    ${canManage?`<button class="btn-primary" onclick="showAddHouseholdItemModal()">+ Add Item</button>`:''}
+  </div>
+  ${sectionsHtml}`;
+}
+
+async function cycleHouseholdItemStock(itemId){
+  const item=allHouseholdItems.find(i=>i.id===itemId);
+  if(!item)return;
+  const order=['have it','check first','running low'];
+  const idx=order.indexOf(item.stock_state);
+  const next=order[(idx+1)%order.length];
+  const{error}=await sb.from('household_items').update({stock_state:next}).eq('id',itemId);
+  if(error){showToast('Error updating stock: '+error.message,'error');return;}
+  item.stock_state=next;
+  renderHouseholdTab();
+  showToast('Stock updated');
+}
+
+function showAddHouseholdItemModal(){openHouseholdItemModal(null);}
+function showEditHouseholdItemModal(itemId){
+  const item=allHouseholdItems.find(i=>i.id===itemId);
+  if(!item){showToast('Item not found','error');return;}
+  openHouseholdItemModal(item);
+}
+
+function onHouseholdTrackingToggle(checked){
+  const label=document.getElementById('hh-tracking-label');if(label)label.textContent=checked?'Pattern':'Manual';
+  const wrap=document.getElementById('hh-pack-size-wrap');if(wrap)wrap.style.display=checked?'':'none';
+}
+
+function openHouseholdItemModal(item){
+  const isEdit=!!item;
+  const isPattern=item?.tracking_mode==='pattern';
+  const catOptions=HOUSEHOLD_ITEM_CATEGORIES.map(c=>`<option value="${esc(c)}" ${item?.lacomer_category===c?'selected':''}>${escapeHtml(c)}</option>`).join('');
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="modal" style="max-width:460px;max-height:90vh;overflow-y:auto">
+    <h3>${isEdit?'Edit household item':'Add household item'}</h3>
+    <p>${isEdit?'Update the details for this item.':'Add a non-food item to track at home.'}</p>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Name (English) *</label><input id="hh-name-en" class="search-input" placeholder="e.g. Bin liners" value="${esc(item?.item_name_en||'')}" style="width:100%"></div>
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Name (Spanish) *</label><input id="hh-name-es" class="search-input" placeholder="e.g. Bolsas para basura" value="${esc(item?.item_name_es||'')}" style="width:100%"></div>
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Category *</label><select id="hh-category" class="search-input" style="width:100%"><option value="">Select a category…</option>${catOptions}</select></div>
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Notes</label><textarea id="hh-notes" placeholder="Optional notes">${escapeHtml(item?.notes||'')}</textarea></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <label style="font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid)">Tracking mode</label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="hh-tracking-label" style="font-size:0.82rem;color:var(--dark)">${isPattern?'Pattern':'Manual'}</span>
+          <label class="toggle-wrap">
+            <input type="checkbox" id="hh-tracking-toggle" ${isPattern?'checked':''} onchange="onHouseholdTrackingToggle(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+      <div id="hh-pack-size-wrap" style="${isPattern?'':'display:none'}">
+        <label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Units per pack (e.g. 20 bags)</label>
+        <input id="hh-pack-size" type="number" min="0" step="1" class="search-input" value="${item?.pack_size??''}" style="width:100%">
+      </div>
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">La Comer URL</label><input id="hh-lacomer-url" class="search-input" placeholder="https://www.lacomer.com.mx/..." value="${esc(item?.lacomer_url||'')}" style="width:100%"></div>
+    </div>
+    <div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="${isEdit?`saveEditHouseholdItem('${item.id}')`:'saveNewHouseholdItem()'}">${isEdit?'Update item':'Save item'}</button></div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+function readHouseholdItemForm(){
+  const item_name_en=document.getElementById('hh-name-en')?.value.trim();
+  const item_name_es=document.getElementById('hh-name-es')?.value.trim();
+  const lacomer_category=document.getElementById('hh-category')?.value||'';
+  const notes=document.getElementById('hh-notes')?.value.trim()||null;
+  const isPattern=document.getElementById('hh-tracking-toggle')?.checked;
+  const tracking_mode=isPattern?'pattern':'manual';
+  const packSizeRaw=document.getElementById('hh-pack-size')?.value;
+  const pack_size=packSizeRaw?parseFloat(packSizeRaw):null;
+  const lacomer_url=document.getElementById('hh-lacomer-url')?.value.trim()||null;
+  if(!item_name_en){showToast('Name (English) is required','error');return null;}
+  if(!item_name_es){showToast('Name (Spanish) is required','error');return null;}
+  if(!lacomer_category){showToast('Category is required','error');return null;}
+  if(isPattern&&!pack_size){showToast('Pack size is required for Pattern tracking','error');return null;}
+  return{item_name_en,item_name_es,lacomer_category,notes,tracking_mode,pack_size,lacomer_url};
+}
+
+async function saveNewHouseholdItem(){
+  const fields=readHouseholdItemForm();
+  if(!fields)return;
+  const payload={...fields,household_id:HOUSEHOLD_ID_FIXED,created_by:userProfile.id};
+  const{error}=await sb.from('household_items').insert(payload);
+  if(error){showToast('Error saving item: '+error.message,'error');return;}
+  closeModal();
+  showToast('Item saved ✓');
+  await loadHouseholdItems();
+  renderHouseholdTab();
+}
+
+async function saveEditHouseholdItem(itemId){
+  const fields=readHouseholdItemForm();
+  if(!fields)return;
+  const{error}=await sb.from('household_items').update(fields).eq('id',itemId);
+  if(error){showToast('Error updating item: '+error.message,'error');return;}
+  closeModal();
+  showToast('Item updated ✓');
+  await loadHouseholdItems();
+  renderHouseholdTab();
+}
+
+function showDeleteHouseholdItemConfirm(itemId){
+  const item=allHouseholdItems.find(i=>i.id===itemId);
+  if(!item)return;
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="modal" style="max-width:380px">
+    <h3>Delete item</h3>
+    <p>Delete "${escapeHtml(item.item_name_en)}"?</p>
+    <div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" style="background:#c44" onclick="confirmDeleteHouseholdItem('${item.id}')">Confirm</button></div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+async function confirmDeleteHouseholdItem(itemId){
+  const item=allHouseholdItems.find(i=>i.id===itemId);
+  const{error}=await sb.from('household_items').delete().eq('id',itemId);
+  if(error){showToast('Error deleting item: '+error.message,'error');return;}
+  allHouseholdItems=allHouseholdItems.filter(i=>i.id!==itemId);
+  delete householdItemPurchaseCounts[itemId];
+  closeModal();
+  renderHouseholdTab();
+  showToast(`"${item?.item_name_en||'Item'}" deleted`);
+}
+/* ── END HOUSEHOLD ITEMS ─────────────────────── */
 
 async function renderProductsView(){
   if(userProfile.role!=='admin'){showToast('Products management is admin only','error');switchView('dashboard');return;}
@@ -6218,12 +6442,13 @@ const PERMISSION_DEFS = [
   { key:'edit_ingredients',         label:'Edit ingredient details',       sub:'Inline editing of ingredient names, quantities, units, category and La Comer URL', group:'actions' },
   { key:'show_component_recipes',  label:'Component recipes',             sub:'Show scratch-made component recipes (pastry, sauces etc) in the recipe library', group:'sections' },
   { key:'show_help_tooltips',      label:'Help tooltips (ⓘ icons)',       sub:"Shows ⓘ icons throughout the app. Tap them for a plain-English explanation of each feature. Turn off if you no longer need the guidance.", group:'sections' },
+  { key:'manage_household_items',  label:'Manage household items',        sub:'Add, edit and delete household inventory items', group:'actions' },
 ];
 
 // Default permissions per role (used when no DB row exists yet)
 const PERMISSION_DEFAULTS = {
-  planner:  { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true,  carry_over_meals:false, manage_dinners:true,  view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:true,  show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:true, can_toggle_scratch_ready:true,  show_component_recipes:false, edit_ingredients:false, show_help_tooltips:true },
-  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:false, show_prep_reminders:true, show_inventory:false, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:false, can_toggle_scratch_ready:false, show_component_recipes:false, edit_ingredients:false, show_help_tooltips:true },
+  planner:  { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:true,  carry_over_meals:false, manage_dinners:true,  view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:true,  show_prep_reminders:true, show_inventory:true, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:true, can_toggle_scratch_ready:true,  show_component_recipes:false, edit_ingredients:false, show_help_tooltips:true, manage_household_items:true },
+  reviewer: { view_plan:true, mark_cooked:true, submit_swap:true, reshuffle_plan:false, carry_over_meals:false, manage_dinners:false, view_shopping:true, generate_shopping:false, suggest_meals:true, approve_plan:false, rate_meals:true, add_shopping_items:true, view_recipes:true, mark_inventory:false, show_prep_reminders:true, show_inventory:false, show_leftovers:true, show_requests:true, show_ratings:true, show_dinners:true, show_prep_guide:false, can_toggle_scratch_ready:false, show_component_recipes:false, edit_ingredients:false, show_help_tooltips:true, manage_household_items:false },
 };
 
 // Loaded at init — keyed by user_id
