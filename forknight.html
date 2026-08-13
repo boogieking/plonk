@@ -4784,7 +4784,7 @@ function renderHouseholdItemCard(item,canManage){
   }
   const stockHtml=canManage?`<span onclick="cycleHouseholdItemStock('${item.id}')" style="cursor:pointer">${householdStockBadge(item.stock_state)}</span>`:householdStockBadge(item.stock_state);
   const actionsRow=canManage?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-    <button class="scan-btn" style="font-size:0.72rem;padding:4px 10px" onclick="showToast('Coming soon — log a purchase outside the shop')">Bought elsewhere</button>
+    <button class="scan-btn" style="font-size:0.72rem;padding:4px 10px" onclick="showBoughtElsewhereModal('${item.id}')">Bought elsewhere</button>
     <button class="scan-btn" style="font-size:0.72rem;padding:4px 10px" onclick="showEditHouseholdItemModal('${item.id}')">Edit</button>
     <button class="scan-btn" style="font-size:0.72rem;padding:4px 10px;color:#c44" onclick="showDeleteHouseholdItemConfirm('${item.id}')">Delete</button>
   </div>`:'';
@@ -4837,6 +4837,126 @@ async function cycleHouseholdItemStock(itemId){
   item.stock_state=next;
   renderHouseholdTab();
   showToast('Stock updated');
+}
+
+function daysBetweenDates(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
+
+function showBoughtElsewhereModal(itemId){
+  const item=allHouseholdItems.find(i=>i.id===itemId);
+  if(!item){showToast('Item not found','error');return;}
+  const todayStr=new Date().toISOString().slice(0,10);
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="modal" style="max-width:420px">
+    <h3>Bought elsewhere</h3>
+    <p>Log a purchase made outside the normal shop (corner store, Costco, Amazon, etc.)</p>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Item</label><div style="font-weight:500;font-size:0.95rem">${escapeHtml(item.item_name_en)}</div></div>
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Date purchased</label><input id="hh-be-date" type="date" class="search-input" value="${todayStr}" style="width:100%"></div>
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">How many packs?</label><input id="hh-be-packs" type="number" min="1" step="1" class="search-input" value="1" style="width:100%"></div>
+      <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Units per pack (e.g. 20 bags)</label><input id="hh-be-units-per-pack" type="number" min="1" step="1" class="search-input" value="${item.pack_size!=null?item.pack_size:''}" style="width:100%"></div>
+    </div>
+    <div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="saveBoughtElsewherePurchase('${itemId}')">Log purchase</button></div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+async function saveBoughtElsewherePurchase(itemId){
+  const item=allHouseholdItems.find(i=>i.id===itemId);
+  if(!item)return;
+  const purchased_at=document.getElementById('hh-be-date')?.value;
+  const packsRaw=document.getElementById('hh-be-packs')?.value;
+  const unitsRaw=document.getElementById('hh-be-units-per-pack')?.value;
+  const quantity=packsRaw?parseFloat(packsRaw):null;
+  const pack_size=unitsRaw?parseFloat(unitsRaw):null;
+  if(!purchased_at){showToast('Date purchased is required','error');return;}
+  if(!quantity||quantity<1){showToast('Enter how many packs were bought','error');return;}
+  if(!pack_size||pack_size<1){showToast('Units per pack is required','error');return;}
+  const{error}=await sb.from('household_item_purchases').insert({
+    item_id:itemId,
+    household_id:HOUSEHOLD_ID_FIXED,
+    purchased_at,
+    quantity,
+    pack_size,
+    source:'bought_elsewhere',
+    created_by:currentUser.id
+  });
+  if(error){showToast('Error logging purchase: '+error.message,'error');return;}
+  if(item.pack_size==null||item.pack_size!==pack_size){
+    const{error:packErr}=await sb.from('household_items').update({pack_size}).eq('id',itemId);
+    if(packErr){showToast('Error updating pack size: '+packErr.message,'error');return;}
+  }
+  await recalculateItemPattern(itemId);
+  await loadHouseholdItems();
+  renderHouseholdTab();
+  closeModal();
+  showToast('Purchase logged');
+}
+
+async function recalculateItemPattern(itemId){
+  const{data,error}=await sb.from('household_item_purchases').select('purchased_at,quantity,pack_size').eq('item_id',itemId).order('purchased_at',{ascending:true});
+  if(error){showToast('Error calculating purchase pattern: '+error.message,'error');return;}
+  const purchases=data||[];
+  if(purchases.length<2){
+    const{error:wErr}=await sb.from('household_items').update({learned_units_per_day:null,learned_interval_days:null}).eq('id',itemId);
+    if(wErr)showToast('Error saving pattern: '+wErr.message,'error');
+    return;
+  }
+  const clamp=v=>Math.min(5.0,Math.max(0.05,v));
+  const first=purchases[0];
+  const last=purchases[purchases.length-1];
+  const totalUnits=purchases.reduce((sum,p)=>sum+(p.quantity||0)*(p.pack_size||0),0);
+  const daysElapsed=daysBetweenDates(first.purchased_at,last.purchased_at);
+  if(daysElapsed===0)return;
+  const rawUnitsPerDay=totalUnits/daysElapsed;
+  let unitsPerDay=clamp(rawUnitsPerDay);
+  if(purchases.length>=4){
+    // Weight recent intervals more heavily. Only 4 rates come from 5 points, so take the last
+    // 5 purchases (up to 4 consecutive-purchase intervals) and right-align weights [1,2,3,4]
+    // so the most recent interval always carries the heaviest weight, degrading gracefully
+    // to 3 intervals/weights [2,3,4] when exactly 4 purchases exist.
+    const recent=purchases.slice(-5);
+    const intervals=[];
+    for(let i=1;i<recent.length;i++){
+      const days=daysBetweenDates(recent[i-1].purchased_at,recent[i].purchased_at);
+      if(days>0){
+        const units=(recent[i].quantity||0)*(recent[i].pack_size||0);
+        intervals.push(units/days);
+      }
+    }
+    if(intervals.length>0){
+      const weights=[1,2,3,4].slice(-intervals.length);
+      const weightSum=weights.reduce((a,b)=>a+b,0);
+      const weightedRaw=intervals.reduce((sum,rate,idx)=>sum+rate*weights[idx],0)/weightSum;
+      unitsPerDay=clamp(weightedRaw);
+    }
+  }
+  const learned_interval_days=Math.round(1/unitsPerDay);
+  const{error:wErr}=await sb.from('household_items').update({
+    learned_units_per_day:unitsPerDay,
+    learned_interval_days,
+    last_purchased_at:last.purchased_at
+  }).eq('id',itemId);
+  if(wErr){showToast('Error saving pattern: '+wErr.message,'error');return;}
+}
+
+function isDueForRestock(item){
+  if(item.tracking_mode!=='pattern'||item.learned_units_per_day==null){
+    return{due:false,reason:'',confidence:'learning'};
+  }
+  const count=householdItemPurchaseCounts[item.id]||0;
+  if(count<4){
+    return{due:false,reason:'Learning…',confidence:'learning'};
+  }
+  if(!item.last_purchased_at){
+    return{due:false,reason:'',confidence:'reliable'};
+  }
+  const daysSinceLast=daysBetweenDates(item.last_purchased_at,new Date().toISOString().slice(0,10));
+  const unitsConsumedEstimate=daysSinceLast*item.learned_units_per_day;
+  const lastPackSize=item.pack_size;
+  if(lastPackSize&&unitsConsumedEstimate>=0.85*lastPackSize){
+    return{due:true,reason:`Usually every ~${item.learned_interval_days} days`,confidence:'reliable'};
+  }
+  return{due:false,reason:'',confidence:'reliable'};
 }
 
 function showAddHouseholdItemModal(){openHouseholdItemModal(null);}
