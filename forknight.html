@@ -862,6 +862,7 @@ async function init(){
   }
   userProfile=data;
   renderNav();
+  loadHouseholdItems(true).catch(e=>console.warn('loadHouseholdItems (init prefetch) failed:',e.message));
   try{ await loadPermissions(); }catch(e){ console.warn('loadPermissions failed:',e.message); }
   try{ await loadIngredientAliases(); }catch(e){ console.warn('loadIngredientAliases failed:',e.message); }
   applyHelpTooltipVisibility();
@@ -1903,6 +1904,64 @@ async function loadKarenShoppingPreview(){
     const linked=await applyProductLinks(Object.values(deduped));const items=linked.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load list: ${err.message}</div>`;}
 }
+/* ── HOUSEHOLD ITEMS → SHOPPING LIST INTEGRATION ─────── */
+let dismissedProbablyDue=new Set();
+let _hhProbablyDueItemsCache=[];
+
+function buildHouseholdDefiniteNeedGroupsHtml(items){
+  const groups={};
+  items.forEach(item=>{
+    const cat=item.lacomer_category||'Other';
+    if(!groups[cat])groups[cat]=[];
+    groups[cat].push(item);
+  });
+  const catKeys=Object.keys(groups).sort();
+  let h='';
+  catKeys.forEach(cat=>{
+    h+=`<div class="shop-category-label">${escapeHtml(cat)}</div>`;
+    groups[cat].forEach(item=>{
+      const linkHtml=item.lacomer_url?`<div class="shop-link-wrap"><a class="shop-link" href="${safeUrl(item.lacomer_url)}" target="_blank">🛒 La Comer</a></div>`:'';
+      const rowId=`shop-row-hh-${item.id}`;
+      _shopItemLabels[rowId]=item.item_name_en;
+      h+=`<div class="shop-row" id="${rowId}"><div class="shop-names"><div class="shop-name-en">${escapeHtml(item.item_name_en)}</div><div class="shop-name-es">${escapeHtml(item.item_name_es||'')}</div><div style="font-size:0.7rem;color:var(--mid);margin-top:1px">Household item</div></div>${linkHtml}<button class="shop-rm-btn" onclick="removeShoppingItem('${rowId}')" title="Remove">✕</button></div>`;
+    });
+  });
+  return h;
+}
+
+function buildProbablyDueSectionHtml(items){
+  _hhProbablyDueItemsCache=items;
+  const visible=items.filter(item=>!dismissedProbablyDue.has(item.id));
+  if(visible.length===0)return'';
+  const stored=localStorage.getItem('forknight_probably_due_collapsed');
+  const isOpen=stored!==null?stored==='1':false;
+  const rows=visible.map(item=>`<div class="shop-row" id="shop-row-probdue-${item.id}"><div class="shop-names"><div class="shop-name-en">${escapeHtml(item.item_name_en)}</div><div class="shop-name-es">${escapeHtml(item.item_name_es||'')}</div><div style="font-size:0.72rem;color:var(--mid);margin-top:2px">${escapeHtml(item._dueReason||'')}</div></div><button class="shop-rm-btn" onclick="dismissProbablyDueItem('${item.id}')" title="Dismiss">✕</button></div>`).join('');
+  return`<div id="probably-due-section-wrap">
+    <div class="sec-header" onclick="toggleProbablyDueSection()">
+      <span class="sec-title">🔄 Probably due (${visible.length})</span>
+      <span class="sec-chevron${isOpen?'':' collapsed'}" id="chev-probably-due">${CHEVRON_SVG}</span>
+    </div>
+    <div class="sec-body${isOpen?'':' collapsed'}" id="sec-probably-due">${rows}</div>
+  </div>`;
+}
+
+function toggleProbablyDueSection(){
+  const body=document.getElementById('sec-probably-due');
+  const chev=document.getElementById('chev-probably-due');
+  if(!body||!chev)return;
+  const isCollapsed=body.classList.contains('collapsed');
+  body.classList.toggle('collapsed',!isCollapsed);
+  chev.classList.toggle('collapsed',!isCollapsed);
+  localStorage.setItem('forknight_probably_due_collapsed',isCollapsed?'1':'0');
+}
+
+function dismissProbablyDueItem(itemId){
+  dismissedProbablyDue.add(itemId);
+  const wrap=document.getElementById('probably-due-section-wrap');
+  if(wrap)wrap.outerHTML=buildProbablyDueSectionHtml(_hhProbablyDueItemsCache);
+}
+/* ── END HOUSEHOLD ITEMS → SHOPPING LIST INTEGRATION ─── */
+
 function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyItems=[],dueSoonItems=[]){
   _shopItemLabels={};
   const UNITS=['g','kg','ml','L','units','pcs','tbsp','tsp'];
@@ -1953,6 +2012,7 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
   for(const ing of mealItems){const cat=normaliseCat(ing.lacomer_category||'Other');if(!groups[cat])groups[cat]=[];const qty=ing.quantity?`${ing.quantity}${ing.unit?' '+ing.unit:''}`:'' ;groups[cat].push({...ing,_type:'ingredient',_qtyStr:qty});}
   if(karenItems&&karenItems.length>0){const existingNames=new Set(mealItems.map(i=>i.name_en.toLowerCase()));for(const ka of karenItems){if(!existingNames.has(ka.name_en.toLowerCase())){const cat=ka.lacomer_category||'Other';if(!groups[cat])groups[cat]=[];groups[cat].push({...ka,_type:'karen',_qtyStr:''});}}}
   // ── Build three-tier output ────────────────────────────────────────────
+  const{definiteNeed:hhDefiniteNeed,probablyDue:hhProbablyDue}=gatherHouseholdItemSuggestions();
   let html='';
   const needHtml=buildGroupsHtml(tierNeed,isAdmin);
   const probHtml=buildGroupsHtml(tierProbably,isAdmin);
@@ -1960,6 +2020,10 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
   // Tier 1: Definitely need (always shown open)
   if(tierNeed.length>0){
     html+=needHtml;
+  }
+  // Household items — definite need (interleaved into the open "Definitely need" area)
+  if(hhDefiniteNeed.length>0){
+    html+=buildHouseholdDefiniteNeedGroupsHtml(hhDefiniteNeed);
   }
   // Tier 2: Probably have (collapsed by default)
   if(tierProbably.length>0){
@@ -1997,6 +2061,8 @@ function renderShoppingListHTML(mealItems,ckItems,isAdmin,karenItems,alwaysBuyIt
     }
     html+=`</div></div>`;
   }
+  // Household items — probably due (collapsible, bottom of list)
+  html+=buildProbablyDueSectionHtml(hhProbablyDue);
   return html||`<div class="empty" style="color:var(--green)">✓ Nothing needed — you have everything!</div>`;
 }
 /* ── PRODUCT LINK OVERLAY ─────────────────────── */
@@ -2230,7 +2296,7 @@ async function buildPreShopEstimate(mealItems){
 }
 async function generateShoppingList(){
   showLoader();
-  clearShoppingState();removedShoppingItems=[];
+  clearShoppingState();removedShoppingItems=[];dismissedProbablyDue=new Set();
   const btn=document.getElementById('generate-btn');const content=document.getElementById('shopping-list-content');
 
   btn.disabled=true;btn.textContent='Loading...';content.innerHTML=`<div class="empty"><div class="spin" style="width:24px;height:24px;border-width:2px;margin:0 auto 8px"></div>Building your list...</div>`;
@@ -4740,12 +4806,12 @@ async function renderHouseholdView(){
   renderHouseholdTab();
 }
 
-async function loadHouseholdItems(){
+async function loadHouseholdItems(silent=false){
   const{data,error}=await sb.from('household_items').select('*').order('lacomer_category').order('item_name_en');
-  if(error){showToast('Error loading household items: '+error.message,'error');allHouseholdItems=[];householdItemPurchaseCounts={};return;}
+  if(error){if(!silent)showToast('Error loading household items: '+error.message,'error');allHouseholdItems=[];householdItemPurchaseCounts={};return;}
   allHouseholdItems=data||[];
   const{data:purchases,error:pErr}=await sb.from('household_item_purchases').select('item_id');
-  if(pErr){showToast('Error loading purchase history: '+pErr.message,'error');householdItemPurchaseCounts={};return;}
+  if(pErr){if(!silent)showToast('Error loading purchase history: '+pErr.message,'error');householdItemPurchaseCounts={};return;}
   const counts={};
   (purchases||[]).forEach(p=>{counts[p.item_id]=(counts[p.item_id]||0)+1;});
   householdItemPurchaseCounts=counts;
@@ -4957,6 +5023,21 @@ function isDueForRestock(item){
     return{due:true,reason:`Usually every ~${item.learned_interval_days} days`,confidence:'reliable'};
   }
   return{due:false,reason:'',confidence:'reliable'};
+}
+
+function gatherHouseholdItemSuggestions(){
+  if(!allHouseholdItems||allHouseholdItems.length===0)return{definiteNeed:[],probablyDue:[]};
+  const definiteNeed=allHouseholdItems.filter(item=>item.stock_state==='running low');
+  const probablyDue=[];
+  allHouseholdItems.forEach(item=>{
+    if(item.tracking_mode!=='pattern')return;
+    if(item.stock_state==='running low')return;
+    const result=isDueForRestock(item);
+    if(result.due){
+      probablyDue.push({...item,_dueReason:result.reason});
+    }
+  });
+  return{definiteNeed,probablyDue};
 }
 
 function showAddHouseholdItemModal(){openHouseholdItemModal(null);}
