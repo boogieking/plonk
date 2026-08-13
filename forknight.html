@@ -2388,6 +2388,67 @@ async function startTrolleyMode(restoring){
   renderTrolleyUI();
   if(!restoring){saveTrolleyState();showToast('Shopping mode on — tick items as you add them 🛒');}
 }
+/* ── HOUSEHOLD ITEMS → TROLLEY FINISH INTEGRATION ────── */
+let _hhTrolleyLogItemsCache=[];
+
+function showHouseholdTrolleyLogModal(){
+  const{definiteNeed,probablyDue}=gatherHouseholdItemSuggestions();
+  const probablyDueNotDismissed=probablyDue.filter(item=>!dismissedProbablyDue.has(item.id));
+  const relevantItems=[...definiteNeed,...probablyDueNotDismissed];
+  if(relevantItems.length===0)return;
+  _hhTrolleyLogItemsCache=relevantItems;
+  const todayStr=new Date().toISOString().slice(0,10);
+  const rows=relevantItems.map(item=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(200,180,160,0.15)">
+    <input type="checkbox" id="hh-trolley-check-${item.id}" checked style="flex-shrink:0">
+    <div style="flex:1;font-size:0.88rem">${escapeHtml(item.item_name_en)}</div>
+    <input type="number" id="hh-trolley-packs-${item.id}" min="1" step="1" value="1" class="search-input" style="width:70px;flex-shrink:0" title="Packs bought">
+  </div>`).join('');
+  const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
+  el.innerHTML=`<div class="modal" style="max-width:440px;max-height:90vh;overflow-y:auto">
+    <h3>Did you buy any household items?</h3>
+    <p>Check off anything you picked up so we can keep your stock up to date.</p>
+    <div><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:5px">Date purchased</label><input id="hh-trolley-date" type="date" class="search-input" value="${todayStr}" style="width:100%"></div>
+    <div style="margin-top:12px">${rows}</div>
+    <div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Skip</button><button class="btn-primary" onclick="saveHouseholdTrolleyLog()">Log purchases</button></div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+async function saveHouseholdTrolleyLog(){
+  const purchased_at=document.getElementById('hh-trolley-date')?.value;
+  if(!purchased_at){showToast('Date purchased is required','error');return;}
+  const checkedItems=_hhTrolleyLogItemsCache.filter(item=>document.getElementById(`hh-trolley-check-${item.id}`)?.checked);
+  if(checkedItems.length===0){closeModal();return;}
+  for(const item of checkedItems){
+    const packsRaw=document.getElementById(`hh-trolley-packs-${item.id}`)?.value;
+    const quantity=packsRaw?parseFloat(packsRaw):1;
+    const{error}=await sb.from('household_item_purchases').insert({
+      item_id:item.id,
+      household_id:HOUSEHOLD_ID_FIXED,
+      purchased_at,
+      quantity,
+      pack_size:item.pack_size,
+      source:'trolley',
+      created_by:currentUser.id
+    });
+    if(error){showToast('Error logging purchase for '+item.item_name_en+': '+error.message,'error');return;}
+  }
+  for(const item of checkedItems){
+    await recalculateItemPattern(item.id);
+  }
+  for(const item of checkedItems){
+    if(item.stock_state==='running low'){
+      const{error}=await sb.from('household_items').update({stock_state:'have it'}).eq('id',item.id);
+      if(error){showToast('Error updating stock for '+item.item_name_en+': '+error.message,'error');return;}
+    }
+  }
+  await loadHouseholdItems();
+  if(currentView==='household'){renderHouseholdTab();}
+  closeModal();
+  showToast('Household purchases logged');
+}
+/* ── END HOUSEHOLD ITEMS → TROLLEY FINISH INTEGRATION ── */
+
 async function finishTrolleyMode(){
   // Check for unsaved adhoc items first
   const shouldContinue=await checkUnsavedAdhocItems();
@@ -2639,7 +2700,7 @@ function showReceiptModal(items,totalMXN,savedCount,showPrepGuide=false,budgetHt
     ${budgetHtml}
     <div class="modal-btns" style="margin-top:18px">
       <button class="btn-secondary" onclick="closeModal();setTimeout(openReceiptScanner,150)">📄 Scan receipt</button>
-      <button class="btn-primary" onclick="closeModal();if(window._showPrepGuideAfterReceipt){window._showPrepGuideAfterReceipt=false;setTimeout(openPrepGuide,300);}">Done</button>
+      <button class="btn-primary" onclick="closeModal();if(window._showPrepGuideAfterReceipt){window._showPrepGuideAfterReceipt=false;setTimeout(openPrepGuide,300);}else{showHouseholdTrolleyLogModal();}">Done</button>
     </div>
   </div>`;
   document.body.appendChild(el);
@@ -3079,14 +3140,14 @@ async function openPrepGuide(){
       </style>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
         <div class="card-title">🧑‍🍳 This week's prep</div>
-        <button onclick="document.getElementById('prep-guide-modal').remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid)">✕</button>
+        <button onclick="document.getElementById('prep-guide-modal').remove();showHouseholdTrolleyLogModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid)">✕</button>
       </div>
       <div style="font-size:0.8rem;color:var(--mid);margin-bottom:8px">Tick off as you go — saves your progress</div>
       <div class="prep-progress-bar"><div class="prep-progress-fill" id="prep-progress-fill" style="width:${Math.round(getDoneCount()/totalTasks*100)}%"></div></div>
       <div style="font-size:0.75rem;color:var(--mid);text-align:right;margin-bottom:8px" id="prep-progress-label">${getDoneCount()} of ${totalTasks} done</div>
       <div id="prep-tasks-list">${buildTasksHTML()}</div>
       <div style="margin-top:16px;text-align:center">
-        <button onclick="document.getElementById('prep-guide-modal').remove()" class="btn-primary" style="padding:10px 32px">Done for now</button>
+        <button onclick="document.getElementById('prep-guide-modal').remove();showHouseholdTrolleyLogModal()" class="btn-primary" style="padding:10px 32px">Done for now</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
