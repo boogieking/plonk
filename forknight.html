@@ -2247,24 +2247,47 @@ async function buildPreShopEstimate(mealItems){
     if(ingIds.length===0)return'';
     // Fetch recorded prices
     const{data:prods}=await sb.from('household_products')
-      .select('ingredient_id,last_price_mxn,category')
+      .select('id,ingredient_id,last_price_mxn,category,sold_by_weight')
       .in('ingredient_id',ingIds)
       .not('last_price_mxn','is',null);
-    const priceMap={};const catMap={};
+    const priceMap={};const catMap={};const weightMap={};const productIdMap={};
     for(const p of (prods||[])){
       const id=p.ingredient_id;
-      if(!priceMap[id]){priceMap[id]=parseFloat(p.last_price_mxn||0);catMap[id]=p.category||null;}
+      if(!priceMap[id]){priceMap[id]=parseFloat(p.last_price_mxn||0);catMap[id]=p.category||null;weightMap[id]=!!p.sold_by_weight;productIdMap[id]=p.id;}
+    }
+    // For weight items, look up average purchase quantity (kg) from price history
+    const weightProductIds=Object.entries(weightMap).filter(([,isW])=>isW).map(([ingId])=>productIdMap[ingId]).filter(Boolean);
+    const avgQtyMap={}; // keyed by product id
+    if(weightProductIds.length>0){
+      const{data:qtyRows}=await sb.from('price_history').select('product_id,quantity_kg').in('product_id',weightProductIds).not('quantity_kg','is',null);
+      const qtyByProduct={};
+      for(const r of (qtyRows||[])){
+        if(!qtyByProduct[r.product_id])qtyByProduct[r.product_id]=[];
+        qtyByProduct[r.product_id].push(parseFloat(r.quantity_kg));
+      }
+      for(const pid of weightProductIds){
+        const qtys=qtyByProduct[pid];
+        avgQtyMap[pid]=qtys?.length?qtys.reduce((s,q)=>s+q,0)/qtys.length:1.0;// fallback 1.0kg — no history yet
+      }
     }
     // Build totals — use real price if available, fallback otherwise
     const catTotalsMid={};
     let totalMid=0,totalLow=0,totalHigh=0;
     let realCount=0,fallbackCount=0;
+    const weightBreakdownItems=[];
     for(const ing of mealItems){
       const realPrice=priceMap[ing.id];
       const cat=normaliseCat(catMap[ing.id]||ing.lacomer_category||'Other');
+      const isWeight=weightMap[ing.id];
       let mid,low,high;
       if(realPrice>0){
-        mid=realPrice;low=realPrice*0.9;high=realPrice*1.15;// recorded price — tight range
+        if(isWeight){
+          const avgQty=avgQtyMap[productIdMap[ing.id]]??1.0;
+          mid=realPrice*avgQty;low=mid*0.9;high=mid*1.15;
+          weightBreakdownItems.push({name:ing.name_en||ing.name_es,perKg:realPrice,qty:avgQty,mid});
+        }else{
+          mid=realPrice;low=realPrice*0.9;high=realPrice*1.15;// recorded price — tight range
+        }
         realCount++;
       }else{
         mid=fallbackPrice(ing);low=mid*0.75;high=mid*1.35;// fallback — wider range
@@ -2276,6 +2299,7 @@ async function buildPreShopEstimate(mealItems){
     const bkId='pre-estimate-bk-'+Date.now();
     let breakdownRows=Object.entries(catTotalsMid).sort((a,b)=>a[0].localeCompare(b[0])).map(([cat,tot])=>`<div class="pre-estimate-row"><span>${cat}</span><span>$${Math.round(tot)}</span></div>`).join('');
     breakdownRows+=`<div class="pre-estimate-row total-row"><span>Estimated total</span><span>$${Math.round(totalMid)} MXN</span></div>`;
+    const weightNote=weightBreakdownItems.length?weightBreakdownItems.map(w=>`<div class="pre-estimate-row" style="font-size:0.72rem;color:var(--mid)"><span>⚖️ ${w.name}</span><span>~${w.qty.toFixed(1)}kg × ~$${Math.round(w.perKg)}/kg ≈ $${Math.round(w.mid)}</span></div>`).join(''):'';
     const fallbackNote=fallbackCount>0?`<div class="pre-estimate-unpriced">⚠ ${fallbackCount} item${fallbackCount>1?'s':''} using estimated prices — shop actual prices may differ</div>`:'';
     return`<div class="pre-estimate-banner" id="pre-estimate-banner">
       <div style="text-align:right;font-size:0.72rem;color:#b0a898;margin-bottom:2px">could be as low as ~$${Math.round(totalLow)} MXN</div>
@@ -2287,6 +2311,7 @@ async function buildPreShopEstimate(mealItems){
       </div>
       <div class="pre-estimate-breakdown" id="${bkId}">
         ${breakdownRows}
+        ${weightNote}
         ${fallbackNote}
         <div style="font-size:0.72rem;color:var(--mid);margin-top:4px">${realCount>0?'Real prices from last shop · ':''}Estimates based on typical La Comer prices</div>
       </div>
@@ -2461,9 +2486,13 @@ async function finishTrolleyMode(){
     for(const[ingId,item]of itemsWithPrice){
       try{
         // Find existing products for this ingredient; prefer the preferred-La-Comer row
-        const{data:existing}=await sb.from('household_products').select('id,is_preferred_lacomer').eq('ingredient_id',ingId);
+        const{data:existing}=await sb.from('household_products').select('id,is_preferred_lacomer,sold_by_weight').eq('ingredient_id',ingId);
         if(existing&&existing.length>0){
           const target=existing.find(p=>p.is_preferred_lacomer)||existing[0];
+          if(target.sold_by_weight){
+            // Manually-entered total in trolley mode isn't a per-kg price — can't derive one, so skip persisting it.
+            continue;
+          }
           const{error}=await sb.from('household_products').update({last_price_mxn:item.price}).eq('id',target.id);
           if(!error){
             savedCount++;
@@ -5325,7 +5354,7 @@ async function renderPriceTrendsView(){
   if(!eligible.length){grid.innerHTML=`<div class="empty"><span class="empty-icon">📈</span>Not enough data yet — need at least 2 shops per product to show trends.</div>`;return;}
   // Load product names
   const productIds=eligible.map(([id])=>id);
-  const{data:products}=await sb.from('household_products').select('id,name_en,name_es,category').in('id',productIds);
+  const{data:products}=await sb.from('household_products').select('id,name_en,name_es,category,sold_by_weight').in('id',productIds);
   const prodMap={};for(const p of products||[])prodMap[p.id]=p;
   // Build trend data
   const trends=eligible.map(([id,rows])=>{
@@ -5364,13 +5393,15 @@ async function renderPriceTrendsView(){
       const col=p===max?'#c44':p===min?'#3a7a3a':'var(--clay)';
       return`<div class="spark-bar" style="height:${h}px;background:${col}"></div>`;
     }).join('');
+    const isWeight=!!t.prod.sold_by_weight;
     return`<div class="trend-row" onclick="showPriceHistory(this.dataset.tid,this.dataset.name)" data-tid="${t.id}" data-name="${esc(t.prod.name_en||t.prod.name_es)}">
       <div style="flex:1">
         <div class="trend-name">${t.prod.name_en||t.prod.name_es}${t.lastIsPromo?' <span style="font-size:0.7rem;background:#fff3cd;color:#856404;border-radius:4px;padding:1px 5px;font-weight:600">🏷️ Promo</span>':''}</div>
         ${t.prod.name_es&&t.prod.name_en!==t.prod.name_es?`<div class="trend-name-es">${t.prod.name_es}</div>`:''}
+        ${isWeight?`<div class="trend-name-es">⚖️ per kg</div>`:''}
       </div>
       <div class="sparkline">${bars}</div>
-      <div class="trend-price">$${t.last.toFixed(2)}</div>
+      <div class="trend-price">$${t.last.toFixed(2)}${isWeight?'/kg':''}</div>
       <div class="trend-change ${dir}">${changeStr}</div>
     </div>`;
   }).join('');
@@ -6027,13 +6058,15 @@ async function processReceiptImage(input){
             {type:'image',source:{type:'base64',media_type:(['image/jpeg','image/png','image/webp','image/gif'].includes(file.type)?file.type:'image/jpeg'),data:base64}},
             {type:'text',text:`This is a La Comer supermarket receipt from Mexico. Extract all purchased items AND any promotions.
 Return ONLY a JSON object, no other text, no markdown:
-{"items":[{"name_es":"exact Spanish name from receipt","name_en":"English translation","price_mxn":99.99,"unit_price_mxn":99.99,"weight_or_qty":"1.456 kg","barcode":null,"category_guess":"Meats & Eggs"}],"promotions":[{"description_es":"Spanish text","description_en":"English translation","value_mxn":50.00,"expires":"2026-06-30"}]}
+{"items":[{"name_es":"exact Spanish name from receipt","name_en":"English translation","price_mxn":99.99,"unit_price_mxn":99.99,"weight_or_qty":"1.456 kg","quantity_kg":null,"price_per_kg":null,"barcode":null,"category_guess":"Meats & Eggs"}],"promotions":[{"description_es":"Spanish text","description_en":"English translation","value_mxn":50.00,"expires":"2026-06-30"}]}
 Rules for items:
 - name_es: exact Spanish product name as printed (clean up abbreviations where obvious e.g. "PECHUGA PO SIN HUES" → "Pechuga de Pollo Sin Hueso")
 - name_en: translate name_es to clear English (e.g. "Boneless Chicken Breast")
-- price_mxn: TOTAL price paid for that line
+- price_mxn: TOTAL price paid for that line (always the total, even for weight items)
 - unit_price_mxn: unit/kg price if shown, otherwise same as price_mxn
 - weight_or_qty: the amount purchased (e.g. "1.456 kg", "2 pcs", "500 ml") — null if not shown
+- La Comer weight-sold items (deli meat, loose produce, bulk cheese etc.) print as e.g. "1.234 KG X $89.50/KG $110.40" (weight × unit rate = total). For these lines set: quantity_kg = the weight in kg (e.g. 1.234), price_per_kg = the per-kg rate (e.g. 89.50). price_mxn stays the total (e.g. 110.40).
+- quantity_kg / price_per_kg: null for fixed-price (non-weight) items
 - barcode: barcode/SKU number if visible on the receipt line (usually 7-13 digits), otherwise null
 - category_guess: one of: Meats & Eggs, Dairy, Produce, Grains Pasta & Bakery, Canned & Packaged Foods, Herbs Vinegar & Condiments, Frozen, Beverages, Household / Cleaning, Other
 - Do NOT include promotions, discounts, vouchers, IVA, totals, store info, or payment info as items
@@ -6202,12 +6235,16 @@ async function saveReceiptItems(){
     try{
       if(item.existingProduct){
         // Update price (and fill in name_en/category if missing)
-        const updates={last_price_mxn:item.price_mxn};
+        const isWeightItem=item.existingProduct.sold_by_weight&&item.price_per_kg>0;
+        const priceForHistory=isWeightItem?item.price_per_kg:item.price_mxn;
+        const updates={last_price_mxn:priceForHistory};
         if(!item.existingProduct.name_en&&item.name_en)updates.name_en=item.name_en;
         if(!item.existingProduct.category&&item.category_guess)updates.category=item.category_guess;
         if(!item.existingProduct.ingredient_id&&item.matchedIngredient)updates.ingredient_id=item.matchedIngredient.id;
         await sb.from('household_products').update(updates).eq('id',item.existingProduct.id);
-        await sb.from('price_history').insert({product_id:item.existingProduct.id,price_mxn:item.price_mxn,plan_id:currentPlan?.id||null,added_by:userProfile?.id||null,recorded_at:new Date().toISOString()});
+        const historyRow={product_id:item.existingProduct.id,price_mxn:priceForHistory,plan_id:currentPlan?.id||null,added_by:userProfile?.id||null,recorded_at:new Date().toISOString()};
+        if(isWeightItem){historyRow.quantity_kg=item.quantity_kg||null;historyRow.price_per_kg=item.price_per_kg;}
+        await sb.from('price_history').insert(historyRow);
         updated++;
       }else{
         // Build notes: include weight/qty and unit price if available
