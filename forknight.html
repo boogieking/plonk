@@ -6973,6 +6973,7 @@ async function saveHouseholdSizeFromUI(){
   await saveHouseholdSize(n);
   const saved=document.getElementById('household-size-saved');
   if(saved){saved.style.display='';setTimeout(()=>saved.style.display='none',2000);}
+}
 // ── RECIPE ONBOARDING ──────────────────────────────────────────────────────
 function downloadRecipeTemplate(){
   const headers=[
@@ -7444,7 +7445,6 @@ function aiWizCancel(){
   window._aiwiz=null;
 }
 // ── END RECIPE ONBOARDING ──────────────────────────────────────────────────
-}
 async function renderFrozenInventoryPanel(){
   const el=document.getElementById('frozen-inventory-list');if(!el)return;
   await loadFrozenInventory();
