@@ -842,7 +842,7 @@ const REQUEST_LABELS={swap:'Swap request',hibernate:'Hibernation request',new:'N
 let currentUser=null,userProfile=null,currentPlan=null,currentMeals=[],currentDinners=[];
 async function proxyFetch(body){const{data:{session}}=await sb.auth.getSession();const token=session?.access_token;if(!token){showToast('Session expired — please sign in again','error');await sb.auth.signOut();window.location.href='index.html';return null;}return fetch('https://claude-proxy.cameronjohnking.workers.dev',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(body)});}
 
-let frozenInventoryCache=null,householdSizeCache=null;
+let frozenInventoryCache=null,householdSizeCache=null,siennaMealsPausedCache=null;
 let pantryStockCache=null;
 let ingredientAliasMap=null;
 async function init(){
@@ -909,12 +909,57 @@ function normaliseIngredientName(name){
 }
 async function loadHouseholdSize(){if(householdSizeCache!==null)return householdSizeCache;const{data}=await sb.from('app_settings').select('value').eq('key','household_size').maybeSingle();householdSizeCache=data?parseInt(data.value)||3:3;return householdSizeCache;}
 async function saveHouseholdSize(n){householdSizeCache=n;await sb.from('app_settings').update({value:String(n)}).eq('key','household_size');}
+async function loadSiennaMealsPaused(){
+  if(siennaMealsPausedCache!==null)return siennaMealsPausedCache;
+  const{data}=await sb.from('app_settings').select('value').eq('key','sienna_meals_paused').maybeSingle();
+  if(data){siennaMealsPausedCache=data.value==='true';}
+  else{siennaMealsPausedCache=false;await sb.from('app_settings').upsert({key:'sienna_meals_paused',value:'false'},{onConflict:'key'});}
+  return siennaMealsPausedCache;
+}
+async function saveSiennaMealsPaused(paused){siennaMealsPausedCache=paused;await sb.from('app_settings').upsert({key:'sienna_meals_paused',value:String(paused)},{onConflict:'key'});}
+async function saveSiennaMealsPausedFromUI(paused){
+  await saveSiennaMealsPaused(paused);
+  const lbl=document.getElementById('perm-lbl-sienna-meals-paused');
+  if(lbl){lbl.textContent=paused?'OFF':'ON';lbl.style.color=paused?'var(--mid)':'var(--clay)';}
+  showToast(paused?"Sienna's personal meals paused":"Sienna's personal meals resumed");
+}
+const WHOS_HOME_PEOPLE=['Cameron','Sienna','Karen'];
+let whosHomeSelection=null;
+function ensureWhosHomeSelection(){
+  if(!currentPlan)return{Cameron:true,Sienna:true,Karen:true};
+  if(whosHomeSelection&&whosHomeSelection._planId===currentPlan.id)return whosHomeSelection;
+  const n=currentPlan.default_serves??3;
+  const sel={_planId:currentPlan.id};
+  WHOS_HOME_PEOPLE.forEach((p,i)=>sel[p]=i<n);
+  whosHomeSelection=sel;
+  return sel;
+}
+function renderWhosHome(){
+  const sel=ensureWhosHomeSelection();
+  const count=WHOS_HOME_PEOPLE.filter(p=>sel[p]).length;
+  return`<div class="card" style="margin-bottom:20px">
+    <div class="card-header"><div class="card-title">Who's home this week?</div><span class="tag tag-gray">${count} serving${count!==1?'s':''} default</span></div>
+    <div class="day-selector">${WHOS_HOME_PEOPLE.map(p=>`<button class="day-btn${sel[p]?' selected':''}" onclick="toggleWhosHome('${p}')">${p}</button>`).join('')}</div>
+    <div style="font-size:0.78rem;color:var(--mid);margin-top:10px">Sets the default headcount when scheduling meals this week.</div>
+  </div>`;
+}
+async function toggleWhosHome(person){
+  const sel=ensureWhosHomeSelection();
+  sel[person]=!sel[person];
+  const n=Math.max(1,WHOS_HOME_PEOPLE.filter(p=>sel[p]).length);
+  if(currentPlan){
+    currentPlan.default_serves=n;
+    const{error}=await sb.from('weekly_plans').update({default_serves:n}).eq('id',currentPlan.id);
+    if(error){showToast('Error saving: '+error.message,'error');return;}
+  }
+  await renderDashboard();
+}
 function getFrozenPortions(recipeId){return(frozenInventoryCache||[]).filter(f=>f.recipe_id===recipeId).reduce((sum,f)=>sum+f.portions,0);}
 async function hasSufficientFrozen(recipeId){const portions=getFrozenPortions(recipeId);const size=await loadHouseholdSize();return portions>=size;}
 async function renderDashboard(){
   showLoader();
   await loadSidesLibrary();const recipes=await loadRecipes();const content=document.getElementById('dashboard-content');
-  await loadKarenAdditions();await loadPendingIdeaRatings();await loadShopPresets();await loadFrozenInventory();await loadHouseholdSize();
+  await loadKarenAdditions();await loadPendingIdeaRatings();await loadShopPresets();await loadFrozenInventory();await loadHouseholdSize();await loadSiennaMealsPaused();
   if(userProfile.role==='admin'){content.innerHTML=renderCameron(recipes,userProfile.name);applySectionOrder('admin',['cam-requests','cam-ratings','prep-reminders','cam-meals','cam-inventory','cam-shopping','cam-leftovers']);await loadPendingRequests();if(currentPlan?.status==='approved'&&currentUserCan('show_inventory'))await loadInventory();if(currentUserCan('show_leftovers'))loadLeftovers();restoreShoppingAndTrolleyState();}
   else if(userProfile.role==='planner'){content.innerHTML=renderSienna(recipes,userProfile.name);applySectionOrder('planner',['sie-meals','sie-dinners','sie-requests','sie-ratings','prep-reminders','sie-inventory','sie-shopping']);if(currentUserCan('show_inventory'))await loadInventory();restoreShoppingAndTrolleyState();}
   else{content.innerHTML=renderKaren(recipes,userProfile.name);applySectionOrder('reviewer',['kar-meals','kar-requests','kar-ratings','kar-shopping']);renderKarenAdditionsList();loadKarenShoppingPreview();}
@@ -952,6 +997,7 @@ function renderCameron(recipes,name){
         <button class="btn-secondary" onclick="openEatingOutModal()">${hasPlan?'Start new plan':'Set eating-out days'}</button>
       </div>
     </div>
+    ${hasPlan?renderWhosHome():''}
     <div class="grid-3">
       <div class="card stat-tile"><div class="stat-num">${recipes.length}</div><div class="stat-label">Recipes in rotation</div></div>
       <div class="card stat-tile"><div class="stat-num" id="pending-count">—</div><div class="stat-label">Pending requests</div></div>
@@ -981,7 +1027,7 @@ function renderCameron(recipes,name){
       ${reshuffleLogHtml}
     </div>
     ${sectionEnd()}
-    ${currentPlan?.status==='approved'?sectionHeader('cam-dinners','Dinners this week',false)+`<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Tonight's options</div><div style="display:flex;gap:8px;flex-wrap:wrap">${currentDinners.length>0?`<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all</button>`:''}<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="openAddDinnerModal()">+ Add dinner</button></div></div><div id="dinner-list-cam">${renderDinnerListAdmin()}</div></div>`+sectionEnd():''}
+    ${!siennaMealsPausedCache&&currentPlan?.status==='approved'?sectionHeader('cam-dinners','Dinners this week',false)+`<div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Tonight's options</div><div style="display:flex;gap:8px;flex-wrap:wrap">${currentDinners.length>0?`<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all</button>`:''}<button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="openAddDinnerModal()">+ Add dinner</button></div></div><div id="dinner-list-cam">${renderDinnerListAdmin()}</div></div>`+sectionEnd():''}
     ${currentUserCan('show_inventory')?sectionHeader('cam-inventory','Inventory check', false)+`
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><div class="card-title">Fridge & freezer</div>${currentPlan?.status==='approved'?`<button class="btn-primary" style="font-size:0.8rem;padding:7px 14px" onclick="submitInventory()">Save inventory</button>`:`<span class="tag tag-gray">Submit plan first</span>`}</div>
@@ -1799,7 +1845,7 @@ function renderSienna(recipes,name){
       ${hasPlan&&currentMeals.length>0?`<div class="meal-list">${currentMeals.map(m=>mealRowSienna(m)).join('')}</div>`:`<div class="empty"><span class="empty-icon">🍽️</span>${hasPlan?'No meals in plan yet':'No plan yet this week'}</div>`}
     </div>
     ${sectionEnd()}
-   ${userProfile.role==='planner'&&currentPlan?.status==='approved'&&currentUserCan('manage_dinners')&&currentUserCan('show_dinners')?sectionHeader('sie-dinners','Dinners this week',false)+`<div class="card" style="margin-bottom:20px" id="dinner-section"><div class="card-header"><div class="card-title">Tonight\'s options</div><button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all dinners</button></div><div id="dinner-list">${renderDinnerList()}</div></div>`+sectionEnd():''}
+   ${!siennaMealsPausedCache&&userProfile.role==='planner'&&currentPlan?.status==='approved'&&currentUserCan('manage_dinners')&&currentUserCan('show_dinners')?sectionHeader('sie-dinners','Dinners this week',false)+`<div class="card" style="margin-bottom:20px" id="dinner-section"><div class="card-header"><div class="card-title">Tonight\'s options</div><button class="btn-secondary" style="font-size:0.8rem;padding:7px 14px" onclick="reshuffleDinners()">🔀 Reshuffle all dinners</button></div><div id="dinner-list">${renderDinnerList()}</div></div>`+sectionEnd():''}
     ${currentUserCan('show_requests')?sectionHeader('sie-requests','Requests')+`
     <div class="card" style="margin-bottom:20px"><div class="card-header"><div class="card-title">Requests</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">${currentUserCan('submit_swap')?`<button class="btn-secondary" onclick="openModal('swap')">🔄 Request swap</button>`:''}<button class="btn-secondary" onclick="openModal('hibernate')">😴 Request hibernation</button>${currentUserCan('suggest_meals')?`<button class="btn-secondary" onclick="openModal('new')">✨ Suggest new meal</button>`:''}</div></div>
     `+sectionEnd():''}
@@ -1844,12 +1890,15 @@ const validIds2=new Set((planIngs2||[]).map(i=>String(i.id)));
 const needIds=Object.entries(currentPlan.inventory).filter(([id,s])=>s==='need'&&validIds2.has(id)).map(([id])=>id);
   if(needIds.length===0){el.innerHTML=`<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;return;}
   try{
-    const{data:planMealsWithNames}=await sb.from('weekly_plan_meals').select('recipe_id, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',currentPlan.id);
+    const{data:planMealsWithNames}=await sb.from('weekly_plan_meals').select('recipe_id, guest_count, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',currentPlan.id);
     const recipeNameMap2={};for(const m of (planMealsWithNames||[])){if(m.recipes)recipeNameMap2[m.recipe_id]=m.recipes.name_en;}
+    const householdSize=await loadHouseholdSize();
+    const recipeScaleMap2=buildRecipeScaleMap(planMealsWithNames,householdSize);
     const{data:planIngsWithRec}=await sb.from('ingredients').select('id,recipe_id').in('recipe_id',planRecipeIds2);
     const ingToRecipes2={};for(const i of (planIngsWithRec||[])){if(!ingToRecipes2[i.id])ingToRecipes2[i.id]=[];ingToRecipes2[i.id].push(i.recipe_id);}
     const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit,has_ready_alt,ready_name_en,ready_name_es,ready_quantity,ready_unit,ready_lacomer_url,ready_lacomer_category,ready_prep_delta_minutes').in('id',needIds);if(error)throw error;
-    const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipes2[ing.id]||[]).map(rid=>recipeNameMap2[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
+    const scaledIngredients2=scaleIngredientsByRecipe(ingredients,ingToRecipes2,recipeScaleMap2);
+    const deduped={};for(const ing of scaledIngredients2){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipes2[ing.id]||[]).map(rid=>recipeNameMap2[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
     const linked=await applyProductLinks(Object.values(deduped));const items=linked.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load preview: ${err.message}</div>`;}
 }
@@ -1895,12 +1944,15 @@ async function loadKarenShoppingPreview(){
   const needIds=Object.entries(currentPlan.inventory).filter(([id,s])=>s==='need'&&validIds2.has(id)).map(([id])=>id);
   if(needIds.length===0){el.innerHTML=`<div class="empty" style="color:var(--green)">✓ Everything is in stock!</div>`;return;}
   try{
-    const{data:planMealsK}=await sb.from('weekly_plan_meals').select('recipe_id, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',currentPlan.id);
+    const{data:planMealsK}=await sb.from('weekly_plan_meals').select('recipe_id, guest_count, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en)').eq('plan_id',currentPlan.id);
     const recipeNameMapK={};for(const m of (planMealsK||[])){if(m.recipes)recipeNameMapK[m.recipe_id]=m.recipes.name_en;}
+    const householdSize=await loadHouseholdSize();
+    const recipeScaleMapK=buildRecipeScaleMap(planMealsK,householdSize);
     const{data:planIngsK}=await sb.from('ingredients').select('id,recipe_id').in('recipe_id',planRecipeIds2);
     const ingToRecipesK={};for(const i of (planIngsK||[])){if(!ingToRecipesK[i.id])ingToRecipesK[i.id]=[];ingToRecipesK[i.id].push(i.recipe_id);}
     const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit,has_ready_alt,ready_name_en,ready_name_es,ready_quantity,ready_unit,ready_lacomer_url,ready_lacomer_category,ready_prep_delta_minutes').in('id',needIds);if(error)throw error;
-    const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipesK[ing.id]||[]).map(rid=>recipeNameMapK[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
+    const scaledIngredientsK=scaleIngredientsByRecipe(ingredients,ingToRecipesK,recipeScaleMapK);
+    const deduped={};for(const ing of scaledIngredientsK){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipesK[ing.id]||[]).map(rid=>recipeNameMapK[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
     const linked=await applyProductLinks(Object.values(deduped));const items=linked.sort((a,b)=>(a.lacomer_category||'').localeCompare(b.lacomer_category||'')||a.name_en.localeCompare(b.name_en));el.innerHTML=renderShoppingListHTML(items,[],false,karenAdditions);}
   catch(err){el.innerHTML=`<div class="empty" style="color:#c44">Could not load list: ${err.message}</div>`;}
 }
@@ -2247,47 +2299,24 @@ async function buildPreShopEstimate(mealItems){
     if(ingIds.length===0)return'';
     // Fetch recorded prices
     const{data:prods}=await sb.from('household_products')
-      .select('id,ingredient_id,last_price_mxn,category,sold_by_weight')
+      .select('ingredient_id,last_price_mxn,category')
       .in('ingredient_id',ingIds)
       .not('last_price_mxn','is',null);
-    const priceMap={};const catMap={};const weightMap={};const productIdMap={};
+    const priceMap={};const catMap={};
     for(const p of (prods||[])){
       const id=p.ingredient_id;
-      if(!priceMap[id]){priceMap[id]=parseFloat(p.last_price_mxn||0);catMap[id]=p.category||null;weightMap[id]=!!p.sold_by_weight;productIdMap[id]=p.id;}
-    }
-    // For weight items, look up average purchase quantity (kg) from price history
-    const weightProductIds=Object.entries(weightMap).filter(([,isW])=>isW).map(([ingId])=>productIdMap[ingId]).filter(Boolean);
-    const avgQtyMap={}; // keyed by product id
-    if(weightProductIds.length>0){
-      const{data:qtyRows}=await sb.from('price_history').select('product_id,quantity_kg').in('product_id',weightProductIds).not('quantity_kg','is',null);
-      const qtyByProduct={};
-      for(const r of (qtyRows||[])){
-        if(!qtyByProduct[r.product_id])qtyByProduct[r.product_id]=[];
-        qtyByProduct[r.product_id].push(parseFloat(r.quantity_kg));
-      }
-      for(const pid of weightProductIds){
-        const qtys=qtyByProduct[pid];
-        avgQtyMap[pid]=qtys?.length?qtys.reduce((s,q)=>s+q,0)/qtys.length:1.0;// fallback 1.0kg — no history yet
-      }
+      if(!priceMap[id]){priceMap[id]=parseFloat(p.last_price_mxn||0);catMap[id]=p.category||null;}
     }
     // Build totals — use real price if available, fallback otherwise
     const catTotalsMid={};
     let totalMid=0,totalLow=0,totalHigh=0;
     let realCount=0,fallbackCount=0;
-    const weightBreakdownItems=[];
     for(const ing of mealItems){
       const realPrice=priceMap[ing.id];
       const cat=normaliseCat(catMap[ing.id]||ing.lacomer_category||'Other');
-      const isWeight=weightMap[ing.id];
       let mid,low,high;
       if(realPrice>0){
-        if(isWeight){
-          const avgQty=avgQtyMap[productIdMap[ing.id]]??1.0;
-          mid=realPrice*avgQty;low=mid*0.9;high=mid*1.15;
-          weightBreakdownItems.push({name:ing.name_en||ing.name_es,perKg:realPrice,qty:avgQty,mid});
-        }else{
-          mid=realPrice;low=realPrice*0.9;high=realPrice*1.15;// recorded price — tight range
-        }
+        mid=realPrice;low=realPrice*0.9;high=realPrice*1.15;// recorded price — tight range
         realCount++;
       }else{
         mid=fallbackPrice(ing);low=mid*0.75;high=mid*1.35;// fallback — wider range
@@ -2299,7 +2328,6 @@ async function buildPreShopEstimate(mealItems){
     const bkId='pre-estimate-bk-'+Date.now();
     let breakdownRows=Object.entries(catTotalsMid).sort((a,b)=>a[0].localeCompare(b[0])).map(([cat,tot])=>`<div class="pre-estimate-row"><span>${cat}</span><span>$${Math.round(tot)}</span></div>`).join('');
     breakdownRows+=`<div class="pre-estimate-row total-row"><span>Estimated total</span><span>$${Math.round(totalMid)} MXN</span></div>`;
-    const weightNote=weightBreakdownItems.length?weightBreakdownItems.map(w=>`<div class="pre-estimate-row" style="font-size:0.72rem;color:var(--mid)"><span>⚖️ ${w.name}</span><span>~${w.qty.toFixed(1)}kg × ~$${Math.round(w.perKg)}/kg ≈ $${Math.round(w.mid)}</span></div>`).join(''):'';
     const fallbackNote=fallbackCount>0?`<div class="pre-estimate-unpriced">⚠ ${fallbackCount} item${fallbackCount>1?'s':''} using estimated prices — shop actual prices may differ</div>`:'';
     return`<div class="pre-estimate-banner" id="pre-estimate-banner">
       <div style="text-align:right;font-size:0.72rem;color:#b0a898;margin-bottom:2px">could be as low as ~$${Math.round(totalLow)} MXN</div>
@@ -2311,13 +2339,27 @@ async function buildPreShopEstimate(mealItems){
       </div>
       <div class="pre-estimate-breakdown" id="${bkId}">
         ${breakdownRows}
-        ${weightNote}
         ${fallbackNote}
         <div style="font-size:0.72rem;color:var(--mid);margin-top:4px">${realCount>0?'Real prices from last shop · ':''}Estimates based on typical La Comer prices</div>
       </div>
       <div style="text-align:right;font-size:0.72rem;color:#b0a898;margin-top:4px">could be as high as ~$${Math.round(totalHigh)} MXN</div>
     </div>`;
   }catch(e){console.warn('Pre-shop estimate failed:',e);return '';}
+}
+// Guest-count scaling: each meal's effective headcount (its own override, else the
+// plan's "who's home" default, else household size) relative to household size.
+function buildRecipeScaleMap(planMeals,householdSize){
+  const map={};
+  for(const m of (planMeals||[])){const effectiveGuests=m.guest_count??currentPlan?.default_serves??householdSize;map[m.recipe_id]=effectiveGuests/(householdSize||3);}
+  return map;
+}
+function scaleIngredientsByRecipe(ingredients,ingToRecipes,scaleMap){
+  const scaleQty=(qty,scale)=>typeof qty==='number'&&scale!=null&&scale!==1?Math.round(qty*scale*100)/100:qty;
+  return ingredients.map(ing=>{
+    const owningRecipeId=(ingToRecipes[ing.id]||[])[0];
+    const scale=owningRecipeId!=null?scaleMap[owningRecipeId]:null;
+    return scale==null?ing:{...ing,quantity:scaleQty(ing.quantity,scale),ready_quantity:scaleQty(ing.ready_quantity,scale)};
+  });
 }
 async function generateShoppingList(){
   showLoader();
@@ -2326,12 +2368,13 @@ async function generateShoppingList(){
 
   btn.disabled=true;btn.textContent='Loading...';content.innerHTML=`<div class="empty"><div class="spin" style="width:24px;height:24px;border-width:2px;margin:0 auto 8px"></div>Building your list...</div>`;
   try{const inventory=currentPlan?.inventory||{};
-   const{data:planMeals}=await sb.from('weekly_plan_meals').select('recipe_id, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en,is_freezable)').eq('plan_id',currentPlan.id);
+   const{data:planMeals}=await sb.from('weekly_plan_meals').select('recipe_id, guest_count, recipes!weekly_plan_meals_recipe_id_fkey(id,name_en,is_freezable)').eq('plan_id',currentPlan.id);
     const planRecipeIds=[...new Set((planMeals||[]).map(m=>m.recipe_id))];
     const recipeNameMap={};for(const m of (planMeals||[])){if(m.recipes)recipeNameMap[m.recipe_id]=m.recipes.name_en;}
     // Load pantry stock for 3-tier split, and frozen inventory
     await loadPantryStock();
     await loadFrozenInventory();const householdSize=await loadHouseholdSize();
+    const recipeScaleMap=buildRecipeScaleMap(planMeals,householdSize);
     const frozenSkipRecipeIds=new Set();
     const frozenMealNotes={};
     for(const m of (planMeals||[])){
@@ -2355,7 +2398,8 @@ async function generateShoppingList(){
     if(frozenNotes.length>0){frozenNoticeHtml=`<div style="background:rgba(46,95,138,0.08);border:1px solid rgba(46,95,138,0.2);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:0.82rem;color:#2E5F8A">🧊 <strong>Frozen meals — main ingredients skipped:</strong><ul style="margin:6px 0 0 16px;padding:0">${frozenNotes.map(n=>`<li>${n}</li>`).join('')}</ul></div>`;}
     if(needIds.length===0){content.innerHTML=`<div class="empty" style="color:var(--green)">✓ You have everything for this week!</div>`;btn.textContent='Generate list';btn.disabled=false;return;}
     const{data:ingredients,error}=await sb.from('ingredients').select('id,name_en,name_es,lacomer_category,lacomer_url,quantity,unit,has_ready_alt,ready_name_en,ready_name_es,ready_quantity,ready_unit,ready_lacomer_url,ready_lacomer_category,ready_prep_delta_minutes').in('id',needIds);if(error)throw error;
-    const deduped={};for(const ing of ingredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipes[ing.id]||[]).map(rid=>recipeNameMap[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
+    const scaledIngredients=scaleIngredientsByRecipe(ingredients,ingToRecipes,recipeScaleMap);
+    const deduped={};for(const ing of scaledIngredients){const key=ing.name_en.toLowerCase();const mealNames=(ingToRecipes[ing.id]||[]).map(rid=>recipeNameMap[rid]).filter(Boolean);if(!deduped[key]){deduped[key]={...ing,_mealNames:mealNames};}else{if(!deduped[key].lacomer_url&&ing.lacomer_url)deduped[key].lacomer_url=ing.lacomer_url;const existing=new Set(deduped[key]._mealNames);mealNames.forEach(n=>existing.add(n));deduped[key]._mealNames=[...existing];}}
     // Apply scratch/ready-made resolution — override name/url/category per toggle state
     const planOverrides=currentPlan?.scratch_ready_overrides||{};
     const resolvedDeduped=Object.values(deduped).map(ing=>{const resolved=resolveIngredient(ing,{});return{...ing,name_en:resolved._displayName_en,name_es:resolved._displayName_es,lacomer_url:resolved._displayUrl,lacomer_category:resolved._displayCategory,quantity:resolved._displayQty,unit:resolved._displayUnit};});
@@ -2486,13 +2530,9 @@ async function finishTrolleyMode(){
     for(const[ingId,item]of itemsWithPrice){
       try{
         // Find existing products for this ingredient; prefer the preferred-La-Comer row
-        const{data:existing}=await sb.from('household_products').select('id,is_preferred_lacomer,sold_by_weight').eq('ingredient_id',ingId);
+        const{data:existing}=await sb.from('household_products').select('id,is_preferred_lacomer').eq('ingredient_id',ingId);
         if(existing&&existing.length>0){
           const target=existing.find(p=>p.is_preferred_lacomer)||existing[0];
-          if(target.sold_by_weight){
-            // Manually-entered total in trolley mode isn't a per-kg price — can't derive one, so skip persisting it.
-            continue;
-          }
           const{error}=await sb.from('household_products').update({last_price_mxn:item.price}).eq('id',target.id);
           if(!error){
             savedCount++;
@@ -3455,8 +3495,9 @@ function showPrepWarningModal(mealName,reason,alternatives,onProceedAnyway){
 function openScheduleModal(recipeId){
   const meal=currentMeals.find(m=>m.recipe_id===recipeId);const recipe=meal?.recipes;if(!meal||!recipe)return;
   const totalPrepCook=(recipe.prep_time_minutes||0)+(recipe.cook_time_minutes||0);
+  const defaultGuests=meal.guest_count??currentPlan?.default_serves??3;
   const el=document.createElement('div');el.id='modal-overlay';el.className='modal-overlay';
-  el.innerHTML=`<div class="modal" style="max-width:400px"><h3>Schedule ${escapeHtml(recipe.name_en)}</h3><p>Set which day and what time you want to eat. The app will tell you when to start prep.</p><div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Day</label><select id="sched-day" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— Pick a day —</option>${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div><div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Target eat time</label><input type="time" id="sched-time" value="13:00" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none"></div><div id="sched-calc" style="font-size:0.83rem;color:var(--mid);padding:10px 12px;background:var(--cream);border-radius:8px;margin-bottom:4px">Total prep + cook: <strong>${totalPrepCook} min</strong>. Set a time above to see when to start.</div><div id="sched-warn" style="display:none;margin-top:8px;padding:10px 12px;background:rgba(200,50,50,0.07);border-left:3px solid #c44;border-radius:0 8px 8px 0;font-size:0.82rem;color:#c03030"></div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="confirmSchedule('${meal.id}','${recipeId}',${totalPrepCook})">Save schedule</button></div></div>`;
+  el.innerHTML=`<div class="modal" style="max-width:400px"><h3>Schedule ${escapeHtml(recipe.name_en)}</h3><p>Set which day and what time you want to eat. The app will tell you when to start prep.</p><div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Day</label><select id="sched-day" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;background:white"><option value="">— Pick a day —</option>${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div><div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">Target eat time</label><input type="time" id="sched-time" value="13:00" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none"></div><div style="margin-bottom:14px"><label style="display:block;font-size:0.78rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--mid);margin-bottom:6px">How many people</label><input type="number" id="sched-guests" min="1" max="20" value="${defaultGuests}" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none"></div><div id="sched-calc" style="font-size:0.83rem;color:var(--mid);padding:10px 12px;background:var(--cream);border-radius:8px;margin-bottom:4px">Total prep + cook: <strong>${totalPrepCook} min</strong>. Set a time above to see when to start.</div><div id="sched-warn" style="display:none;margin-top:8px;padding:10px 12px;background:rgba(200,50,50,0.07);border-left:3px solid #c44;border-radius:0 8px 8px 0;font-size:0.82rem;color:#c03030"></div><div class="modal-btns"><button class="btn-ghost" onclick="closeModal()">Cancel</button><button class="btn-primary" onclick="confirmSchedule('${meal.id}','${recipeId}',${totalPrepCook})">Save schedule</button></div></div>`;
   document.body.appendChild(el);
   document.getElementById('sched-time').addEventListener('input',()=>updateSchedCalc(totalPrepCook));
   document.getElementById('sched-day').addEventListener('change',()=>updateSchedCalc(totalPrepCook));
@@ -3481,8 +3522,9 @@ async function confirmSchedule(planMealId,recipeId,totalMinutes){
   const assignedDate=dayNameToDate(dayName);if(!assignedDate){showToast('Could not calculate date for that day','error');return;}
   const[h,m]=eatTime.split(':').map(Number);const eatMins=h*60+m;const startMins=eatMins-totalMinutes;
   const prepStartTime=startMins<0?`${String(Math.floor((1440+startMins)/60)).padStart(2,'0')}:${String((1440+startMins)%60).padStart(2,'0')} (day before)`:`${String(Math.floor(startMins/60)).padStart(2,'0')}:${String(startMins%60).padStart(2,'0')}`;
-  const{error}=await sb.from('weekly_plan_meals').update({assigned_day:assignedDate,target_eat_time:eatTime,prep_start_time:prepStartTime}).eq('id',planMealId);if(error){showToast('Error saving: '+error.message,'error');return;}
-  const pm=currentMeals.find(m=>m.id===planMealId||m.recipe_id===recipeId);if(pm){pm.assigned_day=assignedDate;pm.target_eat_time=eatTime;pm.prep_start_time=prepStartTime;}
+  const guestCount=Math.max(1,parseInt(document.getElementById('sched-guests')?.value)||currentPlan?.default_serves||3);
+  const{error}=await sb.from('weekly_plan_meals').update({assigned_day:assignedDate,target_eat_time:eatTime,prep_start_time:prepStartTime,guest_count:guestCount}).eq('id',planMealId);if(error){showToast('Error saving: '+error.message,'error');return;}
+  const pm=currentMeals.find(m=>m.id===planMealId||m.recipe_id===recipeId);if(pm){pm.assigned_day=assignedDate;pm.target_eat_time=eatTime;pm.prep_start_time=prepStartTime;pm.guest_count=guestCount;}
   closeModal();showToast(`Scheduled for ${dayName} · Start prep by ${prepStartTime} ✓`);await renderDashboard();
 }
 function renderFrozenNudge(){
@@ -5354,7 +5396,7 @@ async function renderPriceTrendsView(){
   if(!eligible.length){grid.innerHTML=`<div class="empty"><span class="empty-icon">📈</span>Not enough data yet — need at least 2 shops per product to show trends.</div>`;return;}
   // Load product names
   const productIds=eligible.map(([id])=>id);
-  const{data:products}=await sb.from('household_products').select('id,name_en,name_es,category,sold_by_weight').in('id',productIds);
+  const{data:products}=await sb.from('household_products').select('id,name_en,name_es,category').in('id',productIds);
   const prodMap={};for(const p of products||[])prodMap[p.id]=p;
   // Build trend data
   const trends=eligible.map(([id,rows])=>{
@@ -5393,15 +5435,13 @@ async function renderPriceTrendsView(){
       const col=p===max?'#c44':p===min?'#3a7a3a':'var(--clay)';
       return`<div class="spark-bar" style="height:${h}px;background:${col}"></div>`;
     }).join('');
-    const isWeight=!!t.prod.sold_by_weight;
     return`<div class="trend-row" onclick="showPriceHistory(this.dataset.tid,this.dataset.name)" data-tid="${t.id}" data-name="${esc(t.prod.name_en||t.prod.name_es)}">
       <div style="flex:1">
         <div class="trend-name">${t.prod.name_en||t.prod.name_es}${t.lastIsPromo?' <span style="font-size:0.7rem;background:#fff3cd;color:#856404;border-radius:4px;padding:1px 5px;font-weight:600">🏷️ Promo</span>':''}</div>
         ${t.prod.name_es&&t.prod.name_en!==t.prod.name_es?`<div class="trend-name-es">${t.prod.name_es}</div>`:''}
-        ${isWeight?`<div class="trend-name-es">⚖️ per kg</div>`:''}
       </div>
       <div class="sparkline">${bars}</div>
-      <div class="trend-price">$${t.last.toFixed(2)}${isWeight?'/kg':''}</div>
+      <div class="trend-price">$${t.last.toFixed(2)}</div>
       <div class="trend-change ${dir}">${changeStr}</div>
     </div>`;
   }).join('');
@@ -6058,15 +6098,13 @@ async function processReceiptImage(input){
             {type:'image',source:{type:'base64',media_type:(['image/jpeg','image/png','image/webp','image/gif'].includes(file.type)?file.type:'image/jpeg'),data:base64}},
             {type:'text',text:`This is a La Comer supermarket receipt from Mexico. Extract all purchased items AND any promotions.
 Return ONLY a JSON object, no other text, no markdown:
-{"items":[{"name_es":"exact Spanish name from receipt","name_en":"English translation","price_mxn":99.99,"unit_price_mxn":99.99,"weight_or_qty":"1.456 kg","quantity_kg":null,"price_per_kg":null,"barcode":null,"category_guess":"Meats & Eggs"}],"promotions":[{"description_es":"Spanish text","description_en":"English translation","value_mxn":50.00,"expires":"2026-06-30"}]}
+{"items":[{"name_es":"exact Spanish name from receipt","name_en":"English translation","price_mxn":99.99,"unit_price_mxn":99.99,"weight_or_qty":"1.456 kg","barcode":null,"category_guess":"Meats & Eggs"}],"promotions":[{"description_es":"Spanish text","description_en":"English translation","value_mxn":50.00,"expires":"2026-06-30"}]}
 Rules for items:
 - name_es: exact Spanish product name as printed (clean up abbreviations where obvious e.g. "PECHUGA PO SIN HUES" → "Pechuga de Pollo Sin Hueso")
 - name_en: translate name_es to clear English (e.g. "Boneless Chicken Breast")
-- price_mxn: TOTAL price paid for that line (always the total, even for weight items)
+- price_mxn: TOTAL price paid for that line
 - unit_price_mxn: unit/kg price if shown, otherwise same as price_mxn
 - weight_or_qty: the amount purchased (e.g. "1.456 kg", "2 pcs", "500 ml") — null if not shown
-- La Comer weight-sold items (deli meat, loose produce, bulk cheese etc.) print as e.g. "1.234 KG X $89.50/KG $110.40" (weight × unit rate = total). For these lines set: quantity_kg = the weight in kg (e.g. 1.234), price_per_kg = the per-kg rate (e.g. 89.50). price_mxn stays the total (e.g. 110.40).
-- quantity_kg / price_per_kg: null for fixed-price (non-weight) items
 - barcode: barcode/SKU number if visible on the receipt line (usually 7-13 digits), otherwise null
 - category_guess: one of: Meats & Eggs, Dairy, Produce, Grains Pasta & Bakery, Canned & Packaged Foods, Herbs Vinegar & Condiments, Frozen, Beverages, Household / Cleaning, Other
 - Do NOT include promotions, discounts, vouchers, IVA, totals, store info, or payment info as items
@@ -6235,16 +6273,12 @@ async function saveReceiptItems(){
     try{
       if(item.existingProduct){
         // Update price (and fill in name_en/category if missing)
-        const isWeightItem=item.existingProduct.sold_by_weight&&item.price_per_kg>0;
-        const priceForHistory=isWeightItem?item.price_per_kg:item.price_mxn;
-        const updates={last_price_mxn:priceForHistory};
+        const updates={last_price_mxn:item.price_mxn};
         if(!item.existingProduct.name_en&&item.name_en)updates.name_en=item.name_en;
         if(!item.existingProduct.category&&item.category_guess)updates.category=item.category_guess;
         if(!item.existingProduct.ingredient_id&&item.matchedIngredient)updates.ingredient_id=item.matchedIngredient.id;
         await sb.from('household_products').update(updates).eq('id',item.existingProduct.id);
-        const historyRow={product_id:item.existingProduct.id,price_mxn:priceForHistory,plan_id:currentPlan?.id||null,added_by:userProfile?.id||null,recorded_at:new Date().toISOString()};
-        if(isWeightItem){historyRow.quantity_kg=item.quantity_kg||null;historyRow.price_per_kg=item.price_per_kg;}
-        await sb.from('price_history').insert(historyRow);
+        await sb.from('price_history').insert({product_id:item.existingProduct.id,price_mxn:item.price_mxn,plan_id:currentPlan?.id||null,added_by:userProfile?.id||null,recorded_at:new Date().toISOString()});
         updated++;
       }else{
         // Build notes: include weight/qty and unit price if available
@@ -6882,6 +6916,19 @@ function renderPermissionsView(){
           <input id="household-size-input" type="number" min="1" max="20" value="${householdSizeCache||3}" style="width:60px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;font-size:0.95rem;text-align:center">
           <button class="btn-secondary" style="font-size:0.78rem;padding:5px 12px" onclick="saveHouseholdSizeFromUI()">Save</button>
           <span id="household-size-saved" style="font-size:0.75rem;color:var(--clay);display:none">✓ Saved</span>
+        </div>
+      </div>
+    </div>
+    <div class="perm-user-block" style="margin-bottom:24px">
+      <div class="perm-user-header"><div><span class="perm-user-name">Sienna's Meals</span></div></div>
+      <div class="perm-row">
+        <div><div class="perm-label">Sienna's personal meals</div><div class="perm-sublabel">Turn off to pause Sienna's personal meal suggestions. Her data is kept — just hidden until you turn it back on.</div></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:0.7rem;font-weight:600;letter-spacing:0.05em;color:${siennaMealsPausedCache?'var(--mid)':'var(--clay)'}" id="perm-lbl-sienna-meals-paused">${siennaMealsPausedCache?'OFF':'ON'}</span>
+          <label class="toggle-wrap" title="Sienna's personal meals">
+            <input type="checkbox" ${siennaMealsPausedCache?'':'checked'} onchange="saveSiennaMealsPausedFromUI(!this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
         </div>
       </div>
     </div>
