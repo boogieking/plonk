@@ -937,10 +937,12 @@ function ensureWhosHomeSelection(){
 function renderWhosHome(){
   const sel=ensureWhosHomeSelection();
   const count=WHOS_HOME_PEOPLE.filter(p=>sel[p]).length;
+  const label=count===0?"Choose who's home to set servings":`${count} serving${count!==1?'s':''} per meal`;
   return`<div class="card" style="margin-bottom:20px">
-    <div class="card-header"><div class="card-title">Who's home this week?</div><span class="tag tag-gray">${count} serving${count!==1?'s':''} default</span></div>
+    <div class="card-header"><div class="card-title">Who's home this week?</div></div>
     <div class="day-selector">${WHOS_HOME_PEOPLE.map(p=>`<button class="day-btn${sel[p]?' selected':''}" onclick="toggleWhosHome('${p}')">${p}</button>`).join('')}</div>
-    <div style="font-size:0.78rem;color:var(--mid);margin-top:10px">Sets the default headcount when scheduling meals this week.</div>
+    <div style="font-size:1.2rem;font-weight:700;color:var(--dark);margin-top:14px">${label}</div>
+    <div style="font-size:0.78rem;color:var(--mid);margin-top:4px">Sets the default headcount when scheduling meals this week.</div>
   </div>`;
 }
 async function toggleWhosHome(person){
@@ -1389,7 +1391,7 @@ async function doCreateNewPlan(homeMeals,carryOverIds,carryOverDinners=[],isTest
   const allRecipes=await loadRecipes();const picked=await selectMealsForWeek(allRecipes,homeMeals);
   try{
     await sb.from('weekly_plans').update({status:'archived'}).not('status','eq','archived').eq('created_by',userProfile.id);
-    const{data:newPlan,error:planError}=await sb.from('weekly_plans').insert({week_start:getTodayDate(),eating_out_days:selectedEatingOutDays,status:'suggested',reshuffle_used:false,is_test:isTest}).select().single();if(planError)throw planError;
+    const{data:newPlan,error:planError}=await sb.from('weekly_plans').insert({week_start:getTodayDate(),eating_out_days:selectedEatingOutDays,status:'suggested',reshuffle_used:false,is_test:isTest,default_serves:0}).select().single();if(planError)throw planError;
     currentPlan=newPlan;
     // Insert newly suggested meals
     if(picked.length>0){const{error:mealsError}=await sb.from('weekly_plan_meals').insert(picked.map(r=>({plan_id:currentPlan.id,recipe_id:r.id,cooked:false,is_dinner:false})));if(mealsError)throw mealsError;}
@@ -2350,7 +2352,7 @@ async function buildPreShopEstimate(mealItems){
 // plan's "who's home" default, else household size) relative to household size.
 function buildRecipeScaleMap(planMeals,householdSize){
   const map={};
-  for(const m of (planMeals||[])){const effectiveGuests=m.guest_count??currentPlan?.default_serves??householdSize;map[m.recipe_id]=effectiveGuests/(householdSize||3);}
+  for(const m of (planMeals||[])){const effectiveGuests=m.guest_count??(currentPlan?.default_serves||householdSize);map[m.recipe_id]=effectiveGuests/(householdSize||3);}
   return map;
 }
 function scaleIngredientsByRecipe(ingredients,ingToRecipes,scaleMap){
